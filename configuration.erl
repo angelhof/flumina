@@ -1,6 +1,6 @@
 -module(configuration).
 
--export([create/2]).
+-export([create/3]).
 
 %%
 %% This function creates the configuration
@@ -8,10 +8,10 @@
 %% - It spawns and creates the nodes
 %% - It initializes the router
 %%
-create(Tree, OutputPid) ->
+create(Tree, Dependencies, OutputPid) ->
 
     %% Spawns the nodes
-    PidsTree = spawn_nodes(Tree, OutputPid),
+    PidsTree = spawn_nodes(Tree, Dependencies, OutputPid),
 
     %% Create the configuration tree and initialize the router
     RouterTree = prepare_router_tree(PidsTree, Tree),
@@ -20,10 +20,10 @@ create(Tree, OutputPid) ->
     PidsTree.
 
 %% Spawns the nodes based on the tree configuration
-spawn_nodes({State, Pred, Funs, Children}, OutputPid) ->
-    ChildrenPidTrees = [spawn_nodes(C, OutputPid) || C <- Children],
+spawn_nodes({State, Pred, Funs, Children}, Dependencies, OutputPid) ->
+    ChildrenPidTrees = [spawn_nodes(C, Dependencies, OutputPid) || C <- Children],
     ChildrenPids = [P || {P, _} <- ChildrenPidTrees],
-    MyPid = node:node(State, Pred, ChildrenPids, Funs, OutputPid),
+    MyPid = node:node(State, Pred, ChildrenPids, Funs, Dependencies, OutputPid),
     {MyPid, ChildrenPidTrees}.
 
     

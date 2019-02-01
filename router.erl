@@ -2,7 +2,8 @@
 
 -export([init/1, 
 	 loop/1,
-	 msg/2
+	 or_route/2,
+	 and_route/2
 	]).
 
 %% This is the router process that
@@ -15,13 +16,19 @@
 
 
 %% Interface
-msg(Router, Msg) ->
-    Router ! {self(), {msg, Msg}},
+or_route(Router, Msg) ->
+    Router ! {self(), {or_route, Msg}},
     receive
 	{ok, Pid} ->
 	    Pid
     end.
 
+and_route(Router, Msg) ->
+    Router ! {self(), {and_route, Msg}},
+    receive
+	{ok, Pids} ->
+	    Pids
+    end.
 
 init(Tree) -> 
     Router = spawn_link(?MODULE, loop, [Tree]),
@@ -32,9 +39,13 @@ init(Tree) ->
 
 loop(Tree) ->
     receive
-	{ReplyTo, {msg, Msg}} ->
-	    Pid = find_responsible(Tree, Msg),
+	{ReplyTo, {or_route, Msg}} ->
+	    Pid = find_one_responsible(Tree, Msg),
 	    ReplyTo ! {ok, Pid},
+	    loop(Tree);
+	{ReplyTo, {and_route, Msg}} ->
+	    Pids = find_responsibles(Tree, Msg),
+	    ReplyTo ! {ok, Pids},
 	    loop(Tree);
 	{ReplyTo, {orsplit, Placeholder}} ->
 	    %% TODO: To implement
@@ -51,7 +62,7 @@ loop(Tree) ->
 %% This is a very bad find_responsible implementation
 %% because it locally finds all responsible nodes
 %% Also it only finds the or-split responsible nodes
-find_responsible(Tree, Msg) ->
+find_one_responsible(Tree, Msg) ->
     Responsibles = find_responsibles(Tree, Msg),
     %% Extremely Inefficient
     Index = rand:uniform(length(Responsibles)),
@@ -69,3 +80,5 @@ find_responsibles({node, Pid, Pred, Children}, Msg) ->
 	    Responsibles
     end.
 		    
+all_pids({node, Pid, _, Children}) ->
+    [Pid|lists:flatmap(fun all_pids/1, Children)].
