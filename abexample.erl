@@ -1,7 +1,6 @@
 -module(abexample).
 
--export([main/0, node/2]).
-
+-export([main/0]).
 
 main() ->
     distributed().
@@ -21,7 +20,7 @@ distributed() ->
     {HeadPid, _} = PidTree,
     Producer = producer:main(Input, HeadPid),
 
-    io:format("Prod: ~p~n, Tree: ~p~n", [Producer, PidTree]),
+    io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
     output().
 
 %% The specification of the computation
@@ -46,7 +45,12 @@ isA(_) -> false.
 isB({b, _}) -> true;
 isB(_) -> false.    
 
-
+output() ->
+    receive
+	Msg ->
+	    io:format("~p~n", [Msg]),
+	    output()
+    end.
 
 
 %% Some input examples
