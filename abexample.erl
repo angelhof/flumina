@@ -15,23 +15,26 @@ sequential() ->
     Producer = producer:main(Input, Processor),
     output().
 
-distributed() ->
-    %% Create the nodes
-    ProcA1 = node:node(0, fun isA/1, [], {fun update/3, fun split/1, fun merge/2}, self()),
-    ProcA2 = node:node(0, fun isA/1, [], {fun update/3, fun split/1, fun merge/2}, self()),
-    ProcB = node:node(0, fun isB/1, [ProcA1, ProcA2], {fun update/3, fun split/1, fun merge/2}, self()),
-    %% Create the configuration tree and initialize the router
-    LeafA1 = {node, ProcA1, fun isA/1, []},
-    LeafA2 = {node, ProcA2, fun isA/1, []},
-    Tree = {node, ProcB, fun isB/1, [LeafA1, LeafA2]},
-    router:init(Tree),
 
+%% This is what our compiler would come up with
+distributed() ->
+
+    %% Configuration Tree
+    Funs = {fun update/3, fun split/1, fun merge/2},
+    NodeA1 = {0, fun isA/1, Funs, []},
+    NodeA2 = {0, fun isA/1, Funs, []},
+    NodeB  = {0, fun isB/1, Funs, [NodeA1, NodeA2]},
+    PidTree = configuration:create(NodeB, self()),
+
+    %% Set up where will the input arrive
     Input = input_example2(),
-    Producer = producer:main(Input, ProcB),
-    io:format("Prod: ~p, B: ~p, A1: ~p, A2: ~p~n", [Producer, ProcB, ProcA1, ProcA2]),
+    {HeadPid, _} = PidTree,
+    Producer = producer:main(Input, HeadPid),
+
+    io:format("Prod: ~p~n, Tree: ~p~n", [Producer, PidTree]),
     output().
 
-%% The computation
+%% The specification of the computation
 update({a, Value, Ts}, Sum, SendTo) ->
     SendTo ! {self(), a, Value, Ts},
     Sum + Value;

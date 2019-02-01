@@ -7,11 +7,13 @@
 	       spl = undefined,
 	       mrg = undefined}).
 
+%% Initializes and spawns a node
 node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
     Pid = spawn_link(?MODULE, loop, [State, Pred, Children, Funs, Output]),
     Pid.
 
+%% This is the main loop that each node executes.
 loop(State, Pred, Children, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output) ->
     receive
 	{msg, Msg} ->
