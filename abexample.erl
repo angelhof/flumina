@@ -2,19 +2,9 @@
 
 -export([main/0, node/2]).
 
-%% This is the dataflow graph of this simple program.
-%% It has to be created from the end so that Pids
-%% can be given to the nodes
 
 main() ->
     distributed().
-
-sequential() ->
-    Input = input_example(),
-    Processor = spawn_link(?MODULE, node, [0, self()]),
-    Producer = producer:main(Input, Processor),
-    output().
-
 
 %% This is what our compiler would come up with
 distributed() ->
@@ -56,22 +46,10 @@ isA(_) -> false.
 isB({b, _}) -> true;
 isB(_) -> false.    
 
-output() ->
-    receive
-	Msg ->
-	    io:format("~p~n", [Msg]),
-	    output()
-    end.
-
-node(Sum, SendTo) ->
-    receive
-	{msg, Msg} ->
-	    Sum1 = update(Msg, Sum, SendTo),
-	    node(Sum1, SendTo)
-    end.	    
 
 
 
+%% Some input examples
 input_example() ->
     [{a, V, V} || V <- lists:seq(1, 1000)] ++ [{b, 1001}]
 	++ [{a, V, V} || V <- lists:seq(1002, 2000)] ++ [{b, 2001}].
@@ -93,12 +71,3 @@ input_example2() ->
      {a, 9, 14},
      {a, 3, 15},
      {b, 16}].
-
-%% main(File, SendTo) ->
-%%     {ok, Contents} = file:read_file(File),
-%%     Lines = string:split(Contents, "\n"),
-%%     Messages = [parse_line(Line) || Line <- Lines],
-%%     loop(Messages, SendTo).
-
-%% parse_line(Line) ->
-%%     ok.
