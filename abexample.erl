@@ -6,6 +6,12 @@
 main() ->
     distributed().
 
+%% Note:
+%% =====
+%% At the moment we assume that everything written in this module
+%% is correct. Normally we would typecheck the specification of
+%% the computation but for now we can assume that it is correct.
+
 %% This is what our compiler would come up with
 distributed() ->
 
@@ -13,7 +19,7 @@ distributed() ->
     Funs = {fun update/3, fun split/1, fun merge/2},
     NodeA1 = {0, fun isA/1, Funs, []},
     NodeA2 = {0, fun isA/1, Funs, []},
-    NodeB  = {0, fun isB/1, Funs, [NodeA1, NodeA2]},
+    NodeB  = {0, fun true_pred/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), self()),
 
     %% Set up where will the input arrive
@@ -26,7 +32,7 @@ distributed() ->
 
 %% The specification of the computation
 update({a, Ts, Value}, Sum, SendTo) ->
-    %% This is here to see 
+    %% This is here for debugging purposes
     SendTo ! {self(), a, Value, Ts},
     Sum + Value;
 update({b, Ts, empty}, Sum, SendTo) ->
@@ -51,6 +57,8 @@ isA(_) -> false.
 isB({b, _, _}) -> true;
 isB(_) -> false.    
 
+true_pred(_) -> true.
+
 %% Source and Sink
 
 source([], _SendTo) ->
@@ -60,7 +68,7 @@ source([Msg|Rest], SendTo) ->
 	{heartbeat, _} ->
 	    SendTo ! Msg;
 	_ ->
-	    SendTo ! {msg, Msg}
+	    SendTo ! {imsg, Msg}
     end,
     source(Rest, SendTo).
 

@@ -23,18 +23,35 @@ node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Outpu
 
 
 %% This is the mailbox process that routes to 
-%% their correct nodes and to make sure that
+%% their correct nodes and makes sure that
 %% dependent messages arrive in order
 mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
     receive
+	%% Explanation:
+	%% The messages that first enter the system contain an 
+	%% imsg tag. Then they are sent to a node that can 
+	%% handle them, and they get a msg tag.
+	{imsg, Msg} ->
+	    %% Explanation:
+	    %% Whenever a message arrives to the mailbox of a process
+	    %% this process has to decide whether it will process it or
+	    %% not. This depends on:
+	    %% - If the process can process it. If it doesn't satisfy its
+	    %%   predicate then, it cannot really process it.
+	    %% - If it has children processes in the tree, it should route
+	    %%   the message to a lower node, as only leaf processes process
+	    %%   and a message must be handled by (one of) the lowest process 
+	    %%   in the tree that can handle it.
+	    SendTo = router:or_route(router, Msg),
+	    SendTo ! {msg, Msg},
+	    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
 	{msg, Msg} ->
 	    case Pred(Msg) of
 		false ->
-		    %% If this message is not for us then
-		    %% route it to its correct node
-		    SendTo = router:or_route(router, Msg),
-		    SendTo ! {msg, Msg},
-		    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
+		    %% This should be unreachable because all the messages 
+		    %% are routed to a node that can indeed handle them
+		    util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
+		    erlang:halt(1);
 		true ->
 		    %% TODO: Buffer with dependencies
 		    %% Normally here we would add the message in
@@ -43,8 +60,6 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 		    %% all the messages that we know that are ok
 		    %% arrives.
 		    NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee), 
-		    %% Attachee ! {msg, Msg},
-		    io:format("~p -- NewMessagebuffer: ~p~n", [self(), NewMessageBuffer]),
 		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
 	    end;
 	{merge, Father, TagTs} ->
@@ -72,7 +87,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 	    broadcast_heartbeat(TagTs),
 	    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
 	{bheartbeat, TagTs} ->
-	    io:format("~p -- TagTs: ~p~n", [self(), TagTs]),
+	    %% io:format("~p -- TagTs: ~p~n", [self(), TagTs]),
 	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
 	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
     end.
@@ -116,15 +131,15 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
 		  TagDeps = maps:get(Tag, Dependencies),
 		  lists:all(fun(TD) -> Ts =< maps:get(TD, NewTimers) end, TagDeps)
 	  end, Buffer),
-    io:format("~p -- Timers: ~p~n", [self(), NewTimers]),
-    io:format("~p -- Hearbeat: ~p -- Partition: ~p~n", [self(), {HTag, HTs}, {ToRelease, NewBuffer}]),
+    %% io:format("~p -- Timers: ~p~n", [self(), NewTimers]),
+    %% io:format("~p -- Hearbeat: ~p -- Partition: ~p~n", [self(), {HTag, HTs}, {ToRelease, NewBuffer}]),
     [Attachee ! {msg, Msg} || Msg <- ToRelease],
     {NewBuffer, NewTimers}.
     
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
 broadcast_heartbeat({Tag, Ts}) ->
-    AllPids = router:and_route(router, {Tag, Ts, heartbeat}),
+    AllPids = router:heartbeat_route(router, {Tag, Ts, heartbeat}),
     [P ! {bheartbeat, {Tag, Ts}} || P <- AllPids].
 
 %%
