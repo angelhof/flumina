@@ -65,8 +65,8 @@ source([], _SendTo) ->
     ok;
 source([Msg|Rest], SendTo) ->
     case Msg of
-	{heartbeat, _} ->
-	    SendTo ! Msg;
+	{heartbeat, Hearbeat} ->
+	    SendTo ! {iheartbeat, Hearbeat};
 	_ ->
 	    SendTo ! {imsg, Msg}
     end,

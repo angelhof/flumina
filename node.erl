@@ -8,7 +8,7 @@
 	       spl = undefined,
 	       mrg = undefined}).
 
-%% Initializes and spawns a node
+%% Initializes and spawns a node and its mailbox
 node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
     NodePid = spawn_link(?MODULE, loop, [State, Children, Funs, Output]),
@@ -16,6 +16,8 @@ node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Outpu
     MailboxPid = spawn_link(?MODULE, mailbox, [{[], Timers}, Dependencies, Pred, NodePid]),
     %% We return the mailbox pid because every message should first arrive to the mailbox
     MailboxPid.
+
+
 
 %%
 %% Mailbox
@@ -53,41 +55,33 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 		    util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
 		    erlang:halt(1);
 		true ->
-		    %% TODO: Buffer with dependencies
-		    %% Normally here we would add the message in
-		    %% the buffer (to make sure that it has arrived after
-		    %% all its dependent messages). Then it would release
-		    %% all the messages that we know that are ok
-		    %% arrives.
+		    %% Whenever a new message arrives, we add it to the buffer
 		    NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee), 
 		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
 	    end;
 	{merge, Father, TagTs} ->
-	    %% First clear the message buffer
+	    %% Whenever a merge request arrives, we first clear the message buffer
+	    %% so that messages before the merge request are processed
 	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
-	    %% Then forward the merge
+	    %% Then we forward the merge to the node
 	    Attachee ! {merge, Father, TagTs},
 	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee);
 	{state, State} ->
+	    %% This is the reply of a child node with its state 
 	    Attachee ! {state, State},
 	    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
-	%% WARNING: There is a problem with the current heartbeat implementation
-	%% All messages are released at the same time when a heartbeat arrives
-	%% and so for example when {heartbeat, {b, 7}} arrives, all a's
-	%% are processed despite not having still processed {b,2}
-	%% TODO: Somehow fix this problem
-	%% WARNING: A heartbeat here should only be handled by a node that owns it.
-	%%          Not exactly though. The a heartbeats should be handled by both 
-	%%          the b and the a node because if only the a node gets it, then 
-        %%          the b node will never release. So in essence, the parent nodes 
-        %%          in the trees need to learn about their childrens' heartbeats
-	%%          so that they can ask them, whereas the children (which compute)
-	%%          shouldn't learn about the heartbeats of their parents
-	{heartbeat, TagTs} ->
+	{iheartbeat, TagTs} ->
+	    %% WARNING: I am not sure about that
+	    %% Whenever a heartbeat first arrives into the system we have to send it to all nodes
+	    %% that this heartbeat satisfies their predicate. Is this correct? Or should we just 
+	    %% send it to all the lowest nodes that handle it? In this case how do parent nodes
+	    %% in the tree learn about this heartbeat? On the other hand is it bad if they learn
+	    %% about a heartbeat before the messages of that type are really processed by their
+	    %% children nodes?
 	    broadcast_heartbeat(TagTs),
 	    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
-	{bheartbeat, TagTs} ->
-	    %% io:format("~p -- TagTs: ~p~n", [self(), TagTs]),
+	{heartbeat, TagTs} ->
+	    %% A heartbeat clears the buffer and updates the timers
 	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
 	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
     end.
@@ -123,7 +117,7 @@ add_to_buffer(Msg, {[BMsg|Buf], Timers}, Dependencies, NewBuf) ->
 %% WARNING: At the moment the implementation is very naive
 clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     %% We assume that heartbeats arrive in the correct order
-    %% TODO: Assing the maximum of the heartbeats
+    %% TODO: The new timer should be the maximum of the current timer and the heartbeat
     NewTimers = maps:put(HTag, HTs, Timers),
     {ToRelease, NewBuffer} = 
 	lists:partition(
@@ -140,7 +134,9 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
 broadcast_heartbeat({Tag, Ts}) ->
     AllPids = router:heartbeat_route(router, {Tag, Ts, heartbeat}),
-    [P ! {bheartbeat, {Tag, Ts}} || P <- AllPids].
+    [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
+
+%% =================================================================== %%
 
 %%
 %% Main Processing Node
