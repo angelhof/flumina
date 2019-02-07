@@ -1,8 +1,10 @@
 -module(node).
 
 -export([node/6,
-	 loop/4,
-	 mailbox/4]).
+	 init_mailbox/4,
+	 mailbox/5,
+	 init_node/4,
+	 loop/5]).
 
 -record(funs, {upd = undefined,
 	       spl = undefined,
@@ -11,11 +13,11 @@
 %% Initializes and spawns a node and its mailbox
 node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
-    NodePid = spawn_link(?MODULE, loop, [State, Children, Funs, Output]),
+    NodePid = spawn_link(?MODULE, init_node, [State, Children, Funs, Output]),
     Timers = maps:map(fun(_,_) -> 0 end, Dependencies),
-    MailboxPid = spawn_link(?MODULE, mailbox, [{[], Timers}, Dependencies, Pred, NodePid]),
+    MailboxPid = spawn_link(?MODULE, init_mailbox, [{[], Timers}, Dependencies, Pred, NodePid]),
     %% We return the mailbox pid because every message should first arrive to the mailbox
-    MailboxPid.
+    {NodePid, MailboxPid}.
 
 
 
@@ -23,11 +25,21 @@ node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Outpu
 %% Mailbox
 %%
 
+init_mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
+    %% Before executing the main loop receive the
+    %% Configuration tree, which can only be received
+    %% after all the nodes have already been spawned
+    receive
+	{configuration, ConfTree} ->
+	    Attachee ! {configuration, ConfTree},
+	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree)
+    end.
+
 
 %% This is the mailbox process that routes to 
 %% their correct nodes and makes sure that
 %% dependent messages arrive in order
-mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
+mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
     receive
 	%% Explanation:
 	%% The messages that first enter the system contain an 
@@ -46,7 +58,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 	    %%   in the tree that can handle it.
 	    SendTo = router:or_route(router, Msg),
 	    SendTo ! {msg, Msg},
-	    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
+	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{msg, Msg} ->
 	    case Pred(Msg) of
 		false ->
@@ -59,7 +71,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 		    NewMessageBuffer = add_to_buffer(Msg, MessageBuffer, Dependencies),
 		    %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
 		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]), 
-		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
+		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
 	    end;
 	{merge, Father, TagTs} ->
 	    %% Whenever a merge request arrives, we first clear the message buffer
@@ -67,11 +79,11 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
 	    %% Then we forward the merge to the node
 	    Attachee ! {merge, Father, TagTs},
-	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee);
+	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{state, State} ->
 	    %% This is the reply of a child node with its state 
 	    Attachee ! {state, State},
-	    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
+	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{iheartbeat, TagTs} ->
 	    %% WARNING: I am not sure about that
 	    %% Whenever a heartbeat first arrives into the system we have to send it to all nodes
@@ -81,12 +93,12 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 	    %% about a heartbeat before the messages of that type are really processed by their
 	    %% children nodes?
 	    broadcast_heartbeat(TagTs),
-	    mailbox(MessageBuffer, Dependencies, Pred, Attachee);
+	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{heartbeat, TagTs} ->
 	    %% A heartbeat clears the buffer and updates the timers
 	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
 	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewMessageBuffer]),
-	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
+	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
     end.
 
 %% WARNING: Even if all the dependent timers of a message m1 are higher than it
@@ -162,33 +174,44 @@ broadcast_heartbeat({Tag, Ts}) ->
 %% Main Processing Node
 %%
 
+init_node(State, Children, Funs, Output) ->
+    %% Before executing the main loop receive the
+    %% Configuration tree, which can only be received
+    %% after all the nodes have already been spawned
+    receive
+	{configuration, ConfTree} ->
+	    loop(State, Children, Funs, Output, ConfTree)
+    end.
+	
 
 %% This is the main loop that each node executes.
-loop(State, Children, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output) ->
+loop(State, Children, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
     receive
 	{msg, Msg} ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
 	    case Children of
 		[] ->
 		    NewState = UFun(Msg, State, Output),
-		    loop(NewState, Children, Funs, Output);
+		    loop(NewState, Children, Funs, Output, ConfTree);
 		_ ->
 		    %% TODO: There are things missing
 		    {Tag, Ts, Payload} = Msg,
 		    [State1, State2] = [sync_merge(C, {Tag, Ts}) || C <- Children],
 		    MergedState = MFun(State1, State2),
 		    NewState = UFun(Msg, MergedState, Output),
-		    {NewState1, NewState2} = SFun(NewState),
+		    [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
+		    {NewState1, NewState2} = SFun({Pred1, Pred2}, NewState),
 		    [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
-		    loop(NewState, Children, Funs, Output)
+		    loop(NewState, Children, Funs, Output, ConfTree)
 	    end;
 	{merge, Father, {Tag, Ts}} ->
 	    Father ! {state, State},
 	    receive
 		{state, NewState} ->
-		    loop(NewState, Children, Funs, Output)
+		    loop(NewState, Children, Funs, Output, ConfTree)
 	    end		    
     end.
+
 
 sync_merge(C, TagTs) ->
     C ! {merge, self(), TagTs},

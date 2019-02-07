@@ -16,35 +16,70 @@ main() ->
 distributed() ->
 
     %% Configuration Tree
-    Funs = {fun update/3, fun split/1, fun merge/2},
-    Node  = {0, fun true_pred/1, Funs, []},
+    Funs = {fun update/3, fun split/2, fun merge/2},
+    Ids = maps:from_list([{id1, 0}, {id2, 0}]),
+    Node  = {Ids, fun true_pred/1, Funs, []},
     PidTree = configuration:create(Node, dependencies(), self()),
-    {HeadPid, _} = PidTree,
+    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
 
     %% Set up where will the input arrive
     Input1 = id1_input_with_heartbeats(),
-    Producer1 = spawn_link(?MODULE, source, [Input1, HeadPid]),
+    Producer1 = spawn_link(?MODULE, source, [Input1, HeadMailboxPid]),
 
     Input2 = id2_input_with_heartbeats(),
-    Producer2 = spawn_link(?MODULE, source, [Input2, HeadPid]),
+    Producer2 = spawn_link(?MODULE, source, [Input2, HeadMailboxPid]),
 
     Input3 = hour_markets_input(),
-    Producer3 = spawn_link(?MODULE, source, [Input3, HeadPid]),
+    Producer3 = spawn_link(?MODULE, source, [Input3, HeadMailboxPid]),
 
     %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
     sink().
 
+%%
 %% The specification of the computation
-update({Tag, Ts, Value}, Sum, SendTo) ->
+%%
+
+%% This is the update that the parallel nodes will run
+%% It is the same as the other ones, but the parallel
+%% nodes are supposed to have maps for less ids
+update_id({Tag, Ts, Value}, TipSums, SendTo) ->
     %% This is here for debugging purposes
     SendTo ! {"Time", Ts, Tag, Value},
-    Sum.
+    Tip = maps:get(Tag, TipSums),
+    maps:update(Tag, Tip + Value, TipSums).
 
-merge(Sum1, Sum2) ->
-    Sum1 + Sum2.
+%% This is the sequential update of the total 
+update({hour, Ts, marker}, TipSums, SendTo) ->
+    AllSums = maps:to_list(TipSums),
+    SendTo ! {"Tips per rider", AllSums},
+    maps:map(fun(_,_) -> 0 end, TipSums);
+update(Msg, TipSums, SendTo) ->
+    update_id(Msg, TipSums, SendTo).
 
-split(Sum) ->
-    {Sum, 0}.
+
+merge(TipsMap1, TipsMap2) ->
+    merge_with(
+      fun(_K, V1, V2) ->
+	      V1 + V2
+      end, TipsMap1, TipsMap2).
+
+%% This function accepts a merging function that takes a 
+%% key and the two associated values and then merges them.
+%% It merges two maps, and in case they both have a key, 
+%% it merges the two values based on the merge function.
+merge_with(Fun, Map1, Map2) ->
+    maps:fold(
+      fun(K2, V2, Map) ->
+	      maps:update_with(
+		K2,
+		fun(V1) ->
+			Fun(K2, V1, V2)
+		end, V2, Map)
+      end, Map1, Map2).
+
+split({Pred1, Pred2}, TipSums) ->
+    {maps:filter(fun(K,_) -> Pred1(K) end, TipSums),
+     maps:filter(fun(K,_) -> Pred2(K) end, TipSums)}.
 
 dependencies() ->
     #{id1 => [hour],

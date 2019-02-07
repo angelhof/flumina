@@ -57,16 +57,7 @@ loop(Tree) ->
 	{ReplyTo, {heartbeat_route, Msg}} ->
 	    Pids = find_responsibles(Tree, Msg),
 	    ReplyTo ! {ok, Pids},
-	    loop(Tree);
-	{ReplyTo, {orsplit, Placeholder}} ->
-	    %% TODO: To implement
-	    ReplyTo ! ok;
-	{ReplyTo, {merge, Placeholder}} ->
-	    %% TODO: To implement
-	    ReplyTo ! ok;
-	{ReplyTo, {andsplit, Placeholder}} ->
-	    %% TODO: To implement LATER
-	    ReplyTo ! ok
+	    loop(Tree)
     end.
 
 
@@ -81,25 +72,25 @@ find_one_responsible(Tree, Msg) ->
 
 %% This is used to find the first lower responsibles for this message,
 %% so the lowest nodes that can process it.
-find_lowest_responsibles({node, Pid, Pred, Children}, Msg) ->
+find_lowest_responsibles({node, _NodePid, MailboxPid, Pred, Children}, Msg) ->
     case lists:flatmap(fun(C) -> find_lowest_responsibles(C, Msg) end, Children) of
 	[] ->
 	    %% None of my children are responsible so I could be
 	    case Pred(Msg) of
-		true -> [Pid];
+		true -> [MailboxPid];
 		false -> []
 	    end;
 	Responsibles ->
 	    Responsibles
     end.
 
-find_responsibles({node, Pid, Pred, Children}, Msg) ->
+find_responsibles({node, _NodePid, MailboxPid, Pred, Children}, Msg) ->
     ChildrenResponsibles = lists:flatmap(fun(C) -> find_responsibles(C, Msg) end, Children),
     case Pred(Msg) of
-	true -> [Pid|ChildrenResponsibles];
+	true -> [MailboxPid|ChildrenResponsibles];
 	false -> ChildrenResponsibles
     end.
 
 		    
-all_pids({node, Pid, _, Children}) ->
-    [Pid|lists:flatmap(fun all_pids/1, Children)].
+all_pids({node, _NodePid, MailboxPid, _, Children}) ->
+    [MailboxPid|lists:flatmap(fun all_pids/1, Children)].

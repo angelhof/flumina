@@ -16,7 +16,7 @@ main() ->
 distributed() ->
 
     %% Configuration Tree
-    Funs = {fun update/3, fun split/1, fun merge/2},
+    Funs = {fun update/3, fun split/2, fun merge/2},
     NodeA1 = {0, fun isA/1, Funs, []},
     NodeA2 = {0, fun isA/1, Funs, []},
     NodeB  = {0, fun true_pred/1, Funs, [NodeA1, NodeA2]},
@@ -24,8 +24,8 @@ distributed() ->
 
     %% Set up where will the input arrive
     Input = input_example2(),
-    {HeadPid, _} = PidTree,
-    Producer = spawn_link(?MODULE, source, [Input, HeadPid]),
+    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+    Producer = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
 
     io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
     sink().
@@ -42,7 +42,8 @@ update({b, Ts, empty}, Sum, SendTo) ->
 merge(Sum1, Sum2) ->
     Sum1 + Sum2.
 
-split(Sum) ->
+%% This split doesn't use the predicates 
+split(_, Sum) ->
     {Sum, 0}.
 
 dependencies() ->
