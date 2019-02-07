@@ -18,6 +18,32 @@ distributed() ->
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     Ids = maps:from_list([{id1, 0}, {id2, 0}]),
+    Node1 = {Ids, fun isId1/1, Funs, []},
+    Node2 = {Ids, fun isId2/1, Funs, []},
+    Node0  = {Ids, fun true_pred/1, Funs, [Node1, Node2]},
+    PidTree = configuration:create(Node0, dependencies(), self()),
+    {{_NP0, MP0}, 
+     [{{_NP1, MP1}, []}, 
+      {{_NP2, MP2}, []}]} = PidTree,
+
+    %% Set up where will the input arrive
+    Input1 = id1_input_with_heartbeats(),
+    Producer1 = spawn_link(?MODULE, source, [Input1, MP1]),
+
+    Input2 = id2_input_with_heartbeats(),
+    Producer2 = spawn_link(?MODULE, source, [Input2, MP2]),
+
+    Input3 = hour_markets_input(),
+    Producer3 = spawn_link(?MODULE, source, [Input3, MP0]),
+
+    %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
+    sink().
+
+sequential() ->
+
+    %% Configuration Tree
+    Funs = {fun update/3, fun split/2, fun merge/2},
+    Ids = maps:from_list([{id1, 0}, {id2, 0}]),
     Node  = {Ids, fun true_pred/1, Funs, []},
     PidTree = configuration:create(Node, dependencies(), self()),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
@@ -78,8 +104,8 @@ merge_with(Fun, Map1, Map2) ->
       end, Map1, Map2).
 
 split({Pred1, Pred2}, TipSums) ->
-    {maps:filter(fun(K,_) -> Pred1(K) end, TipSums),
-     maps:filter(fun(K,_) -> Pred2(K) end, TipSums)}.
+    {maps:filter(fun(K,_) -> Pred1({K, dummy, dummy}) end, TipSums),
+     maps:filter(fun(K,_) -> Pred2({K, dummy, dummy}) end, TipSums)}.
 
 dependencies() ->
     #{id1 => [hour],
@@ -88,11 +114,11 @@ dependencies() ->
      }.
 
 %% The predicates
-isA({a, _, _}) -> true;
-isA(_) -> false.
+isId1({id1, _, _}) -> true;
+isId1(_) -> false.
 
-isB({b, _, _}) -> true;
-isB(_) -> false.    
+isId2({id2, _, _}) -> true;
+isId2(_) -> false.    
 
 true_pred(_) -> true.
 

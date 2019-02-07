@@ -17,9 +17,10 @@ create(Tree, Dependencies, OutputPid) ->
     %% Spawns the nodes
     PidsTree = spawn_nodes(Tree, Dependencies, OutputPid),
 
-    %% Create the configuration tree and initialize the router
+    %% Create the configuration tree
     ConfTree = prepare_configuration_tree(PidsTree, Tree),
     io:format("Configuration:~n~p~n", [ConfTree]),
+
     %% Send the configuration tree to all nodes' mailboxes
     send_conf_tree(ConfTree, PidsTree),
     
@@ -42,6 +43,12 @@ prepare_configuration_tree({{NodePid, MailboxPid}, ChildrenPids}, {State, Pred, 
 send_conf_tree(ConfTree, {{_NodePid, MailboxPid}, ChildrenPids}) ->
     MailboxPid ! {configuration, ConfTree},
     [send_conf_tree(ConfTree, CP) || CP <- ChildrenPids].
+
+
+
+%%
+%% Functions to use the configuration tree
+%%
 
 %% This function finds a node in the configuration tree
 find_node(Pid, ConfTree) ->
