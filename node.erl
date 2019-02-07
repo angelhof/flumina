@@ -3,8 +3,8 @@
 -export([node/6,
 	 init_mailbox/4,
 	 mailbox/5,
-	 init_node/4,
-	 loop/5]).
+	 init_node/3,
+	 loop/4]).
 
 -record(funs, {upd = undefined,
 	       spl = undefined,
@@ -13,7 +13,7 @@
 %% Initializes and spawns a node and its mailbox
 node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
-    NodePid = spawn_link(?MODULE, init_node, [State, Children, Funs, Output]),
+    NodePid = spawn_link(?MODULE, init_node, [State, Funs, Output]),
     Timers = maps:map(fun(_,_) -> 0 end, Dependencies),
     MailboxPid = spawn_link(?MODULE, init_mailbox, [{[], Timers}, Dependencies, Pred, NodePid]),
     %% We return the mailbox pid because every message should first arrive to the mailbox
@@ -56,7 +56,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %%   the message to a lower node, as only leaf processes process
 	    %%   and a message must be handled by (one of) the lowest process 
 	    %%   in the tree that can handle it.
-	    SendTo = router:or_route(router, Msg),
+	    SendTo = router:or_route(Msg, ConfTree),
 	    SendTo ! {msg, Msg},
 	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{msg, Msg} ->
@@ -92,7 +92,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %% in the tree learn about this heartbeat? On the other hand is it bad if they learn
 	    %% about a heartbeat before the messages of that type are really processed by their
 	    %% children nodes?
-	    broadcast_heartbeat(TagTs),
+	    broadcast_heartbeat(TagTs, ConfTree),
 	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{heartbeat, TagTs} ->
 	    %% A heartbeat clears the buffer and updates the timers
@@ -164,8 +164,8 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
-broadcast_heartbeat({Tag, Ts}) ->
-    AllPids = router:heartbeat_route(router, {Tag, Ts, heartbeat}),
+broadcast_heartbeat({Tag, Ts}, ConfTree) ->
+    AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
     [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
 
 %% =================================================================== %%
@@ -174,26 +174,26 @@ broadcast_heartbeat({Tag, Ts}) ->
 %% Main Processing Node
 %%
 
-init_node(State, Children, Funs, Output) ->
+init_node(State, Funs, Output) ->
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
     %% after all the nodes have already been spawned
     receive
 	{configuration, ConfTree} ->
-	    loop(State, Children, Funs, Output, ConfTree)
+	    loop(State, Funs, Output, ConfTree)
     end.
 	
 
 %% This is the main loop that each node executes.
-loop(State, Children, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
+loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
     receive
 	{msg, Msg} ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
-	    case Children of
+	    case configuration:find_children_mbox_pids(self(), ConfTree) of
 		[] ->
 		    NewState = UFun(Msg, State, Output),
-		    loop(NewState, Children, Funs, Output, ConfTree);
-		_ ->
+		    loop(NewState, Funs, Output, ConfTree);
+		Children ->
 		    %% TODO: There are things missing
 		    {Tag, Ts, Payload} = Msg,
 		    [State1, State2] = [sync_merge(C, {Tag, Ts}) || C <- Children],
@@ -202,13 +202,13 @@ loop(State, Children, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTr
 		    [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
 		    {NewState1, NewState2} = SFun({Pred1, Pred2}, NewState),
 		    [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
-		    loop(NewState, Children, Funs, Output, ConfTree)
+		    loop(NewState, Funs, Output, ConfTree)
 	    end;
 	{merge, Father, {Tag, Ts}} ->
 	    Father ! {state, State},
 	    receive
 		{state, NewState} ->
-		    loop(NewState, Children, Funs, Output, ConfTree)
+		    loop(NewState, Funs, Output, ConfTree)
 	    end		    
     end.
 

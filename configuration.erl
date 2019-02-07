@@ -18,13 +18,11 @@ create(Tree, Dependencies, OutputPid) ->
     PidsTree = spawn_nodes(Tree, Dependencies, OutputPid),
 
     %% Create the configuration tree and initialize the router
-    RouterTree = prepare_router_tree(PidsTree, Tree),
-    io:format("Configuration:~n~p~n", [RouterTree]),
+    ConfTree = prepare_configuration_tree(PidsTree, Tree),
+    io:format("Configuration:~n~p~n", [ConfTree]),
     %% Send the configuration tree to all nodes' mailboxes
-    send_conf_tree(RouterTree, PidsTree),
+    send_conf_tree(ConfTree, PidsTree),
     
-    router:init(RouterTree),
-
     PidsTree.
 
 %% Spawns the nodes based on the tree configuration
@@ -36,8 +34,8 @@ spawn_nodes({State, Pred, Funs, Children}, Dependencies, OutputPid) ->
 
     
 %% Prepares the router tree
-prepare_router_tree({{NodePid, MailboxPid}, ChildrenPids}, {State, Pred, Funs, Children}) ->
-    ChildrenTrees = [prepare_router_tree(P, N) || {P, N} <- lists:zip(ChildrenPids, Children)],
+prepare_configuration_tree({{NodePid, MailboxPid}, ChildrenPids}, {State, Pred, Funs, Children}) ->
+    ChildrenTrees = [prepare_configuration_tree(P, N) || {P, N} <- lists:zip(ChildrenPids, Children)],
     {node, NodePid, MailboxPid, Pred, ChildrenTrees}.
 
 %% Sends the conf tree to all children in a Pid tree

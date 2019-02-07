@@ -16,12 +16,8 @@
 %% so it has to be implemented in some other way.
 
 %% Interface
-or_route(Router, Msg) ->
-    Router ! {self(), {or_route, Msg}},
-    receive
-	{ok, Pid} ->
-	    Pid
-    end.
+or_route(Msg, Tree) ->
+    find_one_responsible(Tree, Msg).
 
 and_route(Router, Msg) ->
     Router ! {self(), {and_route, Msg}},
@@ -30,12 +26,8 @@ and_route(Router, Msg) ->
 	    Pids
     end.
 
-heartbeat_route(Router, Msg) ->
-    Router ! {self(), {heartbeat_route, Msg}},
-    receive
-	{ok, Pids} ->
-	    Pids
-    end.
+heartbeat_route(Msg, Tree) ->
+    find_responsibles(Tree, Msg).
 
 init(Tree) -> 
     Router = spawn_link(?MODULE, loop, [Tree]),
