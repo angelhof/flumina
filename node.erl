@@ -12,7 +12,7 @@
 node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
     NodePid = spawn_link(?MODULE, loop, [State, Children, Funs, Output]),
-    Timers = #{a => 0, b => 0},
+    Timers = maps:map(fun(_,_) -> 0 end, Dependencies),
     MailboxPid = spawn_link(?MODULE, mailbox, [{[], Timers}, Dependencies, Pred, NodePid]),
     %% We return the mailbox pid because every message should first arrive to the mailbox
     MailboxPid.
@@ -56,7 +56,9 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 		    erlang:halt(1);
 		true ->
 		    %% Whenever a new message arrives, we add it to the buffer
-		    NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee), 
+		    NewMessageBuffer = add_to_buffer(Msg, MessageBuffer, Dependencies),
+		    %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
+		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]), 
 		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
 	    end;
 	{merge, Father, TagTs} ->
@@ -83,16 +85,27 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 	{heartbeat, TagTs} ->
 	    %% A heartbeat clears the buffer and updates the timers
 	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
+	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewMessageBuffer]),
 	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee)
     end.
 
-%% It seems that the only way for the buffer to clear messages is
-%% after getting a heartbeat/mark, that indicates that all messages
-%% of some tag up to that point have been received.
-%% Because of that, new messages are just added to the Buffer
+%% WARNING: Even if all the dependent timers of a message m1 are higher than it
+%%          this doesn't mean that the message m1 should be released, because 
+%%          it might be the case that some other messages m2 that depend to
+%%          it (and are to be sent before it) are still in the buffer waiting 
+%%          for a heartbeat m1 to be cleared. The easiest way to deal with this
+%%          is to just add all messages to the buffer and just let heartbeats clear
+%%          messages. NOTE however that this implementation decision means that
+%%          messages might stay for longer than they really needed in the buffer.
+%%          To make sure that this works correctly we must make sure that there
+%%          are "infinitely" many heartbeats sent so that everything is eventually
+%%          cleared from the mailboxes.
+%% 
+%% TODO:    Optimize the above procedure, to not let messages wait unnecessarily
+%%          in the buffer
 add_to_buffer_or_send(Msg, {MsgBuffer, Timers}, Dependencies, Attachee) ->
     {Tag, Ts, _} = Msg,
-    TagDeps = maps:get(Tag, Dependencies),
+    TagDeps = maps:get(Tag, Dependencies), 
     case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps) of
 	true ->
 	    Attachee ! {msg, Msg},
@@ -100,6 +113,13 @@ add_to_buffer_or_send(Msg, {MsgBuffer, Timers}, Dependencies, Attachee) ->
 	false ->
 	    add_to_buffer(Msg, {MsgBuffer, Timers}, Dependencies, [])
     end.
+%% It seems that the only way for the buffer to clear messages is
+%% after getting a heartbeat/mark, that indicates that all messages
+%% of some tag up to that point have been received.
+%% Because of that, new messages are just added to the Buffer
+add_to_buffer(Msg, BufferTimers, Dependencies) ->
+    add_to_buffer(Msg, BufferTimers, Dependencies, []).
+
 add_to_buffer(Msg, {[], Timers}, Dependencies, NewBuffer) ->
     {lists:reverse([Msg|NewBuffer]), Timers};
 add_to_buffer(Msg, {[BMsg|Buf], Timers}, Dependencies, NewBuf) ->

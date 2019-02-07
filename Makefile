@@ -30,3 +30,6 @@ open_erl:
 
 abexample:
 	$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample main $(args) $(HALT)
+
+taxiexample:
+	$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample main $(args) $(HALT)
