@@ -18,6 +18,8 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 .PHONY: all
 
 dialyzer: compile_all
+	@echo ""
+	@echo " --- --- --- --- DIALYZER --- --- --- --- "
 	dialyzer --src -r .
 
 compile_all: $(BEAM_FILES) $(NIF_FILES)

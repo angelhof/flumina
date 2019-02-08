@@ -8,7 +8,7 @@
 -include("type_definitions.hrl").
 
 main() ->
-    distributed().
+    distributed_1().
 
 %% Note:
 %% =====
@@ -179,13 +179,13 @@ merge_1({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
 
 
 dependencies_1() ->
-    #{id1 => [window],
-      id2 => [window],
-      window => [id1, id2, window]
+    #{{id,1} => [window],
+      {id,2} => [window],
+      window => [{id,1}, {id,2}, window]
      }.
 
 init_state_1() ->
-    {maps:from_list([{id1, 0}, {id2, 0}]), #{}}.
+    {maps:from_list([{{id,1}, 0}, {{id,2}, 0}]), #{}}.
 
 
 %% This computation outputs the sum of tips for each driver every hour.
@@ -220,19 +220,19 @@ split({Pred1, Pred2}, TipSums) ->
      maps:filter(fun(K,_) -> Pred2({K, dummy, dummy}) end, TipSums)}.
 
 dependencies() ->
-    #{id1 => [hour],
-      id2 => [hour],
-      hour => [id1, id2, hour]
+    #{{id,1} => [hour],
+      {id,2} => [hour],
+      hour => [{id,1}, {id,2}, hour]
      }.
 
 init_state() ->
-    maps:from_list([{id1, 0}, {id2, 0}]).
+    maps:from_list([{{id,1}, 0}, {{id,2}, 0}]).
 
 %% The predicates
-isId1({id1, _, _}) -> true;
+isId1({{id,1}, _, _}) -> true;
 isId1(_) -> false.
 
-isId2({id2, _, _}) -> true;
+isId2({{id,2}, _, _}) -> true;
 isId2(_) -> false.    
 
 true_pred(_) -> true.
@@ -284,10 +284,10 @@ sliding_period_input() ->
     producer:interleave_heartbeats(Input, #{window => 60}, 500).
 
 id1_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id1_input(), #{id1 => 10}, 500).
+    producer:interleave_heartbeats(id1_input(), #{{id,1} => 10}, 500).
 
 id2_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id2_input(), #{id2 => 10}, 500).
+    producer:interleave_heartbeats(id2_input(), #{{id,2} => 10}, 500).
 
 id1_input() ->
     Inputs = 
@@ -304,7 +304,7 @@ id1_input() ->
 	 {210, 21},
 	 {234, 15},
 	 {250, 12}],
-    [{id1, Ts, Tip} || {Ts, Tip} <- Inputs].
+    [{{id,1}, Ts, Tip} || {Ts, Tip} <- Inputs].
 
 id2_input() ->
     Inputs = 
@@ -325,5 +325,5 @@ id2_input() ->
 	 {245, 21},
 	 {268, 15},
 	 {290, 12}],
-    [{id2, Ts, Tip} || {Ts, Tip} <- Inputs].    
+    [{{id,2}, Ts, Tip} || {Ts, Tip} <- Inputs].    
 

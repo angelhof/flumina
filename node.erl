@@ -13,7 +13,7 @@
 	       mrg = undefined :: merge_fun()}).
 
 %% Initializes and spawns a node and its mailbox
--spec node(State::any(), predicate(), spec_functions(), dependencies(), pid()) -> {pid(), pid()}.
+-spec node(State::any(), message_predicate(), spec_functions(), dependencies(), pid()) -> {pid(), pid()}.
 node(State, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
     NodePid = spawn_link(?MODULE, init_node, [State, Funs, Output]),
@@ -28,7 +28,7 @@ node(State, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
 %% Mailbox
 %%
 
--spec init_mailbox(message_buffer(), dependencies(), predicate(), pid()) -> no_return().
+-spec init_mailbox(message_buffer(), dependencies(), message_predicate(), pid()) -> no_return().
 init_mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
@@ -43,7 +43,7 @@ init_mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 %% This is the mailbox process that routes to 
 %% their correct nodes and makes sure that
 %% dependent messages arrive in order
--spec mailbox(message_buffer(), dependencies(), predicate(), pid(), configuration()) -> no_return().
+-spec mailbox(message_buffer(), dependencies(), message_predicate(), pid(), configuration()) -> no_return().
 mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
     receive
 	%% Explanation:
@@ -154,7 +154,7 @@ add_to_buffer(Msg, {[BMsg|Buf], Timers}, Dependencies, NewBuf) ->
 %% This releases all the messages in the buffer that
 %% where dependent on this tag. 
 %% WARNING: At the moment the implementation is very naive
--spec clear_buffer({atom(), integer()}, message_buffer(), dependencies(), pid()) -> message_buffer().
+-spec clear_buffer({tag(), integer()}, message_buffer(), dependencies(), pid()) -> message_buffer().
 clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     %% We assume that heartbeats arrive in the correct order
     %% TODO: The new timer should be the maximum of the current timer and the heartbeat
@@ -172,7 +172,7 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
--spec broadcast_heartbeat({atom(), integer()}, configuration()) -> [heartbeat()].
+-spec broadcast_heartbeat({tag(), integer()}, configuration()) -> [heartbeat()].
 broadcast_heartbeat({Tag, Ts}, ConfTree) ->
     AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
     [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
@@ -222,7 +222,7 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 	    end		    
     end.
 
--spec sync_merge(pid(), {atom(), integer()}) -> State::any().
+-spec sync_merge(pid(), {tag(), integer()}) -> State::any().
 sync_merge(C, TagTs) ->
     C ! {merge, self(), TagTs},
     receive 
