@@ -7,6 +7,8 @@
 	 heartbeat_route/2
 	]).
 
+-include("type_definitions.hrl").
+
 %% This is the router process that
 %% holds the configuration tree in its state
 %% and knows which node has to receive which message

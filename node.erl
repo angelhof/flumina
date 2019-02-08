@@ -1,17 +1,20 @@
 -module(node).
 
--export([node/6,
+-export([node/5,
 	 init_mailbox/4,
 	 mailbox/5,
 	 init_node/3,
 	 loop/4]).
 
--record(funs, {upd = undefined,
-	       spl = undefined,
-	       mrg = undefined}).
+-include("type_definitions.hrl").
+
+-record(funs, {upd = undefined :: update_fun(),
+	       spl = undefined :: split_fun(),
+	       mrg = undefined :: merge_fun()}).
 
 %% Initializes and spawns a node and its mailbox
-node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
+-spec node(State::any(), predicate(), spec_functions(), dependencies(), pid()) -> {pid(), pid()}.
+node(State, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
     NodePid = spawn_link(?MODULE, init_node, [State, Funs, Output]),
     Timers = maps:map(fun(_,_) -> 0 end, Dependencies),
@@ -25,6 +28,7 @@ node(State, Pred, Children, {UpdateFun, SplitFun, MergeFun}, Dependencies, Outpu
 %% Mailbox
 %%
 
+-spec init_mailbox(message_buffer(), dependencies(), predicate(), pid()) -> no_return().
 init_mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
@@ -39,6 +43,7 @@ init_mailbox(MessageBuffer, Dependencies, Pred, Attachee) ->
 %% This is the mailbox process that routes to 
 %% their correct nodes and makes sure that
 %% dependent messages arrive in order
+-spec mailbox(message_buffer(), dependencies(), predicate(), pid(), configuration()) -> no_return().
 mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
     receive
 	%% Explanation:
@@ -129,9 +134,11 @@ add_to_buffer_or_send(Msg, {MsgBuffer, Timers}, Dependencies, Attachee) ->
 %% after getting a heartbeat/mark, that indicates that all messages
 %% of some tag up to that point have been received.
 %% Because of that, new messages are just added to the Buffer
+-spec add_to_buffer(message(), message_buffer(), dependencies()) -> message_buffer().
 add_to_buffer(Msg, BufferTimers, Dependencies) ->
     add_to_buffer(Msg, BufferTimers, Dependencies, []).
 
+-spec add_to_buffer(message(), message_buffer(), dependencies(), [message()]) -> message_buffer().
 add_to_buffer(Msg, {[], Timers}, Dependencies, NewBuffer) ->
     {lists:reverse([Msg|NewBuffer]), Timers};
 add_to_buffer(Msg, {[BMsg|Buf], Timers}, Dependencies, NewBuf) ->
@@ -147,6 +154,7 @@ add_to_buffer(Msg, {[BMsg|Buf], Timers}, Dependencies, NewBuf) ->
 %% This releases all the messages in the buffer that
 %% where dependent on this tag. 
 %% WARNING: At the moment the implementation is very naive
+-spec clear_buffer({atom(), integer()}, message_buffer(), dependencies(), pid()) -> message_buffer().
 clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     %% We assume that heartbeats arrive in the correct order
     %% TODO: The new timer should be the maximum of the current timer and the heartbeat
@@ -164,6 +172,7 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
+-spec broadcast_heartbeat({atom(), integer()}, configuration()) -> [heartbeat()].
 broadcast_heartbeat({Tag, Ts}, ConfTree) ->
     AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
     [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
@@ -173,7 +182,7 @@ broadcast_heartbeat({Tag, Ts}, ConfTree) ->
 %%
 %% Main Processing Node
 %%
-
+-spec init_node(State::any(), #funs{}, pid()) -> no_return().
 init_node(State, Funs, Output) ->
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
@@ -185,6 +194,7 @@ init_node(State, Funs, Output) ->
 	
 
 %% This is the main loop that each node executes.
+-spec loop(State::any(), #funs{}, pid(), configuration()) -> no_return().
 loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
     receive
 	{msg, Msg} ->
@@ -212,7 +222,7 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 	    end		    
     end.
 
-
+-spec sync_merge(pid(), {atom(), integer()}) -> State::any().
 sync_merge(C, TagTs) ->
     C ! {merge, self(), TagTs},
     receive 

@@ -2,6 +2,8 @@
 
 -export([interleave_heartbeats/3]).
 
+-include("type_definitions.hrl").
+
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%% 

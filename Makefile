@@ -17,13 +17,14 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 
 .PHONY: all
 
-all: $(BEAM_FILES) $(NIF_FILES)
+dialyzer: compile_all
+	dialyzer --src -r .
+
+compile_all: $(BEAM_FILES) $(NIF_FILES)
 
 %.beam: %.erl
 	$(ERLC) $(ERL_COMPILE_FLAGS) -o $(EBIN_DIR) $<
 
-dialyzer:
-	dialyzer --src -r .
 
 open_erl:
 	$(ERL) -pa $(EBIN_DIRS)

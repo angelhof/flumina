@@ -1,7 +1,11 @@
 -module(taxiexample).
 
 -export([main/0,
+	 sequential/0,
+	 distributed/0,
 	 source/2]).
+
+-include("type_definitions.hrl").
 
 main() ->
     distributed().

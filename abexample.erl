@@ -3,6 +3,8 @@
 -export([main/0,
 	 source/2]).
 
+-include("type_definitions.hrl").
+
 main() ->
     distributed().
 

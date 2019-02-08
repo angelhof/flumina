@@ -6,6 +6,8 @@
 	 find_children_mbox_pids/2,
 	 find_children_preds/2]).
 
+-include("type_definitions.hrl").
+
 %%
 %% This function creates the configuration
 %% from a tree specification.
@@ -30,7 +32,7 @@ create(Tree, Dependencies, OutputPid) ->
 spawn_nodes({State, Pred, Funs, Children}, Dependencies, OutputPid) ->
     ChildrenPidTrees = [spawn_nodes(C, Dependencies, OutputPid) || C <- Children],
     ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
-    {NodePid, MailboxPid} = node:node(State, Pred, ChildrenPids, Funs, Dependencies, OutputPid),
+    {NodePid, MailboxPid} = node:node(State, Pred, Funs, Dependencies, OutputPid),
     {{NodePid, MailboxPid}, ChildrenPidTrees}.
 
     
