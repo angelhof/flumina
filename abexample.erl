@@ -1,6 +1,7 @@
 -module(abexample).
 
 -export([main/0,
+	 distributed/0,
 	 source/2]).
 
 -include("type_definitions.hrl").

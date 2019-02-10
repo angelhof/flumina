@@ -78,12 +78,12 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]), 
 		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
 	    end;
-	{merge, Father, TagTs} ->
+	{merge, {Tag, Ts, Father}} ->
 	    %% Whenever a merge request arrives, we first clear the message buffer
 	    %% so that messages before the merge request are processed
-	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
+	    NewMessageBuffer = clear_buffer({Tag, Ts}, MessageBuffer, Dependencies, Attachee),
 	    %% Then we forward the merge to the node
-	    Attachee ! {merge, Father, TagTs},
+	    Attachee ! {merge, {Tag, Ts, Father}},
 	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{state, State} ->
 	    %% This is the reply of a child node with its state 
@@ -205,15 +205,7 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 		    loop(NewState, Funs, Output, ConfTree);
 		Children ->
 		    %% TODO: There are things missing
-		    %% TODO: Refactor this by making merge requests
-		    %%       have the same format as a message
-		    {Tag, Ts} = 
-			case MessageMerge of
-			    {msg, {Tag, Ts, _Payload}} ->
-			        {Tag, Ts};
-			    {merge, Father, {Tag, Ts}} ->
-				{Tag, Ts}
-			end,
+		    {_IsMsgMerge, {Tag, Ts, _Payload}} = MessageMerge,
 		    [State1, State2] = [sync_merge(C, {Tag, Ts}) || C <- Children],
 		    MergedState = MFun(State1, State2),
 		    NewState = handle_message(MessageMerge, MergedState, Output, UFun),
@@ -227,7 +219,7 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 -spec handle_message(message() | merge_request(), State::any(), pid(), update_fun()) -> State::any().
 handle_message({msg, Msg}, State, Output, UFun) ->
     update_on_msg(Msg, State, Output, UFun);
-handle_message({merge, Father, {_Tag, _Ts}}, State, _Output, _UFun) ->
+handle_message({merge, {_Tag, _Ts, Father}}, State, _Output, _UFun) ->
     respond_to_merge(Father, State).
 
 -spec update_on_msg(message(), State::any(), pid(), update_fun()) -> State::any().
@@ -244,9 +236,9 @@ respond_to_merge(Father, State) ->
     end.
 
 -spec sync_merge(pid(), {tag(), integer()}) -> State::any().
-sync_merge(C, TagTs) ->
-    C ! {merge, self(), TagTs},
+sync_merge(C, {Tag, Ts}) ->
+    C ! {merge, {Tag, Ts, self()}},
     receive 
-	{state, State} -> 
+	{state, State} ->
 	    State
     end.

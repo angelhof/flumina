@@ -3,7 +3,7 @@
 -type message_predicate() :: fun((message()) -> boolean()).
 -type tag() :: any().
 -type message() :: {tag(), integer(), Payload::any()}.
--type merge_request() :: {'merge', Father::pid(), {tag(), integer()}}. 
+-type merge_request() :: {'merge', {tag(), integer(), Father::pid()}}. 
 -type heartbeat() :: {heartbeat, {tag(), integer()}}.
 -type update_fun() :: fun((message(), State::any(), pid()) -> State::any()).
 -type split_fun() :: fun(({message_predicate(), message_predicate()}, State::any()) 

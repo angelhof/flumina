@@ -3,6 +3,8 @@
 -export([main/0,
 	 sequential/0,
 	 distributed/0,
+	 sequential_1/0,
+	 distributed_1/0,
 	 source/2]).
 
 -include("type_definitions.hrl").
