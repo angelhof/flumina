@@ -8,7 +8,7 @@
 -include("type_definitions.hrl").
 
 main() ->
-    distributed_1().
+    distributed().
 
 %% Note:
 %% =====
@@ -59,12 +59,14 @@ distributed() ->
     FunsP = {fun update_id/3, fun split/2, fun merge/2},
     Ids = init_state(),
     Node1 = {Ids, fun isId1/1, FunsP, []},
-    Node2 = {Ids, fun isId2/1, FunsP, []},
+    Node21 = {Ids, fun isId2/1, FunsP, []},
+    Node22 = {Ids, fun isId2/1, FunsP, []},
+    Node2 = {Ids, fun isId2/1, FunsP, [Node21, Node22]},    
     Node0  = {Ids, fun true_pred/1, Funs, [Node1, Node2]},
     PidTree = configuration:create(Node0, dependencies(), self()),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
-      {{_NP2, MP2}, []}]} = PidTree,
+      {{_NP2, MP2}, [_, _]}]} = PidTree,
 
     %% Set up where will the input arrive
     create_producers(fun hour_markets_input/0, [MP1, MP2, MP0]),
@@ -196,7 +198,7 @@ init_state_1() ->
 %% nodes are supposed to have maps for less ids
 update_id({Tag, Ts, Value}, TipSums, SendTo) ->
     %% This is here for debugging purposes
-    SendTo ! {"Time", Ts, Tag, Value},
+    SendTo ! {"Time", Ts, Tag, Value, self()},
     Tip = maps:get(Tag, TipSums),
     maps:update(Tag, Tip + Value, TipSums).
 

@@ -197,29 +197,50 @@ init_node(State, Funs, Output) ->
 -spec loop(State::any(), #funs{}, pid(), configuration()) -> no_return().
 loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
     receive
-	{msg, Msg} ->
+        MessageMerge ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
 	    case configuration:find_children_mbox_pids(self(), ConfTree) of
 		[] ->
-		    NewState = UFun(Msg, State, Output),
+		    NewState = handle_message(MessageMerge, State, Output, UFun),
 		    loop(NewState, Funs, Output, ConfTree);
 		Children ->
 		    %% TODO: There are things missing
-		    {Tag, Ts, Payload} = Msg,
+		    %% TODO: Refactor this by making merge requests
+		    %%       have the same format as a message
+		    {Tag, Ts} = 
+			case MessageMerge of
+			    {msg, {Tag, Ts, _Payload}} ->
+			        {Tag, Ts};
+			    {merge, Father, {Tag, Ts}} ->
+				{Tag, Ts}
+			end,
 		    [State1, State2] = [sync_merge(C, {Tag, Ts}) || C <- Children],
 		    MergedState = MFun(State1, State2),
-		    NewState = UFun(Msg, MergedState, Output),
+		    NewState = handle_message(MessageMerge, MergedState, Output, UFun),
 		    [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
 		    {NewState1, NewState2} = SFun({Pred1, Pred2}, NewState),
 		    [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
 		    loop(NewState, Funs, Output, ConfTree)
-	    end;
-	{merge, Father, {Tag, Ts}} ->
-	    Father ! {state, State},
-	    receive
-		{state, NewState} ->
-		    loop(NewState, Funs, Output, ConfTree)
-	    end		    
+	    end
+    end.
+
+-spec handle_message(message() | merge_request(), State::any(), pid(), update_fun()) -> State::any().
+handle_message({msg, Msg}, State, Output, UFun) ->
+    update_on_msg(Msg, State, Output, UFun);
+handle_message({merge, Father, {_Tag, _Ts}}, State, _Output, _UFun) ->
+    respond_to_merge(Father, State).
+
+-spec update_on_msg(message(), State::any(), pid(), update_fun()) -> State::any().
+update_on_msg(Msg, State, Output, UFun) ->
+    NewState = UFun(Msg, State, Output),    
+    NewState.
+
+-spec respond_to_merge(pid(), State::any()) -> State::any().
+respond_to_merge(Father, State) ->
+    Father ! {state, State},
+    receive
+	{state, NewState} ->
+	    NewState
     end.
 
 -spec sync_merge(pid(), {tag(), integer()}) -> State::any().
