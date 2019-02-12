@@ -1,6 +1,21 @@
 ** Work TODO
 
+*** DONE Improve the mailbox to only forward heartbeats to nodes for which it satisfies their pred
+
+In order for this to work, higher nodes should just ask the lower ones with their merges when they need.
+In order for that to happen, we need to read (or be able to compute) the alpha mapping from the beta mapping
+that we currently have as a predicate. It is important that the predicates are set up correctly in the beginning.
+
+In essence, a parent node, loses messages that satisfy its descendant predicates, 
+and so it shouldn't receive heartbeats for those messages, as it will learn from them
+when asking for a merge.
+
 *** TODO Allow dependencies to be based on predicates rather than tags
+
+At the moment there is a mismatch between tags and predicates and I need to decide on which of
+both to use. If we decide to use predicates we need to think about the dependencies and how should
+they be encoded in the system.
+
 *** TODO Implement an optimization that allows for part of the state to be left behind in a merge
 
 Some ideas are written in a TODO note in the taxiexample.erl

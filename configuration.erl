@@ -4,7 +4,9 @@
 	 find_node/2,
 	 find_children/2,
 	 find_children_mbox_pids/2,
-	 find_children_preds/2]).
+	 find_children_node_pids/2,
+	 find_children_preds/2,
+	 find_descendant_preds/2]).
 
 -include("type_definitions.hrl").
 
@@ -56,6 +58,9 @@ send_conf_tree(ConfTree, {{_NodePid, MailboxPid}, ChildrenPids}) ->
 
 %%
 %% Functions to use the configuration tree
+%% WARNING: They are implemented in a naive way
+%%          searching again and again top down
+%%          in the tree.
 %%
 
 %% This function finds a node in the configuration tree
@@ -81,7 +86,21 @@ find_children(Pid, ConfTree) ->
 find_children_mbox_pids(Pid, ConfTree) ->
     [MPid || {node, _, MPid,  _, _} <- find_children(Pid, ConfTree)].
 
+-spec find_children_node_pids(pid(), configuration()) -> [pid()].
+find_children_node_pids(Pid, ConfTree) ->
+    [NPid || {node, NPid, _,  _, _} <- find_children(Pid, ConfTree)].
+
 %% This function returns the predicates of the pids of the children nodes
 -spec find_children_preds(pid(), configuration()) -> [message_predicate()].
 find_children_preds(Pid, ConfTree) ->
     [CPred || {node, _, _, CPred, _} <- find_children(Pid, ConfTree)].
+
+%% This function returns the predicates of the pids of all the descendant nodes
+-spec find_descendant_preds(pid(), configuration()) -> [message_predicate()].
+find_descendant_preds(Pid, ConfTree) ->
+    ChildrenDescendants = 
+	lists:flatten(
+	  [find_descendant_preds(CPid, ConfTree) 
+	   || CPid <- find_children_node_pids(Pid, ConfTree)]),
+    ChildrenPreds = find_children_preds(Pid, ConfTree),
+    ChildrenPreds ++ ChildrenDescendants.

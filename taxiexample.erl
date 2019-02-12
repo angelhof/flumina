@@ -28,7 +28,7 @@ distributed_1() ->
     Ids = init_state_1(),
     Node1 = {Ids, fun isId1/1, FunsP, []},
     Node2 = {Ids, fun isId2/1, FunsP, []},
-    Node0  = {Ids, fun true_pred/1, Funs, [Node1, Node2]},
+    Node0  = {Ids, fun isWindow/1, Funs, [Node1, Node2]},
     PidTree = configuration:create(Node0, dependencies_1(), self()),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
@@ -64,7 +64,7 @@ distributed() ->
     Node21 = {Ids, fun isId2/1, FunsP, []},
     Node22 = {Ids, fun isId2/1, FunsP, []},
     Node2 = {Ids, fun isId2/1, FunsP, [Node21, Node22]},    
-    Node0  = {Ids, fun true_pred/1, Funs, [Node1, Node2]},
+    Node0  = {Ids, fun isHour/1, Funs, [Node1, Node2]},
     PidTree = configuration:create(Node0, dependencies(), self()),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
@@ -102,6 +102,34 @@ create_producers(MarkerFun, [Pid1, Pid2, Pid3]) ->
 %%
 %% The specification of the computation
 %%
+
+
+%% This computation outputs how popular each grid cell has been as 
+%% a destination for rides, every 20 minutes (sliding window). 
+%% So it maps every ride to its final destination and then counts
+
+
+update_2({window, Ts, marker}, {TipSums, WindowTips0}, SendTo) ->
+    undefined.
+
+split_2({Pred1, Pred2}, {TipSums, WindowTips}) ->
+    undefined.
+
+merge_2({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
+    undefined.
+
+dependencies_2() ->
+    undefined.
+
+init_state_2() ->
+    undefined.
+
+
+
+
+
+
+
 
 %% This computation outputs the sum of tips for each driver with a sliding window 
 %% of length 1 hour that moves every 20 minutes.
@@ -238,6 +266,13 @@ isId1(_) -> false.
 
 isId2({{id,2}, _, _}) -> true;
 isId2(_) -> false.    
+
+isHour({hour, _, _}) -> true;
+isHour(_) -> false.
+
+isWindow({window, _, _}) -> true;
+isWindow(_) -> false.    
+
 
 true_pred(_) -> true.
 

@@ -34,5 +34,8 @@ open_erl:
 abexample:
 	$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample main $(args) $(HALT)
 
-taxiexample:
+taxiexample_tumble:
 	$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample main $(args) $(HALT)
+
+taxiexample_slide:
+	$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample distributed_1 $(args) $(HALT)

@@ -22,7 +22,7 @@ distributed() ->
     Funs = {fun update/3, fun split/2, fun merge/2},
     NodeA1 = {0, fun isA/1, Funs, []},
     NodeA2 = {0, fun isA/1, Funs, []},
-    NodeB  = {0, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeB  = {0, fun isB/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), self()),
 
     %% Set up where will the input arrive
