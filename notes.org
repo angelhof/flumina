@@ -1,0 +1,50 @@
+** Work TODO
+
+*** TODO Allow dependencies to be based on predicates rather than tags
+*** TODO Implement an optimization that allows for part of the state to be left behind in a merge
+
+Some ideas are written in a TODO note in the taxiexample.erl
+
+*** TODO Implement an optimization that allows for merges to happen in any order
+
+All independent merges should be mergable in any order, (associativity, commutativity).
+If we only allow them to happen in the order they were split, this might deteriorate performance.
+
+*** TODO Implement testing infastructure to test if the results of example executions 
+*** TODO Maybe we need an and-merge
+
+It seems like there should be an and-merge to be paired with the and_split because it
+seems that usually an or-merge could/shpould be different than the and-merge. 
+
+*** TODO Implement infastructure for producers.   
+
+Their input should be a list of messages. 
+The following should be configurable:
+- The rate at which they send messages
+- The density of heartbeats that they will interleave in the data
+- Whether or not to reorder data that are independent
+
+*** TODO Implement a compiler
+
+That given the topology and the specification of the computation,
+distributes the computation accordingly (as we have done now in the 
+distributed() function in the abexample)
+
+*** TODO Implement a tracing mechanism
+
+It should trace all the messages that are exchanged, and the function calls that are made.
+Then by using this information together with the topology of the network and a mapping
+of the process ids to nodes, we could estimate statistics on the execution of the program.
+
+*** TODO Implement infastructure that allows for a separate msg and split predicate
+
+At the moment the message predicate of a node is the same as its split predicate
+
+*** TODO Implement the alpha and beta mappings
+
+At the moment I only have one type of mapping which doesn't seem enough.
+
+*** TODO Improve the simplicity of implementing something in our framework
+
+Test how easy it is implement complicated queries in our intermediate language.
+Try to push its expresiveness.
