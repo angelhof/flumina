@@ -55,9 +55,18 @@ of the process ids to nodes, we could estimate statistics on the execution of th
 
 At the moment the message predicate of a node is the same as its split predicate
 
-*** TODO Implement the alpha and beta mappings
+*** DONE (Make sure that the implementation makes sense) Implement the alpha and beta mappings
 
-At the moment I only have one type of mapping which doesn't seem enough.
+The alpha mapping used to be what messages must a node receive in order to be able to process
+the messages in its beta mapping.
+
+However, it seems like thsi can be derived from the dependencies and the beta mapping (which currenty is
+a boolean predicate on messages). 
+
+The alphia mapping of a node, is the dependencies that it waits on, and the process to derive it
+is described in node:remove_unnecassary_dependencies/3. In short, a node doesn't need to wait
+for the messages that are processed by its descendants because it will learn for them when it asks
+for a merge, as only the leaf nodes do processing without merging.
 
 *** TODO Improve the simplicity of implementing something in our framework
 

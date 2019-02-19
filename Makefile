@@ -5,7 +5,8 @@ ERL = $(OTP_DIR)/bin/erl
 # ERL_COMPILE_FLAGS = +native '+{hipe, [o3]}'
 ERL_COMPILE_FLAGS = +debug_info
 EBIN_DIR   = ebin
-EBIN_DIRS  = ebin ebin/*
+EBIN_DIRS  = ebin ebin/* erlang-dot/ebin
+I_DIRS = erlang-dot/include/
 ERL_FILES  = $(wildcard *.erl)
 BEAM_FILES = $(subst .erl,.beam,$(ERL_FILES))
 
@@ -20,12 +21,12 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 dialyzer: compile_all
 	@echo ""
 	@echo " --- --- --- --- DIALYZER --- --- --- --- "
-	dialyzer --src -r .
+	dialyzer --src .
 
 compile_all: $(BEAM_FILES) $(NIF_FILES)
 
 %.beam: %.erl
-	$(ERLC) $(ERL_COMPILE_FLAGS) -o $(EBIN_DIR) $<
+	$(ERLC) $(ERL_COMPILE_FLAGS) -I $(I_DIRS) -o $(EBIN_DIR) $<
 
 
 open_erl:
@@ -39,3 +40,6 @@ taxiexample_tumble:
 
 taxiexample_slide:
 	$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample distributed_1 $(args) $(HALT)
+
+exec:
+	$(ERL) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)

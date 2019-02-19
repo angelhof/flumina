@@ -40,7 +40,7 @@ init_mailbox(Dependencies, Pred, Attachee) ->
 	    %% The dependencies are used to clear messages from the buffer,
 	    %% When we know that we have received all dependent messages to
 	    %% after a time t, then we can release all messages {m, t', v}
-	    %% where t' <= t.
+	    %% where t' \leq t.
 	    %% 
 	    %% Assumption:
 	    %% The parent nodes don't need to get heartbeats from the
