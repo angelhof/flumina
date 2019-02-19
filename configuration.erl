@@ -6,7 +6,8 @@
 	 find_children_mbox_pids/2,
 	 find_children_node_pids/2,
 	 find_children_preds/2,
-	 find_descendant_preds/2]).
+	 find_descendant_preds/2,
+	 find_node_mailbox_pid_pairs/1]).
 
 -include("type_definitions.hrl").
 
@@ -104,3 +105,9 @@ find_descendant_preds(Pid, ConfTree) ->
 	   || CPid <- find_children_node_pids(Pid, ConfTree)]),
     ChildrenPreds = find_children_preds(Pid, ConfTree),
     ChildrenPreds ++ ChildrenDescendants.
+
+%% Returns a list with all the pairs of node and mailbox pids
+-spec find_node_mailbox_pid_pairs(configuration()) -> [{pid(), pid()}].
+find_node_mailbox_pid_pairs({node, NPid, MPid, _Pred, Children}) ->
+    ChildrenPairs = lists:flatten([find_node_mailbox_pid_pairs(C) || C <- Children]),
+    [{NPid, MPid}|ChildrenPairs].
