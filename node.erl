@@ -143,8 +143,13 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
 	    end;
 	{merge, {Tag, Ts, Father}} ->
-	    %% Whenever a merge request arrives, we first clear the message buffer
-	    %% so that messages before the merge request are processed
+	    %% A merge requests acts as two different messages in our model.
+	    %% - A heartbeat message, because it shows that some ancestor has
+	    %%   received all messages with Tag until Ts. Because of that we 
+	    %%   need to clear the buffer with it as if it was a heartbeat.
+	    %% - A message that will be processed like every other message (after
+	    %%   its dependencies are dealt with), so we have to add it to the buffer
+	    %%   like we do with every other message
 	    NewMessageBuffer = clear_buffer({Tag, Ts}, MessageBuffer, Dependencies, Attachee),
 	    %% Then we forward the merge to the node
 	    Attachee ! {merge, {Tag, Ts, Father}},
@@ -229,17 +234,31 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     %% We assume that heartbeats arrive in the correct order
     %% TODO: The new timer should be the maximum of the current timer and the heartbeat
     NewTimers = maps:put(HTag, HTs, Timers),
-    {ToRelease, NewBuffer} = 
-	lists:partition(
-	  fun({Tag, Ts, _}) ->
-		  TagDeps = maps:get(Tag, Dependencies),
-		  lists:all(fun(TD) -> Ts =< maps:get(TD, NewTimers) end, TagDeps)
-	  end, Buffer),
+    {ToRelease, NewBuffer} = release_messages(Buffer, NewTimers, Dependencies, []),
     %% io:format("~p -- Timers: ~p~n", [self(), NewTimers]),
     %% io:format("~p -- Hearbeat: ~p -- Partition: ~p~n", [self(), {HTag, HTs}, {ToRelease, NewBuffer}]),
     [Attachee ! {msg, Msg} || Msg <- ToRelease],
     {NewBuffer, NewTimers}.
-    
+
+%% This function releases messages in a naive way. It stops releasing on the first message that 
+%% it finds that doesn't have its dependencies heartbeat timers higher than itself.
+%% TODO: Improve this function to release all the messages which don't have any of
+%%       their dependent messages before them in the buffer (Details in notes.org)
+-spec release_messages([message()], timers(), dependencies(), [message()]) -> {[message()], [message()]}.
+release_messages([], Timers, Dependencies, ToReleaseRev) ->
+    {lists:reverse(ToReleaseRev), []};
+release_messages([{Tag, Ts, _} = Msg|Buffer], Timers, Dependencies, ToReleaseRev) ->
+    TagDeps = maps:get(Tag, Dependencies),
+    case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps) of
+	true ->
+	    %% If the current messages has a timestamp that is smaller
+	    %% than all its dependency heartbeats, then we can release it
+	    release_messages(Buffer, Timers, Dependencies, [Msg|ToReleaseRev]);
+	false ->
+	    %% If not, we stop releasing messages
+	    {lists:reverse(ToReleaseRev), [Msg|Buffer]}
+    end.
+
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
 -spec broadcast_heartbeat({tag(), integer()}, configuration()) -> [heartbeat()].

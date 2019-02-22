@@ -1,5 +1,68 @@
 ** Work TODO
 
+
+*** DONE BUG: Heatbeats releases all messages, not caring about the messages that they depend on
+
+At the moment, after every heartbeat, every message that has all its dependent timers higher than it,
+is released. However that is not correct, because there might be a message that they depend on,
+that depends on more tags, that was received before, but hasn't been released. This leads to inconsistencies.
+
+FIX: 
+Implement the clear buffer to only clear all the messages sequentially until it finds one which cannot
+be cleared. This is a naive way to solve this bug, as this way messages might have to wait in the buffer
+fo messages that they do not depend on to be released. Ideally an implementation would only release a message
+if there is no message that it depends on previously in the buffer.
+
+*** TODO Improve the clear_buffer function
+
+After the above bug fix, messages wait in the buffer for every message that has a smaller timestamp
+to be released first. However, this can lead to a situation where messages wait in the buffer despite
+being independent than anything else before them. 
+
+An improvement (that is still naive however as it traverses the buffer every time it needs to clear) is
+to sequentially traverse the buffer, and keep the first timestamp of each tag that we see. This way
+we we only release messages that don't have a dependent tag that has arrived earlier than them but hasn't
+been released.
+
+*** TODO Implement a taxi example where {id,1} is dependent to itself but not to {id,2}
+    - [X] Define the computation
+    - [X] Implement a producer that create {x,y} line coordinates for each taxi
+    - [X] Define a sequential configuration
+    - [ ] Define a distributed configuration
+
+This could be messages with the position of the taxi, that arrive every second, and we want
+to get the distance that the taxi has covered in every hour. So we need to compute the distance
+between every two *consecutive* points and add them together.
+
+*** TODO Handle a merge message as both a heartbeat and a normal message
+    - [ ] Add the merge message to the buffer, and then clear the buffer using it as a heartbeat
+    - [ ] Make sure that the dependencies of the merge message are handled correctly
+
+Solution:
+First add the merge to the buffer, and then clear the buffer (using the merge as a heartbeat).
+
+The way it is done now, a merge messafe clears the buffer, but is then sent immediately to the node,
+which could lead to a bug. Example: An "a" mailbox hasn't received an a heartbeat but it receives a 
+"b" merge request. This will lead to the merge request being forwarded to the node, before the "a"s
+that should have been already processed.
+
+Problem:
+In order to implement this solution, I have to make sure that the merge message will be handled correctly,
+and cleared at the next a-heartbeat (or even immediately). Because of this, I might need to revise the 
+clear dependencies functions that I call befoee initializing the mailbox to not delete the keys that
+are not in a node's predicate.
+
+*** TODO Optimize the add message to buffer to not wait for the next heartbeat
+
+At the moment, a message is added to the buffer without even thinking whether it might need to be released
+or not. Think of a way to optimize this so that a new message is not necessarily added to the buffer, 
+but could rather be sent to the node (before or after other messages that might also need to be sent)
+
+*** TODO Optimize the buffer to not hold a sorted list of all messages 
+
+This degrades performance as some messages might not need to be ordered in the buffer. This way
+we sort everything no matter whether they do need to be ordered or not.
+
 *** DONE Improve the mailbox to only forward heartbeats to nodes for which it satisfies their pred
 
 In order for this to work, higher nodes should just ask the lower ones with their merges when they need.
@@ -16,9 +79,10 @@ At the moment there is a mismatch between tags and predicates and I need to deci
 both to use. If we decide to use predicates we need to think about the dependencies and how should
 they be encoded in the system.
 
-*** TODO Implement an optimization that allows for part of the state to be left behind in a merge
+*** DONE Implement an optimization that allows for part of the state to be left behind in a merge
 
-Some ideas are written in a TODO note in the taxiexample.erl
+This can be implemented as an or-split, that has an empty predicate where the part of the state is left
+behind.
 
 *** TODO Implement an optimization that allows for merges to happen in any order
 
@@ -45,7 +109,7 @@ That given the topology and the specification of the computation,
 distributes the computation accordingly (as we have done now in the 
 distributed() function in the abexample)
 
-*** TODO Implement a tracing mechanism
+*** DONE Implement a message tracing mechanism
 
 It should trace all the messages that are exchanged, and the function calls that are made.
 Then by using this information together with the topology of the network and a mapping
