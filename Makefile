@@ -46,3 +46,4 @@ exec:
 
 tests:
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample test $(HALT)
+	@$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample test $(HALT)

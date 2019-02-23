@@ -7,7 +7,15 @@
 	 distributed_1/0,
 	 sequential_2/0,
 	 distributed_2/0,
+	 sequential_conf/1,
+	 distributed_conf/1,
+	 sequential_conf_1/1,
+	 distributed_conf_1/1,
+	 sequential_conf_2/1,
+	 distributed_conf_2/1,
 	 source/2]).
+
+-include_lib("eunit/include/eunit.hrl").
 
 -include("type_definitions.hrl").
 
@@ -21,6 +29,10 @@ main() ->
 %% the computation but for now we can assume that it is correct.
 
 distributed_2() ->
+    ExecPid = spawn_link(?MODULE, distributed_conf_2, [self()]),
+    util:sink().
+
+distributed_conf_2(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update_2/3, fun split_2/2, fun merge_2/2},
@@ -30,7 +42,7 @@ distributed_2() ->
     Node1 = {Ids1, fun isId1/1, FunsP, []},
     Node2 = {Ids2, fun isId2/1, FunsP, []},    
     Node0  = {Ids, fun isHour/1, Funs, [Node1, Node2]},
-    PidTree = configuration:create(Node0, dependencies_2(), self()),
+    PidTree = configuration:create(Node0, dependencies_2(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
       {{_NP2, MP2}, []}]} = PidTree,
@@ -45,14 +57,18 @@ distributed_2() ->
     Input3 = hour_positions_input(),
     Producer3 = spawn_link(?MODULE, source, [Input3, MP0]),
 
-    sink().
+    SinkPid ! finished.
 
 sequential_2() ->
+    ExecPid = spawn_link(?MODULE, sequential_conf_2, [self()]),
+    util:sink().
+
+sequential_conf_2(SinkPid) ->
     %% Configuration Tree
     Funs = {fun update_2/3, fun split_2/2, fun merge_2/2},
     Ids = init_state_2(),
     Node  = {Ids, fun true_pred/1, Funs, []},
-    PidTree = configuration:create(Node, dependencies_2(), self()),
+    PidTree = configuration:create(Node, dependencies_2(), SinkPid),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
 
     %% Set up where will the input arrive
@@ -65,9 +81,13 @@ sequential_2() ->
     Input3 = hour_positions_input(),
     Producer3 = spawn_link(?MODULE, source, [Input3, HeadMailboxPid]),
 
-    sink().
+    SinkPid ! finished.
 
 distributed_1() ->
+    ExecPid = spawn_link(?MODULE, distributed_conf_1, [self()]),
+    util:sink().
+
+distributed_conf_1(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
@@ -78,7 +98,7 @@ distributed_1() ->
     Node1 = {Ids, fun isId1/1, FunsP, []},
     Node2 = {Ids, fun isId2/1, FunsP, []},
     Node0  = {Ids, fun isWindow/1, Funs, [Node1, Node2]},
-    PidTree = configuration:create(Node0, dependencies_1(), self()),
+    PidTree = configuration:create(Node0, dependencies_1(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
       {{_NP2, MP2}, []}]} = PidTree,
@@ -86,24 +106,31 @@ distributed_1() ->
     %% Set up where will the input arrive
     create_producers(fun sliding_period_input/0, [MP1, MP2, MP0]),
 
-    sink().
+    SinkPid ! finished.
 
 sequential_1() ->
+    ExecPid = spawn_link(?MODULE, sequential_conf_1, [self()]),
+    util:sink().
+
+sequential_conf_1(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
     Ids = init_state_1(),
     Node  = {Ids, fun true_pred/1, Funs, []},
-    PidTree = configuration:create(Node, dependencies_1(), self()),
+    PidTree = configuration:create(Node, dependencies_1(), SinkPid),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
 
     %% Set up where will the input arrive
     create_producers(fun sliding_period_input/0, [HeadMailboxPid, HeadMailboxPid, HeadMailboxPid]),
 
-    sink().
+    SinkPid ! finished.
 
-%% This is what our compiler would come up with
 distributed() ->
+    ExecPid = spawn_link(?MODULE, distributed_conf, [self()]),
+    util:sink().
+
+distributed_conf(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
@@ -114,7 +141,7 @@ distributed() ->
     Node22 = {Ids, fun isId2/1, FunsP, []},
     Node2 = {Ids, fun isId2/1, FunsP, [Node21, Node22]},    
     Node0  = {Ids, fun isHour/1, Funs, [Node1, Node2]},
-    PidTree = configuration:create(Node0, dependencies(), self()),
+    PidTree = configuration:create(Node0, dependencies(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
       {{_NP2, MP2}, [_, _]}]} = PidTree,
@@ -122,21 +149,24 @@ distributed() ->
     %% Set up where will the input arrive
     create_producers(fun hour_markets_input/0, [MP1, MP2, MP0]),
 
-    sink().
+    SinkPid ! finished.
 
 sequential() ->
+    ExecPid = spawn_link(?MODULE, sequential_conf, [self()]),
+    util:sink().
 
+sequential_conf(SinkPid) ->
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     Ids = init_state(),
     Node  = {Ids, fun true_pred/1, Funs, []},
-    PidTree = configuration:create(Node, dependencies(), self()),
+    PidTree = configuration:create(Node, dependencies(), SinkPid),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
 
     %% Set up where will the input arrive
     create_producers(fun hour_markets_input/0, [HeadMailboxPid, HeadMailboxPid, HeadMailboxPid]),
 
-    sink().
+    SinkPid ! finished.
 
 create_producers(MarkerFun, [Pid1, Pid2, Pid3]) ->
     Input1 = id1_input_with_heartbeats(),
@@ -167,7 +197,8 @@ update_id_2({Tag, Ts, Position}, DriverPosDists, SendTo) ->
 update_2({hour, Ts, marker}, DriverPosDists, SendTo) ->
     {Ids, Values} = lists:unzip(maps:to_list(DriverPosDists)),
     {_PrevPositions, Distances} = lists:unzip(Values),
-    SendTo ! {"Distances per rider", lists:zip(Ids, Distances), "Minutes: ", Ts},
+    RoundedDistances = [round(D) || D <- Distances],
+    SendTo ! {"Distances per rider", maps:from_list(lists:zip(Ids, RoundedDistances)), "Minutes: ", Ts},
     maps:map(fun(_,{PrevPos, Dist}) -> {PrevPos, 0} end, DriverPosDists);
 update_2(Msg, DriverPosDists, SendTo) ->
     update_id_2(Msg, DriverPosDists, SendTo).
@@ -217,7 +248,7 @@ dist(undef, {X2, Y2}) ->
 
 update_id_1({Tag, Ts, Value}, {TipSums, WindowTips}, SendTo) ->
     %% This is here for debugging purposes
-    SendTo ! {"Time", Ts, Tag, Value},
+    %% SendTo ! {"Time", Ts, Tag, Value},
     Tip = maps:get(Tag, TipSums),
     {maps:update(Tag, Tip + Value, TipSums), WindowTips}.
 
@@ -249,7 +280,7 @@ output_tip_sums(WindowTips, DriverIds, Ts, SendTo) ->
 		       [maps:get({Id, T}, WindowTips) || T <- [Ts-40, Ts-20, Ts]])}
 		     || Id <- DriverIds],
 	    %% Ouput the sum
-	    SendTo ! {"Tips per rider", Sums, "Period:", Ts - 60, Ts},
+	    SendTo ! {"Tips per rider", maps:from_list(Sums), "Period:", Ts - 60, Ts},
 	    %% Remove the oldest sliding period for each driver
 	    lists:foldl(
 	      fun(Id, WTMap) ->
@@ -306,14 +337,13 @@ init_state_1() ->
 %% nodes are supposed to have maps for less ids
 update_id({Tag, Ts, Value}, TipSums, SendTo) ->
     %% This is here for debugging purposes
-    SendTo ! {"Time", Ts, Tag, Value, self()},
+    %% SendTo ! {"Time", Ts, Tag, Value, self()},
     Tip = maps:get(Tag, TipSums),
     maps:update(Tag, Tip + Value, TipSums).
 
 %% This is the sequential update of the total 
 update({hour, Ts, marker}, TipSums, SendTo) ->
-    AllSums = maps:to_list(TipSums),
-    SendTo ! {"Tips per rider", AllSums},
+    SendTo ! {"Tips per rider", TipSums},
     maps:map(fun(_,_) -> 0 end, TipSums);
 update(Msg, TipSums, SendTo) ->
     update_id(Msg, TipSums, SendTo).
@@ -382,15 +412,6 @@ source([Msg|Rest], SendTo) ->
     end,
     source(Rest, SendTo).
 
-sink() ->
-    receive
-	Msg ->
-	    io:format("~p~n", [Msg]),
-	    sink()
-    after 
-	5000 ->
-	    ok
-    end.
 
 
 %% Some input examples
@@ -419,17 +440,17 @@ hour_positions_input() ->
 
 hour_markets_input() ->
     Input = [{hour, T * 60, marker} || T <- lists:seq(1, 10)],
-    producer:interleave_heartbeats(Input, #{hour => 60}, 500).
+    producer:interleave_heartbeats(Input, #{hour => 60}, 650).
 
 sliding_period_input() ->
     Input = [{window, T * 20, marker} || T <- lists:seq(1, 30)],
-    producer:interleave_heartbeats(Input, #{window => 60}, 500).
+    producer:interleave_heartbeats(Input, #{window => 60}, 650).
 
 id1_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id1_input(), #{{id,1} => 10}, 500).
+    producer:interleave_heartbeats(id1_input(), #{{id,1} => 10}, 650).
 
 id2_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id2_input(), #{{id,2} => 10}, 500).
+    producer:interleave_heartbeats(id2_input(), #{{id,2} => 10}, 650).
 
 id1_input() ->
     Inputs = 
@@ -468,4 +489,94 @@ id2_input() ->
 	 {268, 15},
 	 {290, 12}],
     [{{id,2}, Ts, Tip} || {Ts, Tip} <- Inputs].    
+
+
+%% -------- TESTS -------- %%
+
+output_2() ->
+    Outputs = 
+	[#{{id,1} => 58, {id,2} => 58}] ++
+	lists:duplicate(15, #{{id,1} => 60, {id,2} => 60}) ++
+	[#{{id,1} => 68, {id,2} => 60}] ++
+	lists:duplicate(16, #{{id,1} => 85, {id,2} => 60}) ++
+	[#{{id,1} => 30, {id,2} => 21}],
+    ZipOutputs = lists:zip(Outputs, lists:seq(60, 2040, 60)),
+    [{"Distances per rider",Map,"Minutes: ",Ts} || {Map, Ts} <- ZipOutputs].
+
+distributed_2_test_() ->
+    Rounds = lists:seq(1,10),
+    [?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_2}, output_2()))
+     || _ <- Rounds].
+
+sequential_2_test_() ->
+    Rounds = lists:seq(1,10),
+    [?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf_2}, output_2()))
+     || _ <- Rounds].
+
+output_1() ->
+    Outputs = 
+	[{#{{id,1} => 94, {id,2} => 115},0,60},
+	 {#{{id,1} => 46, {id,2} => 105},20,80},
+	 {#{{id,1} => 36, {id,2} => 108},40,100},
+	 {#{{id,1} => 38, {id,2} => 65},60,120},
+	 {#{{id,1} => 33, {id,2} => 68},80,140},
+	 {#{{id,1} => 67, {id,2} => 51},100,160},
+	 {#{{id,1} => 56, {id,2} => 30},120,180},
+	 {#{{id,1} => 46, {id,2} => 48},140,200},
+	 {#{{id,1} => 33, {id,2} => 54},160,220},
+	 {#{{id,1} => 36, {id,2} => 66},180,240},
+	 {#{{id,1} => 48, {id,2} => 51},200,260},
+	 {#{{id,1} => 27, {id,2} => 48},220,280},
+	 {#{{id,1} => 12, {id,2} => 48},240,300},
+	 {#{{id,1} => 0 , {id,2} => 27},260,320},
+	 {#{{id,1} => 0 , {id,2} => 12},280,340},
+	 {#{{id,1} => 0, {id,2} => 0},300,360},
+	 {#{{id,1} => 0, {id,2} => 0},320,380},
+	 {#{{id,1} => 0, {id,2} => 0},340,400},
+	 {#{{id,1} => 0, {id,2} => 0},360,420},
+	 {#{{id,1} => 0, {id,2} => 0},380,440},
+	 {#{{id,1} => 0, {id,2} => 0},400,460},
+	 {#{{id,1} => 0, {id,2} => 0},420,480},
+	 {#{{id,1} => 0, {id,2} => 0},440,500},
+	 {#{{id,1} => 0, {id,2} => 0},460,520},
+	 {#{{id,1} => 0, {id,2} => 0},480,540},
+	 {#{{id,1} => 0, {id,2} => 0},500,560},
+	 {#{{id,1} => 0, {id,2} => 0},520,580},
+	 {#{{id,1} => 0, {id,2} => 0},540,600}],
+    [{"Tips per rider",Map,"Period:",St,End} || {Map, St, End} <- Outputs].
+
+distributed_1_test_() ->
+    Rounds = lists:seq(1,100),
+    [?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_1}, output_1()))
+     || _ <- Rounds].
+
+sequential_1_test_() ->
+    Rounds = lists:seq(1,100),
+    [?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf_1}, output_1()))
+     || _ <- Rounds].
+
+
+output() ->
+    Outputs = 
+	[#{{id,1} => 94,{id,2} => 115},
+	 #{{id,1} => 38,{id,2} => 65},
+	 #{{id,1} => 56,{id,2} => 30},
+	 #{{id,1} => 36,{id,2} => 66},
+	 #{{id,1} => 12,{id,2} => 48},
+	 #{{id,1} => 0, {id,2} => 0},
+	 #{{id,1} => 0, {id,2} => 0},
+	 #{{id,1} => 0, {id,2} => 0},
+	 #{{id,1} => 0, {id,2} => 0},
+	 #{{id,1} => 0, {id,2} => 0}],
+    [{"Tips per rider", Map} || Map <- Outputs].
+
+distributed_test_() ->
+    Rounds = lists:seq(1,100),
+    [?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, output()))
+     || _ <- Rounds].
+
+sequential_test_() ->
+    Rounds = lists:seq(1,100),
+    [?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
+     || _ <- Rounds].
 

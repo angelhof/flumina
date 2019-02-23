@@ -26,7 +26,7 @@ test_sink([], done) ->
     receive
 	What ->
 	    %% util:err("Test sink: ~p~n", [What]),
-	    {error, What}
+	    {error, didnt_expect, What}
     after 
 	0 -> ok
     end;	
@@ -40,9 +40,11 @@ test_sink(ExpOutput, Mode) ->
 	    case ExpOutput of
 		[ExpMsg|ExpRest] when Msg =:= ExpMsg ->
 		    test_sink(ExpRest, Mode);
-		_ ->
+		[ExpMsg|ExpRest] ->
 		    %% util:err("Test sink: ~p~n", [Msg]),
-		    {error, Msg}
+		    {error, expected, ExpMsg, got, Msg};
+		[] ->
+		    {error, didnt_expect, Msg}
 	    end
     after
     	3000 ->

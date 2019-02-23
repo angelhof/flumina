@@ -1,7 +1,12 @@
 ** Work TODO
 
 
-*** TODO Create some unit testing infastructure
+*** TODO Make tests fail even if we get more messages
+
+At the moment tests fail only if we get less (on not equal) messages to the ones that 
+we expect. We should make sure that tests fail if we get more messages than expected.
+
+*** DONE Create some unit testing infastructure
 
 Create a testing framework that expects some specific output for each specific input, and in order to do
 that I have to make my own sink function that will compare whatever it receives to a sample output.
@@ -27,7 +32,7 @@ be cleared. This is a naive way to solve this bug, as this way messages might ha
 fo messages that they do not depend on to be released. Ideally an implementation would only release a message
 if there is no message that it depends on previously in the buffer.
 
-*** TODO Improve the clear_buffer function
+*** TODO Optimize the clear_buffer function
 
 After the above bug fix, messages wait in the buffer for every message that has a smaller timestamp
 to be released first. However, this can lead to a situation where messages wait in the buffer despite
@@ -110,6 +115,11 @@ At the moment, a message is added to the buffer without even thinking whether it
 or not. Think of a way to optimize this so that a new message is not necessarily added to the buffer, 
 but could rather be sent to the node (before or after other messages that might also need to be sent)
 
+Maybe:
+This optimization might correlate with the clear_buffer optimization that is described above. If we 
+add a new message in the buffer, in an earlier position than any of its dependencies, and its dependent
+timers are already higher than it, then we can release it immediately
+
 *** TODO Optimize the buffer to not hold a sorted list of all messages 
 
 This degrades performance as some messages might not need to be ordered in the buffer. This way
@@ -141,7 +151,6 @@ behind.
 All independent merges should be mergable in any order, (associativity, commutativity).
 If we only allow them to happen in the order they were split, this might deteriorate performance.
 
-*** TODO Implement testing infastructure to test if the results of example executions 
 *** TODO Maybe we need an and-merge
 
 It seems like there should be an and-merge to be paired with the and_split because it
