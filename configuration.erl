@@ -7,7 +7,8 @@
 	 find_children_node_pids/2,
 	 find_children_preds/2,
 	 find_descendant_preds/2,
-	 find_node_mailbox_pid_pairs/1]).
+	 find_node_mailbox_pid_pairs/1,
+	 get_relevant_predicates/2]).
 
 -include("type_definitions.hrl").
 
@@ -111,3 +112,42 @@ find_descendant_preds(Pid, ConfTree) ->
 find_node_mailbox_pid_pairs({node, NPid, MPid, _Pred, Children}) ->
     ChildrenPairs = lists:flatten([find_node_mailbox_pid_pairs(C) || C <- Children]),
     [{NPid, MPid}|ChildrenPairs].
+
+-spec union_children_preds([configuration()]) -> message_predicate().
+union_children_preds(Children) ->
+    fun(Msg) ->
+	    lists:any(
+	      fun({node, _N, _M, Pred, _C}) ->
+		      Pred(Msg)
+	      end, Children)
+    end.
+
+-spec is_found({'found' | 'not_found', message_predicate()}) -> boolean().
+is_found({found, _}) -> true;
+is_found(_) -> false.
+
+-spec get_relevant_predicates(pid(), configuration()) -> {'found' | 'not_found', message_predicate()}.
+get_relevant_predicates(Attachee, {node, Attachee, _MPid, Pred, Children}) ->
+    ChildrenPred = union_children_preds(Children),
+    ReturnPred =
+	fun(Msg) ->
+		Pred(Msg) andalso not ChildrenPred(Msg)
+	end,
+    {found, ReturnPred};
+get_relevant_predicates(Attachee, {node, _NotAttachee, _MPid, Pred, Children}) ->
+    ChildrenPredicates = [get_relevant_predicates(Attachee, C) || C <- Children],
+    case lists:partition(fun(C) -> is_found(C) end, ChildrenPredicates) of
+	{[], _} ->
+	    %% No child matches the Attachee pid in this subtree
+	    {not_found, Pred};
+	{[{found, ChildPred}], Rest} ->
+	    %% One child matches thhe Attachee pid
+	    ReturnPred =
+		fun(Msg) ->
+			%% My child's pred, or my predicate without the other children predicates
+			ChildPred(Msg) 
+			    orelse (Pred(Msg) andalso 
+				    not lists:any(fun({not_found, Pr}) -> Pr(Msg) end, Rest))
+		end,
+	    {found, ReturnPred}
+    end.

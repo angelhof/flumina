@@ -59,48 +59,49 @@ init_mailbox(Dependencies, Pred, Attachee) ->
 	    %% WARNING: At the moment dependencies are represented with tags, 
 	    %%          but we also have predicates. We need to decide and 
 	    %%          use one or the other.
-	    DescendantPreds = configuration:find_descendant_preds(Attachee, ConfTree),
-	    DescendantPred = 
-		fun(Msg) ->
-			%% The union of all the descendant predicates
-			lists:any(fun(Pr) -> Pr(Msg) end, DescendantPreds) 
-		end,
-	    OptimizedDependencies = 
-		remove_unnecassary_dependencies(Pred, DescendantPred, Dependencies),
+	    
+	    %% ======== THIS HAS TO BE REPLACED WITH FILTER RELEVANT DEPENDENCIES ======== %%
+	    %% DescendantPreds = configuration:find_descendant_preds(Attachee, ConfTree),
+	    %% DescendantPred = 
+	    %% 	fun(Msg) ->
+	    %% 		%% The union of all the descendant predicates
+	    %% 		lists:any(fun(Pr) -> Pr(Msg) end, DescendantPreds) 
+	    %% 	end,
+	    %% OptimizedDependencies = 
+	    %% 	remove_unnecassary_dependencies(Pred, DescendantPred, Dependencies),
+	    %% =========================================================================== %%
+	    RelevantDependencies =
+		filter_relevant_dependencies(Dependencies, Attachee, ConfTree),
+
 	    %% All the tags that we depend on
-	    AllDependingTags = lists:flatten(maps:values(OptimizedDependencies)),
+	    AllDependingTags = lists:flatten(maps:values(RelevantDependencies)),
 	    Timers = maps:from_list([{T, 0} || T <-  AllDependingTags]),
-	    mailbox({[], Timers}, OptimizedDependencies, Pred, Attachee, ConfTree)
+	    mailbox({[], Timers}, RelevantDependencies, Pred, Attachee, ConfTree)
     end.
 
 %%
-%% This function cleans unnecessary dependencies. 
-%% First of all it removes all keys(tags) that do not satisfy 
-%% the predicate of the specific node, as well as all the 
-%% the tags from the dependency lists of each tag that
-%% satisfy the union of the descendant predicates. In
-%% essence, we don't need to know and wait about heartbeats
-%% of messages that our descendants handle, because we will 
-%% learn from them "implicitly" when asking them for a merge.
-%% 
--spec remove_unnecassary_dependencies(message_predicate(), message_predicate(), dependencies()) 
-				     -> dependencies().
-remove_unnecassary_dependencies(MyPred, DescendantPred, Dependencies) ->
+%% The mailbox works by releasing messages (and merge requests) when all of their previously
+%% received dependencies have been released. However a node never receives heartbeats from
+%% messages that their siblings or uncle nodes handle, so they have to disregard those dependencies
+%% as they cannot be handled by them. 
+%% Because of that, we have to remove dependencies that a node can not handle (because it 
+%% doesn't receive those messages and heartbeats), so that progress is ensured.
+%%
+%% The way we do it, is by only keeping the dependencies that belong to the union 
+%% (MyPred - ChildrenPreds), (ParentPred - SiblingPred), (GrandParentPred - UnclePred)
+-spec filter_relevant_dependencies(dependencies(), pid(), configuration()) -> dependencies().
+filter_relevant_dependencies(Dependencies0, Attachee, ConfTree) ->
+    {found, Predicate} = configuration:get_relevant_predicates(Attachee, ConfTree),
     Dependencies1 = 
-	maps:filter(
-	  fun(Tag, _) ->
-		  MyPred({Tag, undef, undef})
-	  end, Dependencies),
-    Dependencies2 = 
 	maps:map(
-	 fun(Tag, DTags) ->
-		 %% [io:format("~p -> ~p || ~p : ~p~n", 
-		 %% 	    [Tag, DT, self(), not DescendantPred({DT, undef, undef})])
-		 %% 	    || DT <- DTags],
-		  [DT || DT <- DTags, not DescendantPred({DT, undef, undef})]
-	 end, Dependencies1),
-    io:format("Clean Deps:~p~n~p~n", [self(), Dependencies2]),
-    Dependencies2.
+	  fun(Tag, DTags) ->
+		  %% [io:format("~p -> ~p || ~p : ~p~n", 
+		  %% 	    [Tag, DT, self(), not DescendantPred({DT, undef, undef})])
+		  %% 	    || DT <- DTags],
+		  [DT || DT <- DTags, Predicate({DT, 0, 0})]
+	  end, Dependencies0),
+    io:format("Clean Deps:~p~n~p~n", [self(), Dependencies1]),
+    Dependencies1.
     
 
 
@@ -137,7 +138,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 		    erlang:halt(1);
 		true ->
 		    %% Whenever a new message arrives, we add it to the buffer
-		    NewMessageBuffer = add_to_buffer(Msg, MessageBuffer),
+		    NewMessageBuffer = add_to_buffer({msg, Msg}, MessageBuffer),
 		    %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
 		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]),
 		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
@@ -150,10 +151,10 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %% - A message that will be processed like every other message (after
 	    %%   its dependencies are dealt with), so we have to add it to the buffer
 	    %%   like we do with every other message
-	    NewMessageBuffer = clear_buffer({Tag, Ts}, MessageBuffer, Dependencies, Attachee),
-	    %% Then we forward the merge to the node
-	    Attachee ! {merge, {Tag, Ts, Father}},
-	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree);
+	    NewMessageBuffer = add_to_buffer({merge, {Tag, Ts, Father}}, MessageBuffer),
+	    ClearedMessageBuffer = clear_buffer({Tag, Ts}, NewMessageBuffer, Dependencies, Attachee),
+	    %% io:format("~p -- After Merge: ~p~n", [self(), NewMessageBuffer]),
+	    mailbox(ClearedMessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{state, State} ->
 	    %% This is the reply of a child node with its state 
 	    Attachee ! {state, State},
@@ -181,49 +182,27 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
     end.
 
-%% WARNING: Even if all the dependent timers of a message m1 are higher than it
-%%          this doesn't mean that the message m1 should be released, because 
-%%          it might be the case that some other messages m2 that depend to
-%%          it (and are to be sent before it) are still in the buffer waiting 
-%%          for a heartbeat m1 to be cleared. The easiest way to deal with this
-%%          is to just add all messages to the buffer and just let heartbeats clear
-%%          messages. NOTE however that this implementation decision means that
-%%          messages might stay for longer than they really needed in the buffer.
-%%          To make sure that this works correctly we must make sure that there
-%%          are "infinitely" many heartbeats sent so that everything is eventually
-%%          cleared from the mailboxes.
-%% 
-%% TODO:    Optimize the above procedure, to not let messages wait unnecessarily
-%%          in the buffer
-add_to_buffer_or_send(Msg, {MsgBuffer, Timers}, Dependencies, Attachee) ->
-    {Tag, Ts, _} = Msg,
-    TagDeps = maps:get(Tag, Dependencies), 
-    case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps) of
-	true ->
-	    Attachee ! {msg, Msg},
-	    {MsgBuffer, Timers};
-	false ->
-	    add_to_buffer(Msg, {MsgBuffer, Timers}, [])
-    end.
 %% It seems that the only way for the buffer to clear messages is
 %% after getting a heartbeat/mark, that indicates that all messages
 %% of some tag up to that point have been received.
 %% Because of that, new messages are just added to the Buffer
--spec add_to_buffer(message(), message_buffer()) -> message_buffer().
+-spec add_to_buffer(message_or_merge(), message_buffer()) -> message_buffer().
 add_to_buffer(Msg, BufferTimers) ->
     add_to_buffer(Msg, BufferTimers, []).
 
--spec add_to_buffer(message(), message_buffer(), [message()]) -> message_buffer().
+-spec add_to_buffer(message_or_merge(), message_buffer(), [message_or_merge()]) -> message_buffer().
 add_to_buffer(Msg, {[], Timers}, NewBuffer) ->
     {lists:reverse([Msg|NewBuffer]), Timers};
 add_to_buffer(Msg, {[BMsg|Buf], Timers}, NewBuf) ->
-    {Tag, Ts, Payload} = Msg,
-    {_, BTs, _} = BMsg,
-    case Ts < BTs of
+    {_MsgOrMerge, {Tag, Ts, Payload}} = Msg,
+    {_BMsgOrMerge, {BTag, BTs, _}} = BMsg,
+    %% Note: I am comparing the tuple {Ts, Tag} to have a total ordering 
+    %% between messages with different tags but the same timestamp. 
+    case {Ts, Tag} < {BTs, BTag} of
 	true ->
 	    {lists:reverse([Msg|NewBuf]) ++ [BMsg|Buf], Timers};
 	false ->
-	    add_to_buffer({Tag, Ts, Payload}, {Buf, Timers}, [BMsg|NewBuf])
+	    add_to_buffer(Msg, {Buf, Timers}, [BMsg|NewBuf])
     end.
 
 %% This releases all the messages in the buffer that
@@ -237,17 +216,18 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     {ToRelease, NewBuffer} = release_messages(Buffer, NewTimers, Dependencies, []),
     %% io:format("~p -- Timers: ~p~n", [self(), NewTimers]),
     %% io:format("~p -- Hearbeat: ~p -- Partition: ~p~n", [self(), {HTag, HTs}, {ToRelease, NewBuffer}]),
-    [Attachee ! {msg, Msg} || Msg <- ToRelease],
+    [Attachee ! Msg || Msg <- ToRelease],
     {NewBuffer, NewTimers}.
 
 %% This function releases messages in a naive way. It stops releasing on the first message that 
 %% it finds that doesn't have its dependencies heartbeat timers higher than itself.
 %% TODO: Improve this function to release all the messages which don't have any of
 %%       their dependent messages before them in the buffer (Details in notes.org)
--spec release_messages([message()], timers(), dependencies(), [message()]) -> {[message()], [message()]}.
+-spec release_messages([message_or_merge()], timers(), dependencies(), [message_or_merge()]) 
+		      -> {[message_or_merge()], [message_or_merge()]}.
 release_messages([], Timers, Dependencies, ToReleaseRev) ->
     {lists:reverse(ToReleaseRev), []};
-release_messages([{Tag, Ts, _} = Msg|Buffer], Timers, Dependencies, ToReleaseRev) ->
+release_messages([{MsgOrMerge, {Tag, Ts, _}} = Msg|Buffer], Timers, Dependencies, ToReleaseRev) ->
     TagDeps = maps:get(Tag, Dependencies),
     case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps) of
 	true ->
@@ -290,14 +270,14 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
 	    case configuration:find_children_mbox_pids(self(), ConfTree) of
 		[] ->
-		    NewState = handle_message(MessageMerge, State, Output, UFun),
+		    NewState = handle_message(MessageMerge, State, Output, UFun, ConfTree),
 		    loop(NewState, Funs, Output, ConfTree);
 		Children ->
 		    %% TODO: There are things missing
 		    {_IsMsgMerge, {Tag, Ts, _Payload}} = MessageMerge,
-		    [State1, State2] = [sync_merge(C, {Tag, Ts}) || C <- Children],
+		    [State1, State2] = send_merge_requests({Tag, Ts}, Children),
 		    MergedState = MFun(State1, State2),
-		    NewState = handle_message(MessageMerge, MergedState, Output, UFun),
+		    NewState = handle_message(MessageMerge, MergedState, Output, UFun, ConfTree),
 		    [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
 		    {NewState1, NewState2} = SFun({Pred1, Pred2}, NewState),
 		    [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
@@ -305,29 +285,40 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 	    end
     end.
 
--spec handle_message(message() | merge_request(), State::any(), pid(), update_fun()) -> State::any().
-handle_message({msg, Msg}, State, Output, UFun) ->
+-spec handle_message(message() | merge_request(), State::any(), pid(), update_fun(), configuration()) 
+		    -> State::any().
+handle_message({msg, Msg}, State, Output, UFun, _Conf) ->
     update_on_msg(Msg, State, Output, UFun);
-handle_message({merge, {_Tag, _Ts, Father}}, State, _Output, _UFun) ->
-    respond_to_merge(Father, State).
+handle_message({merge, {_Tag, _Ts, Father}}, State, _Output, _UFun, Conf) ->
+    respond_to_merge(Father, State, Conf).
 
 -spec update_on_msg(message(), State::any(), pid(), update_fun()) -> State::any().
 update_on_msg(Msg, State, Output, UFun) ->
     NewState = UFun(Msg, State, Output),    
     NewState.
 
--spec respond_to_merge(pid(), State::any()) -> State::any().
-respond_to_merge(Father, State) ->
-    Father ! {state, State},
+-spec respond_to_merge(pid(), State::any(), configuration()) -> State::any().
+respond_to_merge(Father, State, ConfTree) ->
+    %% We have to send our mailbox's pid to our parent
+    %% so that they can recognize where does this state message come from
+    Self = self(),
+    {node, Self, MPid, _P, _Children} = 
+	configuration:find_node(Self, ConfTree),
+    Father ! {state, {MPid, State}},
     receive
 	{state, NewState} ->
 	    NewState
     end.
 
--spec sync_merge(pid(), {tag(), integer()}) -> State::any().
-sync_merge(C, {Tag, Ts}) ->
-    C ! {merge, {Tag, Ts, self()}},
-    receive 
-	{state, State} ->
+-spec receive_state(pid()) -> State::any().
+receive_state(C) ->
+    receive
+	{state, {C, State}} ->
 	    State
     end.
+
+-spec send_merge_requests({tag(), integer()}, [pid()]) -> [State::any()].
+send_merge_requests({Tag, Ts}, Children) ->
+    [C ! {merge, {Tag, Ts, self()}} || C <- Children],
+    [receive_state(C) || C <- Children].
+

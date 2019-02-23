@@ -1,6 +1,20 @@
 ** Work TODO
 
 
+*** TODO Create some unit testing infastructure
+
+Create a testing framework that expects some specific output for each specific input, and in order to do
+that I have to make my own sink function that will compare whatever it receives to a sample output.
+
+In theory I have to make sure that I reorder messages that arrive from different nodes, so
+if its possible I have to make sure that all outputs with reorderings (when the messages arrive from
+different nodes are equial). For now I can just execute each test 100 times.
+
+*** TODO Ensure that the assumption that children preds are subsets of the parent pred is reasonable
+
+There is an implicit assumption that I have made that preds of children are subsets of the parent pred.
+I have to make sure that it is reasonable and correct.
+
 *** DONE BUG: Heatbeats releases all messages, not caring about the messages that they depend on
 
 At the moment, after every heartbeat, every message that has all its dependent timers higher than it,
@@ -34,9 +48,17 @@ This could be messages with the position of the taxi, that arrive every second, 
 to get the distance that the taxi has covered in every hour. So we need to compute the distance
 between every two *consecutive* points and add them together.
 
-*** TODO Handle a merge message as both a heartbeat and a normal message
-    - [ ] Add the merge message to the buffer, and then clear the buffer using it as a heartbeat
-    - [ ] Make sure that the dependencies of the merge message are handled correctly
+NOTE: Before finishing this, I have to make sure that the bug below is solved.
+
+*** DONE Handle a merge message as both a heartbeat and a normal message
+    - [X] Add the merge message to the buffer, and then clear the buffer using it as a heartbeat
+    - [X] Make sure that the dependencies of the merge message are handled correctly
+      + [X] Handle merge req dependencies correctly 1.1
+      + [X] Send merge messages as a parent asynchronously and then wait for both 1.2
+    - [X] After this bug is solved, test every example until now, to ensure correctness
+    - [X] Remove the unused functions in node.erl
+    - [X] Move the configuration tree functions from node.erl in the configuration.erl
+
 
 Solution:
 First add the merge to the buffer, and then clear the buffer (using the merge as a heartbeat).
@@ -46,11 +68,41 @@ which could lead to a bug. Example: An "a" mailbox hasn't received an a heartbea
 "b" merge request. This will lead to the merge request being forwarded to the node, before the "a"s
 that should have been already processed.
 
-Problem:
+Problem1:
 In order to implement this solution, I have to make sure that the merge message will be handled correctly,
 and cleared at the next a-heartbeat (or even immediately). Because of this, I might need to revise the 
 clear dependencies functions that I call befoee initializing the mailbox to not delete the keys that
-are not in a node's predicate.
+are not in a node's predicate. 
+
+Problem1.1:
+At the moment node 1 doesn't get the id,2 messages or heartbeats, so it is impossible for it to clear 
+the merge message. It might be solvable in the following way. Instead of only removing the dependencies
+of my children, I should remove the dependencies of every node, that is not my father (or grandfather...).
+In theory, I will never learn about my children's heartbeats because I will ask with a merge, and I will
+always learn from my parents (father, grandfather...). This constitutes my alpha mapping, that is
+all the tags except the ones that my children and my cousins, siblings, uncles ... deal with. However,
+I need to be careful because I might remove my own predicate like this. In reality I have to only add myself and
+all my parents predicate after removing their other childrens. So add Mine, (Father - OtherChild), 
+(Grandfather - OtherChild(Uncle))... 
+
+PROBLEM1.1: I have implemented this but it still has a problem on the first run, it sometimes
+            returns 59 and 58 and sometimes it returns 58 and 58.
+
+WARNING: MAKE SURE THAT NO ASSUMPTION ABOUT THE RELATIONS OF THE PREDICATES IN THE DEPENDENCIES AND THE
+         NODES ARE NEEDED.
+
+Problem1.2:
+Also, a parent doesn't asynchronously send the merge messages but it rather blocks on each child,
+which is wrong. It should block for both children together
+
+*** TODO (Maybe Problem) At the moment we cannot order two messages with the same tag and timestamp
+
+The implementation cannot break the tie between two messages with the same tag and timestamp
+
+*** TODO Make sure that the dependencies that each node keeps are indeed the correct ones
+
+WARNING: MAKE SURE THAT NO ASSUMPTION ABOUT THE RELATIONS OF THE PREDICATES IN THE DEPENDENCIES AND THE
+         NODES ARE NEEDED.
 
 *** TODO Optimize the add message to buffer to not wait for the next heartbeat
 

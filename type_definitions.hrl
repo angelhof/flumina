@@ -4,6 +4,7 @@
 -type tag() :: any().
 -type message() :: {tag(), integer(), Payload::any()}.
 -type merge_request() :: {'merge', {tag(), integer(), Father::pid()}}. 
+-type message_or_merge() :: {'msg', message()} | merge_request().
 -type heartbeat() :: {heartbeat, {tag(), integer()}}.
 -type update_fun() :: fun((message(), State::any(), pid()) -> State::any()).
 -type split_fun() :: fun(({message_predicate(), message_predicate()}, State::any()) 
@@ -13,7 +14,7 @@
 
 -type dependencies() :: #{tag() := [tag()]}.
 -type timers() :: #{tag() := [integer()]}.
--type message_buffer() :: {[message()], timers()}.
+-type message_buffer() :: {[message_or_merge()], timers()}.
 
 %% The configuration tree, contains the pid and the mailbox pid of each node
 %% as well as a predicate that represents which messages does this node process.
