@@ -38,7 +38,7 @@ to sequentially traverse the buffer, and keep the first timestamp of each tag th
 we we only release messages that don't have a dependent tag that has arrived earlier than them but hasn't
 been released.
 
-*** TODO Implement a taxi example where {id,1} is dependent to itself but not to {id,2}
+*** DONE Implement a taxi example where {id,1} is dependent to itself but not to {id,2}
     - [X] Define the computation
     - [X] Implement a producer that create {x,y} line coordinates for each taxi
     - [X] Define a sequential configuration

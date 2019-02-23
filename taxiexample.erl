@@ -5,6 +5,8 @@
 	 distributed/0,
 	 sequential_1/0,
 	 distributed_1/0,
+	 sequential_2/0,
+	 distributed_2/0,
 	 source/2]).
 
 -include("type_definitions.hrl").
@@ -17,6 +19,53 @@ main() ->
 %% At the moment we assume that everything written in this module
 %% is correct. Normally we would typecheck the specification of
 %% the computation but for now we can assume that it is correct.
+
+distributed_2() ->
+
+    %% Configuration Tree
+    Funs = {fun update_2/3, fun split_2/2, fun merge_2/2},
+    FunsP = {fun update_id_2/3, fun split_2/2, fun merge_2/2},
+    Ids = init_state_2(),
+    {Ids1, Ids2} = split_2({fun isId1/1, fun isId2/1}, Ids),
+    Node1 = {Ids1, fun isId1/1, FunsP, []},
+    Node2 = {Ids2, fun isId2/1, FunsP, []},    
+    Node0  = {Ids, fun isHour/1, Funs, [Node1, Node2]},
+    PidTree = configuration:create(Node0, dependencies_2(), self()),
+    {{_NP0, MP0}, 
+     [{{_NP1, MP1}, []}, 
+      {{_NP2, MP2}, []}]} = PidTree,
+
+    %% Set up where will the input arrive
+    Input1 = id1_positions_with_heartbeats(),
+    Producer1 = spawn_link(?MODULE, source, [Input1, MP1]),
+    
+    Input2 = id2_positions_with_heartbeats(),
+    Producer2 = spawn_link(?MODULE, source, [Input2, MP2]),
+    
+    Input3 = hour_positions_input(),
+    Producer3 = spawn_link(?MODULE, source, [Input3, MP0]),
+
+    sink().
+
+sequential_2() ->
+    %% Configuration Tree
+    Funs = {fun update_2/3, fun split_2/2, fun merge_2/2},
+    Ids = init_state_2(),
+    Node  = {Ids, fun true_pred/1, Funs, []},
+    PidTree = configuration:create(Node, dependencies_2(), self()),
+    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+
+    %% Set up where will the input arrive
+    Input1 = id1_positions_with_heartbeats(),
+    Producer1 = spawn_link(?MODULE, source, [Input1, HeadMailboxPid]),
+    
+    Input2 = id2_positions_with_heartbeats(),
+    Producer2 = spawn_link(?MODULE, source, [Input2, HeadMailboxPid]),
+    
+    Input3 = hour_positions_input(),
+    Producer3 = spawn_link(?MODULE, source, [Input3, HeadMailboxPid]),
+
+    sink().
 
 distributed_1() ->
 
@@ -104,26 +153,54 @@ create_producers(MarkerFun, [Pid1, Pid2, Pid3]) ->
 %%
 
 
-%% This computation outputs how popular each grid cell has been as 
-%% a destination for rides, every 20 minutes (sliding window). 
-%% So it maps every ride to its final destination and then counts
+%% This computation the total distance that each driver has moved every hour.
+%% It finds the distance between each two consecutive points of each taxi driver
+%% and then adds them all for each hour
+
+update_id_2({Tag, Ts, Position}, DriverPosDists, SendTo) ->
+    %% SendTo ! {"Time", Ts, Tag, Position, self()},
+    {PrevPos, PrevDist} = maps:get(Tag, DriverPosDists),
+    Dist = dist(PrevPos, Position),
+    maps:update(Tag, {Position, Dist + PrevDist}, DriverPosDists).
 
 
-update_2({window, Ts, marker}, {TipSums, WindowTips0}, SendTo) ->
-    undefined.
+update_2({hour, Ts, marker}, DriverPosDists, SendTo) ->
+    {Ids, Values} = lists:unzip(maps:to_list(DriverPosDists)),
+    {_PrevPositions, Distances} = lists:unzip(Values),
+    SendTo ! {"Distances per rider", lists:zip(Ids, Distances), "Minutes: ", Ts},
+    maps:map(fun(_,{PrevPos, Dist}) -> {PrevPos, 0} end, DriverPosDists);
+update_2(Msg, DriverPosDists, SendTo) ->
+    update_id_2(Msg, DriverPosDists, SendTo).
 
-split_2({Pred1, Pred2}, {TipSums, WindowTips}) ->
-    undefined.
+split_2({Pred1, Pred2}, DriverPosDists) ->
+    {maps:filter(fun(K,_) -> Pred1({K, dummy, dummy}) end, DriverPosDists),
+     maps:filter(fun(K,_) -> Pred2({K, dummy, dummy}) end, DriverPosDists)}.
 
-merge_2({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
-    undefined.
+merge_2(DriverPosDists1, DriverPosDists2) ->
+    merge_with(
+      fun(K, _V1, _V2) ->
+	      %% This should never be called
+	      util:err("Key: ~p shouldn't exist in both maps~n", [K]),
+	      erlang:halt()
+      end, DriverPosDists1, DriverPosDists2).
 
 dependencies_2() ->
-    undefined.
+    #{{id,1} => [{id,1}, hour],
+      {id,2} => [{id,2}, hour],
+      hour => [{id,1}, {id,2}, hour]
+     }.
 
 init_state_2() ->
-    undefined.
+    maps:from_list([{{id,1}, {undef,0}}, 
+		    {{id,2}, {undef,0}}]).
 
+dist({X1, Y1}, {X2, Y2}) ->
+    X12 = (X2 - X1) * (X2 - X1),
+    Y12 = (Y2 - Y1) * (Y2 - Y1),
+    math:sqrt(X12 + Y12);
+dist(undef, {X2, Y2}) ->
+    %% This is only here for the first update
+    0.
 
 
 
@@ -143,6 +220,7 @@ update_id_1({Tag, Ts, Value}, {TipSums, WindowTips}, SendTo) ->
     SendTo ! {"Time", Ts, Tag, Value},
     Tip = maps:get(Tag, TipSums),
     {maps:update(Tag, Tip + Value, TipSums), WindowTips}.
+
 
 update_1({window, Ts, marker}, {TipSums, WindowTips0}, SendTo) ->
     %% This keeps the past sliding periods tips for each
@@ -316,6 +394,28 @@ sink() ->
 
 
 %% Some input examples
+
+id1_positions_with_heartbeats() ->
+    producer:interleave_heartbeats(taxi_1_position_inputs(), #{{id,1} => 5}, 2050).
+
+id2_positions_with_heartbeats() ->
+    producer:interleave_heartbeats(taxi_2_position_inputs(), #{{id,2} => 5}, 2050).
+
+taxi_1_position_inputs() ->
+    Positions = [{X, 0} || X <- lists:seq(1,1000)] ++ [{X + 1000, X} || X <- lists:seq(1,1000)],
+    TsPositions = lists:zip(Positions, lists:seq(1, length(Positions))),
+    [{{id,1}, Ts, Pos} || {Pos, Ts} <- TsPositions].
+
+taxi_2_position_inputs() ->
+    Positions = [{0, X} || X <- lists:seq(1,1000)] ++ [{X, 1000} || X <- lists:seq(1,1000)],
+    TsPositions = lists:zip(Positions, lists:seq(1, length(Positions))),
+    [{{id,2}, Ts, Pos} || {Pos, Ts} <- TsPositions].
+
+hour_positions_input() ->
+    Input = [{hour, T * 60, marker} || T <- lists:seq(1, 35)],
+    producer:interleave_heartbeats(Input, #{hour => 60}, 2100).
+
+
 
 hour_markets_input() ->
     Input = [{hour, T * 60, marker} || T <- lists:seq(1, 10)],
