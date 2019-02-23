@@ -43,3 +43,6 @@ taxiexample_slide:
 
 exec:
 	$(ERL) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)
+
+tests:
+	@$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample test $(HALT)

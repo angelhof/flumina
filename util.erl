@@ -2,7 +2,8 @@
 
 -export([err/2,
 	 crash/2,
-	 exec/1]).
+	 exec/1,
+	 sink/0]).
 
 -include("type_definitions.hrl").
 
@@ -25,3 +26,9 @@ parse(Str) ->
     {value,Value,_Bs} = erl_eval:exprs(AbsForm, erl_eval:new_bindings()),
     Value.
 
+sink() ->
+    receive
+	Msg ->
+	    io:format("~p~n", [Msg]),
+	    sink()
+    end.

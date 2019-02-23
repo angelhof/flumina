@@ -1,13 +1,14 @@
 -module(abexample).
 
--export([main/0,
-	 distributed/0,
+-export([distributed/0,
+	 distributed_conf/1,
+	 distributed_1/0,
+	 distributed_conf_1/1,
 	 source/2]).
 
--include("type_definitions.hrl").
+-include_lib("eunit/include/eunit.hrl").
 
-main() ->
-    distributed().
+-include("type_definitions.hrl").
 
 %% Note:
 %% =====
@@ -17,13 +18,17 @@ main() ->
 
 %% This is what our compiler would come up with
 distributed() ->
+    ExecPid = spawn_link(?MODULE, distributed_conf, [self()]),
+    util:sink().
+
+distributed_conf(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     NodeA1 = {0, fun isA/1, Funs, []},
     NodeA2 = {0, fun isA/1, Funs, []},
-    NodeB  = {0, fun isB/1, Funs, [NodeA1, NodeA2]},
-    PidTree = configuration:create(NodeB, dependencies(), self()),
+    NodeB  = {0, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    PidTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
     Input = input_example2(),
@@ -31,12 +36,35 @@ distributed() ->
     Producer = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
 
     io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
-    sink().
+    SinkPid ! finished,
+    ok.
+
+distributed_1() ->
+    ExecPid = spawn_link(?MODULE, distributed_conf_1, [self()]),
+    util:sink().
+
+distributed_conf_1(SinkPid) ->
+
+    %% Configuration Tree
+    Funs = {fun update/3, fun split/2, fun merge/2},
+    NodeA1 = {0, fun isA/1, Funs, []},
+    NodeA2 = {0, fun isA/1, Funs, []},
+    NodeB  = {0, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    PidTree = configuration:create(NodeB, dependencies(), SinkPid),
+
+    %% Set up where will the input arrive
+    Input = input_example(),
+    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+    Producer = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
+
+    %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
+    SinkPid ! finished,
+    ok.
 
 %% The specification of the computation
 update({a, Ts, Value}, Sum, SendTo) ->
     %% This is here for debugging purposes
-    SendTo ! {self(), a, Value, Ts},
+    %% SendTo ! {self(), a, Value, Ts},
     Sum + Value;
 update({b, Ts, empty}, Sum, SendTo) ->
     SendTo ! {sum, Sum, Ts},
@@ -76,18 +104,12 @@ source([Msg|Rest], SendTo) ->
     end,
     source(Rest, SendTo).
 
-sink() ->
-    receive
-	Msg ->
-	    io:format("~p~n", [Msg]),
-	    sink()
-    end.
-
 
 %% Some input examples
 input_example() ->
     [{a, V, V} || V <- lists:seq(1, 1000)] ++ [{b, 1001, empty}]
-	++ [{a, V, V} || V <- lists:seq(1002, 2000)] ++ [{b, 2001, empty}].
+	++ [{a, V, V} || V <- lists:seq(1002, 2000)] ++ [{b, 2001, empty}]
+	++ [{heartbeat, {a,2005}}, {heartbeat, {b,2005}}].
 
 input_example2() ->
     [{a, 1, 1},
@@ -112,3 +134,27 @@ input_example2() ->
      {b, 16, empty},
      {heartbeat, {a, 20}},
      {heartbeat, {b, 20}}].
+
+%% -------- TESTS -------- %%
+
+input_example_output() ->
+    [{sum,500500,1001},
+     {sum,1999999,2001}].
+
+input_example_test_() ->
+    Rounds = lists:seq(1,10),
+    {"Input example test",
+     [?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_1}, input_example_output()))
+      || _ <- Rounds]}.
+
+input_example2_output() ->
+    [{sum,1,2},
+     {sum,9,5},
+     {sum,27,9},
+     {sum,51,16}].
+
+input_example2_test_() ->
+    Rounds = lists:seq(1,100),
+    {"Input example2 test",
+     [?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, input_example2_output()))
+      || _ <- Rounds]}.		      
