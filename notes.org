@@ -32,7 +32,7 @@ be cleared. This is a naive way to solve this bug, as this way messages might ha
 fo messages that they do not depend on to be released. Ideally an implementation would only release a message
 if there is no message that it depends on previously in the buffer.
 
-*** TODO Optimize the clear_buffer function
+*** DONE Optimize the clear_buffer function
 
 After the above bug fix, messages wait in the buffer for every message that has a smaller timestamp
 to be released first. However, this can lead to a situation where messages wait in the buffer despite

@@ -213,7 +213,7 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
     %% We assume that heartbeats arrive in the correct order
     %% TODO: The new timer should be the maximum of the current timer and the heartbeat
     NewTimers = maps:put(HTag, HTs, Timers),
-    {ToRelease, NewBuffer} = release_messages(Buffer, NewTimers, Dependencies, []),
+    {ToRelease, NewBuffer} = release_messages(Buffer, NewTimers, Dependencies),
     %% io:format("~p -- Timers: ~p~n", [self(), NewTimers]),
     %% io:format("~p -- Hearbeat: ~p -- Partition: ~p~n", [self(), {HTag, HTs}, {ToRelease, NewBuffer}]),
     [Attachee ! Msg || Msg <- ToRelease],
@@ -221,22 +221,38 @@ clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
 
 %% This function releases messages in a naive way. It stops releasing on the first message that 
 %% it finds that doesn't have its dependencies heartbeat timers higher than itself.
-%% TODO: Improve this function to release all the messages which don't have any of
-%%       their dependent messages before them in the buffer (Details in notes.org)
--spec release_messages([message_or_merge()], timers(), dependencies(), [message_or_merge()]) 
+%% TODO: Improve this function to stop when it has seen at least one of each 
+%%       possible tag in the buffer (this will later be one of each possible 
+%%       predicate in the buffer). At the moment it traverses the whole list,
+%%       even if it has seen all types of messages
+-spec release_messages([message_or_merge()], timers(), dependencies()) 
 		      -> {[message_or_merge()], [message_or_merge()]}.
-release_messages([], Timers, Dependencies, ToReleaseRev) ->
-    {lists:reverse(ToReleaseRev), []};
-release_messages([{MsgOrMerge, {Tag, Ts, _}} = Msg|Buffer], Timers, Dependencies, ToReleaseRev) ->
+release_messages(Buffer, Timers, Dependencies) ->
+    release_messages(Buffer, Timers, Dependencies, #{}, [], []).
+
+-spec release_messages([message_or_merge()], timers(), dependencies(), 
+		       timers(), [message_or_merge()], [message_or_merge()]) 
+		      -> {[message_or_merge()], [message_or_merge()]}.
+release_messages([], _Timers, _Dependencies, _EarliestSeen, ToKeepRev, ToReleaseRev) ->
+    {lists:reverse(ToReleaseRev), lists:reverse(ToKeepRev)};
+release_messages([{_MoM, {Tag, Ts, _}} = Msg|Buffer], Timers, Dependencies, 
+		 EarliestSeen, ToKeepRev, ToReleaseRev) ->
     TagDeps = maps:get(Tag, Dependencies),
-    case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps) of
+    %% In order to release a message, 
+    %% 1) All of its dependent timers have to be higher than its timestamp
+    %% 2) There must be no dependent message to it that has a smaller timestamp
+    %%    left in the buffer
+    case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps) 
+	andalso not lists:any(fun(TD) -> maps:is_key(TD, EarliestSeen) end, TagDeps) of
 	true ->
 	    %% If the current messages has a timestamp that is smaller
-	    %% than all its dependency heartbeats, then we can release it
-	    release_messages(Buffer, Timers, Dependencies, [Msg|ToReleaseRev]);
+	    %% than all its dependency heartbeats, and there is no dependent
+	    %% message with a lower timestamp left in the buffer, we can release it
+	    release_messages(Buffer, Timers, Dependencies, EarliestSeen, ToKeepRev, [Msg|ToReleaseRev]);
 	false ->
-	    %% If not, we stop releasing messages
-	    {lists:reverse(ToReleaseRev), [Msg|Buffer]}
+	    %% If not, we add it to earliestseen if it isn't there already
+	    NewEarliestSeen = maps:update_with(Tag, fun id/1, Ts, EarliestSeen),
+	    release_messages(Buffer, Timers, Dependencies, NewEarliestSeen, [Msg|ToKeepRev], ToReleaseRev)
     end.
 
 %% Broadcasts the heartbeat to those who are responsible for it
@@ -322,3 +338,6 @@ send_merge_requests({Tag, Ts}, Children) ->
     [C ! {merge, {Tag, Ts, self()}} || C <- Children],
     [receive_state(C) || C <- Children].
 
+-spec id(any()) -> any().
+id(X) ->
+    X.
