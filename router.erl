@@ -4,7 +4,8 @@
 	 loop/1,
 	 or_route/2,
 	 and_route/2,
-	 heartbeat_route/2
+	 heartbeat_route/2,
+	 find_responsible_subtree_pids/2
 	]).
 
 -include("type_definitions.hrl").
@@ -30,6 +31,8 @@ and_route(Router, Msg) ->
 
 heartbeat_route(Msg, Tree) ->
     find_responsibles(Tree, Msg).
+    %% Subtrees = find_lowest_responsible_subtrees(Tree, Msg),
+    %% lists:flatmap(fun configuration:find_node_mailbox_pids/1, Subtrees).
 
 init(Tree) -> 
     Router = spawn_link(?MODULE, loop, [Tree]),
@@ -54,6 +57,17 @@ loop(Tree) ->
 	    loop(Tree)
     end.
 
+find_responsible_subtree_pids(Tree, Msg) ->
+    Subtree = find_responsible_subtree(Tree, Msg),
+    configuration:find_node_mailbox_father_pid_pairs(Subtree).
+
+%% This functions finds and returns **ONE OF** the responsible
+%% subtrees for this message
+find_responsible_subtree(Tree, Msg) ->
+    ResponsibleSubtrees = find_lowest_responsible_subtrees(Tree, Msg),
+    %% Extremely Inefficient
+    Index = rand:uniform(length(ResponsibleSubtrees)),
+    lists:nth(Index,ResponsibleSubtrees).
 
 %% This is a very bad find_responsible implementation
 %% because it locally finds all responsible nodes
@@ -66,12 +80,15 @@ find_one_responsible(Tree, Msg) ->
 
 %% This is used to find the first lower responsibles for this message,
 %% so the lowest nodes that can process it.
-find_lowest_responsibles({node, _NodePid, MailboxPid, Pred, Children}, Msg) ->
-    case lists:flatmap(fun(C) -> find_lowest_responsibles(C, Msg) end, Children) of
+find_lowest_responsibles(Tree, Msg) ->
+    [MPid || {node, _NPid, MPid, _Pred, _Children} <- find_lowest_responsible_subtrees(Tree, Msg)].
+
+find_lowest_responsible_subtrees({node, _NodePid, _MailboxPid, Pred, Children} = Node, Msg) ->
+    case lists:flatmap(fun(C) -> find_lowest_responsible_subtrees(C, Msg) end, Children) of
 	[] ->
 	    %% None of my children are responsible so I could be
 	    case Pred(Msg) of
-		true -> [MailboxPid];
+		true -> [Node];
 		false -> []
 	    end;
 	Responsibles ->

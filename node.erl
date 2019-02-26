@@ -126,8 +126,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %%   the message to a lower node, as only leaf processes process
 	    %%   and a message must be handled by (one of) the lowest process 
 	    %%   in the tree that can handle it.
-	    SendTo = router:or_route(Msg, ConfTree),
-	    SendTo ! {msg, Msg},
+	    route_message_and_merge_requests(Msg, ConfTree),
 	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{msg, Msg} ->
 	    case Pred(Msg) of
@@ -156,7 +155,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %%   like we do with every other message
 	    NewMessageBuffer = add_to_buffer({merge, {Tag, Ts, Father}}, MessageBuffer),
 	    ClearedMessageBuffer = clear_buffer({Tag, Ts}, NewMessageBuffer, Dependencies, Attachee),
-	    %% io:format("~p -- After Merge: ~p~n", [self(), NewMessageBuffer]),
+	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedMessageBuffer]),
 	    mailbox(ClearedMessageBuffer, Dependencies, Pred, Attachee, ConfTree);
 	{state, State} ->
 	    %% This is the reply of a child node with its state 
@@ -258,6 +257,18 @@ release_messages([{_MoM, {Tag, Ts, _}} = Msg|Buffer], Timers, Dependencies,
 	    release_messages(Buffer, Timers, Dependencies, NewEarliestSeen, [Msg|ToKeepRev], ToReleaseRev)
     end.
 
+%% This function sends the message to the head node of the subtree,
+%% and the merge request to all its children
+-spec route_message_and_merge_requests(message(), configuration()) -> 'ok'.
+route_message_and_merge_requests(Msg, ConfTree) ->
+    %% This finds the head node of the subtree
+    [{SendTo, undef}|Rest] = router:find_responsible_subtree_pids(ConfTree, Msg),
+    SendTo ! {msg, Msg},
+    {Tag, Ts, _Payload} = Msg,
+    [To ! {merge, {Tag, Ts, ToFather}} || {To, ToFather} <- Rest],
+    ok.
+
+
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
 -spec broadcast_heartbeat({tag(), integer()}, configuration()) -> [heartbeat()].
@@ -285,7 +296,7 @@ init_node(State, Funs, Output) ->
 -spec loop(State::any(), #funs{}, pid(), configuration()) -> no_return().
 loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
     receive
-        MessageMerge ->
+        {MsgOrMerge, _} = MessageMerge when MsgOrMerge =:= msg orelse MsgOrMerge =:= merge ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
 	    case configuration:find_children_mbox_pids(self(), ConfTree) of
 		[] ->
@@ -338,7 +349,7 @@ receive_state(C) ->
 
 -spec send_merge_requests({tag(), integer()}, [pid()]) -> [State::any()].
 send_merge_requests({Tag, Ts}, Children) ->
-    [C ! {merge, {Tag, Ts, self()}} || C <- Children],
+    %% [C ! {merge, {Tag, Ts, self()}} || C <- Children],
     [receive_state(C) || C <- Children].
 
 -spec id(any()) -> any().

@@ -2,7 +2,12 @@
 
 *** TODO Move the implementation source in ./src and the examples in ./examples
 
-*** TODO Instead of sending merge requests from parent nodes, send them immediately from the input
+*** DONE Instead of sending merge requests from parent nodes, send them immediately from the input
+
+In theory this way the input initiates all the merge requests and the nodes just enter the merging mode
+when they are processing a merge.
+
+There might be a synchronization problem, because now the merge procedures are started asynchronously
 
 *** TODO Make sure that the top nodes propagate heartbeats to children nodes
 
@@ -51,7 +56,6 @@ release one of them, we will look at its next messages.
 
 Each time we want to add a message, we find the latest dependent messages to it in the DAG, and we 
 insert the new message after them (together with edges from them to it).
-
 
 *** DONE BUG: Heatbeats releases all messages, not caring about the messages that they depend on
 

@@ -8,6 +8,7 @@
 	 find_children_preds/2,
 	 find_descendant_preds/2,
 	 find_node_mailbox_pid_pairs/1,
+	 find_node_mailbox_father_pid_pairs/1,
 	 get_relevant_predicates/2]).
 
 -include("type_definitions.hrl").
@@ -151,3 +152,14 @@ get_relevant_predicates(Attachee, {node, _NotAttachee, _MPid, Pred, Children}) -
 		end,
 	    {found, ReturnPred}
     end.
+
+%% It returns the pairs of mailbox and father ids
+-spec find_node_mailbox_father_pid_pairs(configuration()) -> [{pid(), pid() | 'undef'}].
+find_node_mailbox_father_pid_pairs({node, NPid, MPid, _Pred, Children}) ->
+    ChildrenPairs = lists:flatten([find_node_mailbox_father_pid_pairs(C) || C <- Children]),
+    [{MPid, undef}|[add_father_if_undef(ChildPair, NPid) || ChildPair <- ChildrenPairs]].
+    
+-spec add_father_if_undef({pid(), pid() | 'undef'}, pid()) -> {pid(), pid()}.
+add_father_if_undef({ChildMPid, undef}, Father) -> {ChildMPid, Father};
+add_father_if_undef(ChildPair, _Father) -> ChildPair.
+    
