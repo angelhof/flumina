@@ -139,9 +139,12 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 		true ->
 		    %% Whenever a new message arrives, we add it to the buffer
 		    NewMessageBuffer = add_to_buffer({msg, Msg}, MessageBuffer),
+		    {Tag, Ts, _Payload} = Msg,
+		    %% And we then clear the buffer based on it, as messages also act as heartbeats
+		    ClearedMessageBuffer = clear_buffer({Tag, Ts}, NewMessageBuffer, Dependencies, Attachee),
 		    %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
 		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]),
-		    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
+		    mailbox(ClearedMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
 	    end;
 	{merge, {Tag, Ts, Father}} ->
 	    %% A merge requests acts as two different messages in our model.

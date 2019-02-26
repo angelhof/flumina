@@ -1,5 +1,23 @@
 ** Work TODO
 
+*** TODO Move the implementation source in ./src and the examples in ./examples
+
+*** TODO Instead of sending merge requests from parent nodes, send them immediately from the input
+
+*** TODO Make sure that the top nodes propagate heartbeats to children nodes
+
+In order to not block for very long periods of time. At the moment the children nodes only get the 
+merge requests from upper nodes. This shouldn't really change the receiver mailbox implementation,
+but only the heartbeat routing.
+
+Before doing this, make sure that the merge requests and the heartbeats arrive in the correct order
+
+*** DONE Make sure that each input stream is ordered
+
+So messages are also heartbeats in the sense that they update the timers. That is, heartbeats
+appear only in periods of lack of messages to speed up progress.
+
+NOTE: Before implementing that, make sure that we have decided on what the model looks like exactly
 
 *** TODO Make tests fail even if we get more messages
 
@@ -19,6 +37,21 @@ different nodes are equial). For now I can just execute each test 100 times.
 
 There is an implicit assumption that I have made that preds of children are subsets of the parent pred.
 I have to make sure that it is reasonable and correct.
+
+*** TODO Implement the buffer as a partial order that captures the dependencies
+
+ALTERNATIVE: Or as a priority queue
+
+Instead of sorting everything in the buffer and then traversing it every time to clear messages,
+we might be able to implement it as a dependency DAG, where the source messages block the ones that
+are after them from being released. 
+
+Then, each time we want to clear the buffer we will only look at the sources, and only if we do
+release one of them, we will look at its next messages.
+
+Each time we want to add a message, we find the latest dependent messages to it in the DAG, and we 
+insert the new message after them (together with edges from them to it).
+
 
 *** DONE BUG: Heatbeats releases all messages, not caring about the messages that they depend on
 
@@ -120,7 +153,6 @@ This optimization might correlate with the clear_buffer optimization that is des
 add a new message in the buffer, in an earlier position than any of its dependencies, and its dependent
 timers are already higher than it, then we can release it immediately
 
-*** TODO Optimize the buffer to not hold a sorted list of all messages 
 
 This degrades performance as some messages might not need to be ordered in the buffer. This way
 we sort everything no matter whether they do need to be ordered or not.
