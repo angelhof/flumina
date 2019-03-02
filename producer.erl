@@ -37,7 +37,7 @@ interleave_heartbeats([{Tag, Ts, Payload}|Rest], NextHeartbeats, Periods, Stream
 		  update_next_heartbeats(Ts, HTag, HTs, Acc, Periods)
 	  end, {[], NextHeartbeats}, NextHeartbeats),
     NewStreamAcc = 
-	[{Tag, Ts, Payload}|HeartbeatsToSend] ++ StreamAcc,
+	HeartbeatsToSend ++ [{Tag, Ts, Payload}|StreamAcc],
     interleave_heartbeats(Rest, NewNextHeartbeats, Periods, NewStreamAcc, Until).
 	
 update_next_heartbeats(CurrTs, HTag, HTs, {ToSend, NewMap}, Periods) when CurrTs > HTs ->

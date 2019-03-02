@@ -1,7 +1,6 @@
 ** Work TODO
 
 *** TODO Move the implementation source in ./src and the examples in ./examples
-
 *** DONE Instead of sending merge requests from parent nodes, send them immediately from the input
 
 In theory this way the input initiates all the merge requests and the nodes just enter the merging mode
@@ -9,7 +8,11 @@ when they are processing a merge.
 
 There might be a synchronization problem, because now the merge procedures are started asynchronously
 
-*** TODO Make sure that the top nodes propagate heartbeats to children nodes
+*** DONE Make sure that the top nodes propagate heartbeats to children nodes
+
+WE HAVE MADE TO THE ASSUMPTION THAT EACH TAG HAS ONE ROOT NODE AND NOT MORE
+
+DONE: This has been implemented.
 
 In order to not block for very long periods of time. At the moment the children nodes only get the 
 merge requests from upper nodes. This shouldn't really change the receiver mailbox implementation,
@@ -43,7 +46,37 @@ different nodes are equial). For now I can just execute each test 100 times.
 There is an implicit assumption that I have made that preds of children are subsets of the parent pred.
 I have to make sure that it is reasonable and correct.
 
-*** TODO Implement the buffer as a partial order that captures the dependencies
+*** DONE Implement the buffer and its operations in a more efficient manner
+
+Implemented Solution:
+
+In order to release a message two different conditions have to be satisfied.
+- It should be released after any message that is dependent to it and has an earlier timestamp
+- It should be released after we are sure that we have received all those messages with an
+  earlier timestamp.
+
+In our buffer we have at any point for each tag σ:
+- A (possibly empty) sequence of messages that is ordered by timestamp. Its first message is the
+earliest message of tag σ that the mailbox hasn't still released.
+- A timer that indicates the largest timestamp that the mailbox has seen for this tag.
+
+Checking whether a message can be released:
+To release a message with tag σ' we have to make sure that for each of its dependencies σ'', 
+its timestamp is smaller than both the timer for σ'' and the earliest message for σ''.
+
+Whenever the mailbox gets a new heartbeat it:
+1. Updates the timers for this tag
+2. Checks whether any message in the buffer can be released based on the new timer values
+
+Whenever the mailbox gets a new message, it:
+1. The message is added to the ordered queue with messages of the same tag,
+   as the earliest messages of the same tag can be released first
+   (this doesn't mean that they should, by they almost always will be)
+2. Updates the timers for the tag
+3. Checks whether the new message can be released
+
+There is a problem however, releasing a message can create an arbitrary cascade of new
+releases on the dependencies of this specific message. It doesn't really matter though.
 
 ALTERNATIVE: Or as a priority queue
 
@@ -146,7 +179,7 @@ The implementation cannot break the tie between two messages with the same tag a
 WARNING: MAKE SURE THAT NO ASSUMPTION ABOUT THE RELATIONS OF THE PREDICATES IN THE DEPENDENCIES AND THE
          NODES ARE NEEDED.
 
-*** TODO Optimize the add message to buffer to not wait for the next heartbeat
+*** DONE Optimize the add message to buffer to not wait for the next heartbeat
 
 At the moment, a message is added to the buffer without even thinking whether it might need to be released
 or not. Think of a way to optimize this so that a new message is not necessarily added to the buffer, 

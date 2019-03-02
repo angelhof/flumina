@@ -65,7 +65,7 @@ find_responsible_subtree_pids(Tree, Msg) ->
 %% subtrees for this message
 find_responsible_subtree(Tree, Msg) ->
     ResponsibleSubtrees = find_lowest_responsible_subtrees(Tree, Msg),
-    %% Extremely Inefficient
+    %% WARNING: Extremely Inefficient
     Index = rand:uniform(length(ResponsibleSubtrees)),
     lists:nth(Index,ResponsibleSubtrees).
 

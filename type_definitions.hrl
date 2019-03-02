@@ -15,6 +15,8 @@
 -type dependencies() :: #{tag() := [tag()]}.
 -type timers() :: #{tag() := [integer()]}.
 -type message_buffer() :: {[message_or_merge()], timers()}.
+-type buffers() :: #{tag() := [message_or_merge()]}.
+-type buffers_timers() :: {buffers(), timers()}.
 
 %% The configuration tree, contains the pid and the mailbox pid of each node
 %% as well as a predicate that represents which messages does this node process.

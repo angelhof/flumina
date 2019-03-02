@@ -57,6 +57,8 @@ distributed_conf_2(SinkPid) ->
     Input3 = hour_positions_input(),
     Producer3 = spawn_link(?MODULE, source, [Input3, MP0]),
 
+    %% io:format("Input3: ~p~n", [Input3]),
+
     SinkPid ! finished.
 
 sequential_2() ->
@@ -137,9 +139,9 @@ distributed_conf(SinkPid) ->
     FunsP = {fun update_id/3, fun split/2, fun merge/2},
     Ids = init_state(),
     Node1 = {Ids, fun isId1/1, FunsP, []},
-    Node21 = {Ids, fun isId2/1, FunsP, []},
     Node22 = {Ids, fun isId2/1, FunsP, []},
-    Node2 = {Ids, fun isId2/1, FunsP, [Node21, Node22]},    
+    Node23 = {Ids, fun isId3/1, FunsP, []},
+    Node2 = {Ids, fun isId23/1, FunsP, [Node22, Node23]},    
     Node0  = {Ids, fun isHour/1, Funs, [Node1, Node2]},
     PidTree = configuration:create(Node0, dependencies(), SinkPid),
     {{_NP0, MP0}, 
@@ -148,6 +150,9 @@ distributed_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     create_producers(fun hour_markets_input/0, [MP1, MP2, MP0]),
+
+    Input3 = id3_input_with_heartbeats(),
+    Producer3 = spawn_link(?MODULE, source, [Input3, MP2]),
 
     SinkPid ! finished.
 
@@ -165,6 +170,9 @@ sequential_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     create_producers(fun hour_markets_input/0, [HeadMailboxPid, HeadMailboxPid, HeadMailboxPid]),
+
+    Input3 = id3_input_with_heartbeats(),
+    Producer3 = spawn_link(?MODULE, source, [Input3, HeadMailboxPid]),
 
     SinkPid ! finished.
 
@@ -362,11 +370,12 @@ split({Pred1, Pred2}, TipSums) ->
 dependencies() ->
     #{{id,1} => [hour],
       {id,2} => [hour],
-      hour => [{id,1}, {id,2}, hour]
+      {id,3} => [hour],
+      hour => [{id,1}, {id,2}, {id, 3}, hour]
      }.
 
 init_state() ->
-    maps:from_list([{{id,1}, 0}, {{id,2}, 0}]).
+    maps:from_list([{{id,1}, 0}, {{id,2}, 0}, {{id,3}, 0}]).
 
 %% The predicates
 isId1({{id,1}, _, _}) -> true;
@@ -374,6 +383,11 @@ isId1(_) -> false.
 
 isId2({{id,2}, _, _}) -> true;
 isId2(_) -> false.    
+
+isId3({{id,3}, _, _}) -> true;
+isId3(_) -> false.
+
+isId23(Msg) -> isId2(Msg) orelse isId3(Msg).
 
 isHour({hour, _, _}) -> true;
 isHour(_) -> false.
@@ -452,6 +466,9 @@ id1_input_with_heartbeats() ->
 id2_input_with_heartbeats() ->
     producer:interleave_heartbeats(id2_input(), #{{id,2} => 10}, 650).
 
+id3_input_with_heartbeats() ->
+    producer:interleave_heartbeats(id3_input(), #{{id,3} => 10}, 650).
+
 id1_input() ->
     Inputs = 
 	[{1, 15},
@@ -488,7 +505,29 @@ id2_input() ->
 	 {245, 21},
 	 {268, 15},
 	 {290, 12}],
-    [{{id,2}, Ts, Tip} || {Ts, Tip} <- Inputs].    
+    [{{id,2}, Ts, Tip} || {Ts, Tip} <- Inputs].
+
+id3_input() ->
+    Inputs = 
+	[{11, 15},
+	 {21, 15},
+	 {41, 25},
+	 {51, 25},
+	 {60, 30},
+	 {69, 15},
+	 {78, 23},
+	 {94, 12},
+	 {112, 32},
+	 {125, 18},
+	 {149, 12},
+	 {174, 21},
+	 {196, 15},
+	 {209, 19},
+	 {228, 15},
+	 {239, 13},
+	 {272, 24},
+	 {285, 28}],
+    [{{id,3}, Ts, Tip} || {Ts, Tip} <- Inputs].
 
 
 %% -------- TESTS -------- %%
@@ -558,16 +597,16 @@ sequential_1_test_() ->
 
 output() ->
     Outputs = 
-	[#{{id,1} => 94,{id,2} => 115},
-	 #{{id,1} => 38,{id,2} => 65},
-	 #{{id,1} => 56,{id,2} => 30},
-	 #{{id,1} => 36,{id,2} => 66},
-	 #{{id,1} => 12,{id,2} => 48},
-	 #{{id,1} => 0, {id,2} => 0},
-	 #{{id,1} => 0, {id,2} => 0},
-	 #{{id,1} => 0, {id,2} => 0},
-	 #{{id,1} => 0, {id,2} => 0},
-	 #{{id,1} => 0, {id,2} => 0}],
+	[#{{id,1} => 94,{id,2} => 115, {id,3} => 80},
+	 #{{id,1} => 38,{id,2} => 65, {id,3} => 112}, 
+	 #{{id,1} => 56,{id,2} => 30, {id,3} => 51},
+	 #{{id,1} => 36,{id,2} => 66, {id,3} => 62},
+	 #{{id,1} => 12,{id,2} => 48, {id,3} => 52},
+	 #{{id,1} => 0, {id,2} => 0, {id,3} => 0},
+	 #{{id,1} => 0, {id,2} => 0, {id,3} => 0},
+	 #{{id,1} => 0, {id,2} => 0, {id,3} => 0},
+	 #{{id,1} => 0, {id,2} => 0, {id,3} => 0},
+	 #{{id,1} => 0, {id,2} => 0, {id,3} => 0}],
     [{"Tips per rider", Map} || Map <- Outputs].
 
 distributed_test_() ->

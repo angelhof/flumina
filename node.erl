@@ -76,7 +76,8 @@ init_mailbox(Dependencies, Pred, Attachee) ->
 	    %% All the tags that we depend on
 	    AllDependingTags = lists:flatten(maps:values(RelevantDependencies)),
 	    Timers = maps:from_list([{T, 0} || T <-  AllDependingTags]),
-	    mailbox({[], Timers}, RelevantDependencies, Pred, Attachee, ConfTree)
+	    Buffers = maps:from_list([{T, []} || T <-  AllDependingTags]),
+	    mailbox({Buffers, Timers}, RelevantDependencies, Pred, Attachee, ConfTree)
     end.
 
 %%
@@ -108,8 +109,8 @@ filter_relevant_dependencies(Dependencies0, Attachee, ConfTree) ->
 %% This is the mailbox process that routes to 
 %% their correct nodes and makes sure that
 %% dependent messages arrive in order
--spec mailbox(message_buffer(), dependencies(), message_predicate(), pid(), configuration()) -> no_return().
-mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
+-spec mailbox(buffers_timers(), dependencies(), message_predicate(), pid(), configuration()) -> no_return().
+mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
     receive
 	%% Explanation:
 	%% The messages that first enter the system contain an 
@@ -127,7 +128,7 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %%   and a message must be handled by (one of) the lowest process 
 	    %%   in the tree that can handle it.
 	    route_message_and_merge_requests(Msg, ConfTree),
-	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
+	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree);
 	{msg, Msg} ->
 	    case Pred(Msg) of
 		false ->
@@ -137,13 +138,14 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 		    erlang:halt(1);
 		true ->
 		    %% Whenever a new message arrives, we add it to the buffer
-		    NewMessageBuffer = add_to_buffer({msg, Msg}, MessageBuffer),
+		    NewBuffersTimers = add_to_buffers_timers({msg, Msg}, BuffersTimers),
 		    {Tag, Ts, _Payload} = Msg,
 		    %% And we then clear the buffer based on it, as messages also act as heartbeats
-		    ClearedMessageBuffer = clear_buffer({Tag, Ts}, NewMessageBuffer, Dependencies, Attachee),
+		    ClearedBuffersTimers = 
+			update_timers_clear_buffers({Tag, Ts}, NewBuffersTimers, Dependencies, Attachee),
 		    %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
 		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]),
-		    mailbox(ClearedMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
+		    mailbox(ClearedBuffersTimers, Dependencies, Pred, Attachee, ConfTree)
 	    end;
 	{merge, {Tag, Ts, Father}} ->
 	    %% A merge requests acts as two different messages in our model.
@@ -153,14 +155,15 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %% - A message that will be processed like every other message (after
 	    %%   its dependencies are dealt with), so we have to add it to the buffer
 	    %%   like we do with every other message
-	    NewMessageBuffer = add_to_buffer({merge, {Tag, Ts, Father}}, MessageBuffer),
-	    ClearedMessageBuffer = clear_buffer({Tag, Ts}, NewMessageBuffer, Dependencies, Attachee),
+	    NewBuffersTimers = add_to_buffers_timers({merge, {Tag, Ts, Father}}, BuffersTimers),
+	    ClearedBuffersTimers = 
+		update_timers_clear_buffers({Tag, Ts}, NewBuffersTimers, Dependencies, Attachee),
 	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedMessageBuffer]),
-	    mailbox(ClearedMessageBuffer, Dependencies, Pred, Attachee, ConfTree);
+	    mailbox(ClearedBuffersTimers, Dependencies, Pred, Attachee, ConfTree);
 	{state, State} ->
 	    %% This is the reply of a child node with its state 
 	    Attachee ! {state, State},
-	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
+	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree);
 	{iheartbeat, TagTs} ->
 	    %% WARNING: I am not sure about that
 	    %% Whenever a heartbeat first arrives into the system we have to send it to all nodes
@@ -176,86 +179,153 @@ mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree) ->
 	    %% efficient, it assumes that predicates are not too broad in the sense that
 	    %% a node processes a message x iff pred(x) = true. 
 	    broadcast_heartbeat(TagTs, ConfTree),
-	    mailbox(MessageBuffer, Dependencies, Pred, Attachee, ConfTree);
+	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree);
 	{heartbeat, TagTs} ->
 	    %% A heartbeat clears the buffer and updates the timers
-	    NewMessageBuffer = clear_buffer(TagTs, MessageBuffer, Dependencies, Attachee),
-	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewMessageBuffer]),
-	    mailbox(NewMessageBuffer, Dependencies, Pred, Attachee, ConfTree)
+	    NewBuffersTimers = 
+		update_timers_clear_buffers(TagTs, BuffersTimers, Dependencies, Attachee),
+	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewBuffersTimers]),
+	    mailbox(NewBuffersTimers, Dependencies, Pred, Attachee, ConfTree)
     end.
 
-%% It seems that the only way for the buffer to clear messages is
-%% after getting a heartbeat/mark, that indicates that all messages
-%% of some tag up to that point have been received.
-%% Because of that, new messages are just added to the Buffer
--spec add_to_buffer(message_or_merge(), message_buffer()) -> message_buffer().
-add_to_buffer(Msg, BufferTimers) ->
-    add_to_buffer(Msg, BufferTimers, []).
 
--spec add_to_buffer(message_or_merge(), message_buffer(), [message_or_merge()]) -> message_buffer().
-add_to_buffer(Msg, {[], Timers}, NewBuffer) ->
-    {lists:reverse([Msg|NewBuffer]), Timers};
-add_to_buffer(Msg, {[BMsg|Buf], Timers}, NewBuf) ->
+%% This function updates the timer for the newly received tag and clears
+%% any buffer that depends on this tag
+-spec update_timers_clear_buffers({tag(), integer()}, buffers_timers(), dependencies(), pid())
+				 -> buffers_timers().
+update_timers_clear_buffers({Tag, Ts}, {Buffers, Timers}, Deps, Attachee) ->
+    %% A new message always updates the timers (As we assume that 
+    %% messages of the same tag all arrive from the same channel,
+    %% and that channels are FIFO)
+    NewTimers = maps:put(Tag, Ts, Timers),
+    %% After updating the timer for Tag, any message that we have 
+    %% waiting in the buffers dependent to tag, could be ready for
+    %% releasing. Thus we add all those dependencies to the workset.
+    %% NOTE: We also add the tag itself to the workset, because
+    %%       if the newly received message is of that tag, but
+    %%       this tag doesn't depend on itself, then it will stay 
+    %%       in the buffer and not be initiated
+    TagDeps = maps:get(Tag, Deps),
+    clear_buffers([Tag|TagDeps], {Buffers, NewTimers}, Deps, Attachee).
+    
+
+%% This function tries to clear the buffer of every tag in 
+%% its workset. If a message of a specific tag sigma is indeed released,
+%% then all of its dependencies are added in the workset
+%% because after this release any dependent message to it
+%% could be potentially releasable.
+-spec clear_buffers([tag()], buffers_timers(), dependencies(), pid()) -> buffers_timers().
+clear_buffers([], BuffersTimers, _Deps, _Attachee) ->
+    BuffersTimers;
+clear_buffers([WorkTag|WorkSet], BuffersTimers, Deps, Attachee) ->
+    {NewWorkTags, NewBuffersTimers} = clear_tag_buffer(WorkTag, BuffersTimers, Deps, Attachee),
+    %% WARNING: The following code is a very ugly way 
+    %% to implement set union and there are probably 
+    %% several other ways to do it (with sorted lists etc)
+    NewWorkSet = sets:to_list(sets:union(
+				sets:from_list(WorkSet), 
+				sets:from_list(NewWorkTags))),
+    clear_buffers(NewWorkSet, NewBuffersTimers, Deps, Attachee).
+
+%% This function releases any message that is releasable
+%% for the WorkTag, and returns all of its dependent tags (EXCLUDING ITSELF)
+%% as the new worktags if any message is released.
+-spec clear_tag_buffer(tag(), buffers_timers(), dependencies(), pid()) -> {[tag()], buffers_timers()}.
+clear_tag_buffer(WorkTag, {Buffers, Timers}, Deps, Attachee) ->
+    Buffer = maps:get(WorkTag, Buffers),
+    %% We exclude the worktag from the dependencies, because
+    %% each message that we will check will be the earliest of its tag
+    %% and it will certainly be smaller than its timestamp.
+    %% Also we don't want to return it as a new work tag
+    %% because we just released all its messages
+    TagDeps = maps:get(WorkTag, Deps) -- [WorkTag],
+    case clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee) of
+	{released, NewBuffer} ->
+	    NewBuffers = maps:update(WorkTag, NewBuffer, Buffers),
+	    {TagDeps, {NewBuffers, Timers}};
+	{not_released, _} ->
+	    {[], {Buffers, Timers}}
+    end.
+
+-spec clear_buffer0([message_or_merge()], buffers_timers(), [tag()], pid()) 
+		  -> {'released' | 'not_released', [message_or_merge()]}.
+clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee) ->
+    clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee, not_released).
+
+-spec clear_buffer0([message_or_merge()], buffers_timers(), [tag()], pid(), 'released' | 'not_released') 
+		  -> {'released' | 'not_released', [message_or_merge()]}.
+clear_buffer0([], {_Buffers, _Timers}, _TagDeps, _Attachee, AnyReleased) ->
+    {AnyReleased, []};
+clear_buffer0([Msg|Buffer], {Buffers, Timers}, TagDeps, Attachee, AnyReleased) ->
+    case maybe_release_message(Msg, {Buffers, Timers}, TagDeps, Attachee) of
+	released ->
+	    clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee, released);
+	not_released ->
+	    {AnyReleased, [Msg|Buffer]}
+    end.
+	    
+
+%% This function checks whether to release a message
+-spec maybe_release_message(message_or_merge(), buffers_timers(), [tag()], pid()) 
+			   -> 'released' | 'not_released'.
+maybe_release_message(Msg, {Buffers, Timers}, TagDeps, Attachee) ->
+    {_MsgOrMerge, {Tag, Ts, _Payload}} = Msg,
+    %% 1. All its dependent timers must be higher than the
+    %%    the timestamp of the message
+    Cond1 = lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps),
+    %% 2. All the messages that are dependent to it in their buffers
+    %%    should have a later timestamp than it (if there are any at all).
+    Cond2 = lists:all(fun(TD) -> empty_or_later({Tag, Ts}, maps:get(TD, Buffers)) end, TagDeps),
+    case Cond1 andalso Cond2 of
+	true ->
+	    Attachee ! Msg,
+	    released;
+	false ->
+	    not_released
+    end.
+
+ 
+-spec empty_or_later({tag(), integer()}, [message_or_merge()]) -> boolean().
+empty_or_later(_TagTs, []) ->
+    true;
+empty_or_later({Tag, Ts}, [{_MsgOrMerge, {BTag, BTs, _Payload}}|_Rest]) ->
+    %% Note: I am comparing the tuple {Ts, Tag} to have a total ordering 
+    %% between messages with different tags but the same timestamp. 
+    %% Regarding correctness, we should be allowed to reorder concurrent
+    %% messages, any way we want.
+    {Ts, Tag} =< {BTs, BTag}.
+
+%% This function inserts a newly arrived message to the buffers
+-spec add_to_buffers_timers(message_or_merge(), buffers_timers()) -> buffers_timers().
+add_to_buffers_timers(Msg, {Buffers, Timers}) ->
+    {_MsgOrMerge, {Tag, _Ts, _Payload}} = Msg,
+    Buffer = maps:get(Tag, Buffers),
+    NewBuffer = add_to_buffer0(Msg, Buffer),
+    NewBuffers = maps:update(Tag, NewBuffer, Buffers),
+    {NewBuffers, Timers}.
+
+-spec add_to_buffer0(message_or_merge(), [message_or_merge()]) -> [message_or_merge()].
+add_to_buffer0(Msg, Buffer) ->
+    add_to_buffer0(Msg, Buffer, []).
+
+-spec add_to_buffer0(message_or_merge(), [message_or_merge()], [message_or_merge()]) 
+		    -> [message_or_merge()].
+add_to_buffer0(Msg, [], NewBuffer) ->
+    lists:reverse([Msg|NewBuffer]);
+add_to_buffer0(Msg, [BMsg|Buf], NewBuf) ->
     {_MsgOrMerge, {Tag, Ts, Payload}} = Msg,
     {_BMsgOrMerge, {BTag, BTs, _}} = BMsg,
     %% Note: I am comparing the tuple {Ts, Tag} to have a total ordering 
     %% between messages with different tags but the same timestamp. 
+    %% NOTE: This is left over from before, all messages in the same
+    %%       buffer should have the same tag.
     case {Ts, Tag} < {BTs, BTag} of
 	true ->
-	    {lists:reverse([Msg|NewBuf]) ++ [BMsg|Buf], Timers};
+	    lists:reverse([Msg|NewBuf]) ++ [BMsg|Buf];
 	false ->
-	    add_to_buffer(Msg, {Buf, Timers}, [BMsg|NewBuf])
+	    add_to_buffer0(Msg, Buf, [BMsg|NewBuf])
     end.
-
-%% This releases all the messages in the buffer that
-%% where dependent on this tag. 
-%% WARNING: At the moment the implementation is very naive
--spec clear_buffer({tag(), integer()}, message_buffer(), dependencies(), pid()) -> message_buffer().
-clear_buffer({HTag, HTs}, {Buffer, Timers}, Dependencies, Attachee) ->
-    %% We assume that heartbeats arrive in the correct order
-    %% TODO: The new timer should be the maximum of the current timer and the heartbeat
-    NewTimers = maps:put(HTag, HTs, Timers),
-    {ToRelease, NewBuffer} = release_messages(Buffer, NewTimers, Dependencies),
-    %% io:format("~p -- Timers: ~p~n", [self(), NewTimers]),
-    %% io:format("~p -- Hearbeat: ~p -- Partition: ~p~n", [self(), {HTag, HTs}, {ToRelease, NewBuffer}]),
-    [Attachee ! Msg || Msg <- ToRelease],
-    {NewBuffer, NewTimers}.
-
-%% This function releases messages in a naive way. It stops releasing on the first message that 
-%% it finds that doesn't have its dependencies heartbeat timers higher than itself.
-%% TODO: Improve this function to stop when it has seen at least one of each 
-%%       possible tag in the buffer (this will later be one of each possible 
-%%       predicate in the buffer). At the moment it traverses the whole list,
-%%       even if it has seen all types of messages
--spec release_messages([message_or_merge()], timers(), dependencies()) 
-		      -> {[message_or_merge()], [message_or_merge()]}.
-release_messages(Buffer, Timers, Dependencies) ->
-    release_messages(Buffer, Timers, Dependencies, #{}, [], []).
-
--spec release_messages([message_or_merge()], timers(), dependencies(), 
-		       timers(), [message_or_merge()], [message_or_merge()]) 
-		      -> {[message_or_merge()], [message_or_merge()]}.
-release_messages([], _Timers, _Dependencies, _EarliestSeen, ToKeepRev, ToReleaseRev) ->
-    {lists:reverse(ToReleaseRev), lists:reverse(ToKeepRev)};
-release_messages([{_MoM, {Tag, Ts, _}} = Msg|Buffer], Timers, Dependencies, 
-		 EarliestSeen, ToKeepRev, ToReleaseRev) ->
-    TagDeps = maps:get(Tag, Dependencies),
-    %% In order to release a message, 
-    %% 1) All of its dependent timers have to be higher than its timestamp
-    %% 2) There must be no dependent message to it that has a smaller timestamp
-    %%    left in the buffer
-    case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, TagDeps) 
-	andalso not lists:any(fun(TD) -> maps:is_key(TD, EarliestSeen) end, TagDeps) of
-	true ->
-	    %% If the current messages has a timestamp that is smaller
-	    %% than all its dependency heartbeats, and there is no dependent
-	    %% message with a lower timestamp left in the buffer, we can release it
-	    release_messages(Buffer, Timers, Dependencies, EarliestSeen, ToKeepRev, [Msg|ToReleaseRev]);
-	false ->
-	    %% If not, we add it to earliestseen if it isn't there already
-	    NewEarliestSeen = maps:update_with(Tag, fun id/1, Ts, EarliestSeen),
-	    release_messages(Buffer, Timers, Dependencies, NewEarliestSeen, [Msg|ToKeepRev], ToReleaseRev)
-    end.
+    
 
 %% This function sends the message to the head node of the subtree,
 %% and the merge request to all its children
@@ -272,9 +342,15 @@ route_message_and_merge_requests(Msg, ConfTree) ->
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
 -spec broadcast_heartbeat({tag(), integer()}, configuration()) -> [heartbeat()].
-broadcast_heartbeat({Tag, Ts}, ConfTree) ->
-    AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
-    [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
+broadcast_heartbeat({Tag, Ts}, ConfTree) ->    
+    %% WARNING: WE HAVE MADE THE ASSUMPTION THAT EACH ROOT NODE PROCESSES A DIFFERENT
+    %%          SET OF TAGS. SO THE OR-SPLIT NEVER REALLY CHOOSES BETWEEN TWO AT THE MOMENT
+    [{SendTo, undef}|Rest] = router:find_responsible_subtree_pids(ConfTree, {Tag, Ts, heartbeat}),
+    SendTo ! {heartbeat, {Tag, Ts}},
+    [To ! {heartbeat, {Tag, Ts}} || {To, _ToFather} <- Rest].
+    %% Old implementation of broadcast heartbeat
+    %% AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
+    %% [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
 
 %% =================================================================== %%
 
