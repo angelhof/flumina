@@ -1,12 +1,85 @@
 ** Work TODO
 
+*** TODO Optimize buffer insertions by implementing each tag buffer list as a FIFO queue
+
+At the moment the buffer is implemented as a map of lists. 
+Each message removal is optimized to take O(|Σimpl|) time as we only look the first elements of each list.
+
+However insertions search from the beginning of each list to insert a message which is not optimal.
+In theory, with the newest changes, because channels are ordered, we can never receive a message that
+has an earlier timestamp than whatever message we have in this message's tag buffer. Because of that,
+we can always (safely i think) add it to the end of the list.
+
+However, with the current list implementation this takes time proportional to the number of
+same tag messages in the buffer. In order to optimize this, we need to implement the list as a
+real FIFO queue, where both insertions in the end, and removals from the beginning take constant time.
+
 *** TODO Move the implementation source in ./src and the examples in ./examples
+*** TODO Make tests fail even if we get more messages
+
+At the moment tests fail only if we get less (on not equal) messages to the ones that 
+we expect. We should make sure that tests fail if we get more messages than expected.
+
+*** TODO (Maybe Problem) At the moment we cannot order two messages with the same tag and timestamp
+
+The implementation cannot break the tie between two messages with the same tag and timestamp
+
+*** TODO Make sure that the dependencies that each node keeps are indeed the correct ones
+
+WARNING: MAKE SURE THAT NO ASSUMPTION ABOUT THE RELATIONS OF THE PREDICATES IN THE DEPENDENCIES AND THE
+         NODES ARE NEEDED.
+
+*** TODO Allow dependencies to be based on predicates rather than tags
+
+At the moment there is a mismatch between tags and predicates and I need to decide on which of
+both to use. If we decide to use predicates we need to think about the dependencies and how should
+they be encoded in the system.
+
+*** TODO Implement an optimization that allows for merges to happen in any order
+
+All independent merges should be mergable in any order, (associativity, commutativity).
+If we only allow them to happen in the order they were split, this might deteriorate performance.
+
+*** TODO Maybe we need an and-merge
+
+It seems like there should be an and-merge to be paired with the and_split because it
+seems that usually an or-merge could/shpould be different than the and-merge. 
+
+*** TODO Implement infastructure for producers.   
+
+Their input should be a list of messages. 
+The following should be configurable:
+- The rate at which they send messages
+- The density of heartbeats that they will interleave in the data
+- Whether or not to reorder data that are independent
+
+*** TODO Implement a compiler
+
+That given the topology and the specification of the computation,
+distributes the computation accordingly (as we have done now in the 
+distributed() function in the abexample)
+
+*** TODO Implement infastructure that allows for a separate msg and split predicate
+
+At the moment the message predicate of a node is the same as its split predicate
+
+*** TODO Improve the simplicity of implementing something in our framework
+
+Test how easy it is implement complicated queries in our intermediate language.
+Try to push its expresiveness.
 *** DONE Instead of sending merge requests from parent nodes, send them immediately from the input
 
 In theory this way the input initiates all the merge requests and the nodes just enter the merging mode
 when they are processing a merge.
 
 There might be a synchronization problem, because now the merge procedures are started asynchronously
+
+*** DONE Make sure that each input stream is ordered
+
+So messages are also heartbeats in the sense that they update the timers. That is, heartbeats
+appear only in periods of lack of messages to speed up progress.
+
+NOTE: Before implementing that, make sure that we have decided on what the model looks like exactly
 
 *** DONE Make sure that the top nodes propagate heartbeats to children nodes
 
@@ -20,18 +93,6 @@ but only the heartbeat routing.
 
 Before doing this, make sure that the merge requests and the heartbeats arrive in the correct order
 
-*** DONE Make sure that each input stream is ordered
-
-So messages are also heartbeats in the sense that they update the timers. That is, heartbeats
-appear only in periods of lack of messages to speed up progress.
-
-NOTE: Before implementing that, make sure that we have decided on what the model looks like exactly
-
-*** TODO Make tests fail even if we get more messages
-
-At the moment tests fail only if we get less (on not equal) messages to the ones that 
-we expect. We should make sure that tests fail if we get more messages than expected.
-
 *** DONE Create some unit testing infastructure
 
 Create a testing framework that expects some specific output for each specific input, and in order to do
@@ -41,7 +102,7 @@ In theory I have to make sure that I reorder messages that arrive from different
 if its possible I have to make sure that all outputs with reorderings (when the messages arrive from
 different nodes are equial). For now I can just execute each test 100 times.
 
-*** TODO Ensure that the assumption that children preds are subsets of the parent pred is reasonable
+*** DONE Ensure that the assumption that children preds are subsets of the parent pred is reasonable
 
 There is an implicit assumption that I have made that preds of children are subsets of the parent pred.
 I have to make sure that it is reasonable and correct.
@@ -170,15 +231,6 @@ Problem1.2:
 Also, a parent doesn't asynchronously send the merge messages but it rather blocks on each child,
 which is wrong. It should block for both children together
 
-*** TODO (Maybe Problem) At the moment we cannot order two messages with the same tag and timestamp
-
-The implementation cannot break the tie between two messages with the same tag and timestamp
-
-*** TODO Make sure that the dependencies that each node keeps are indeed the correct ones
-
-WARNING: MAKE SURE THAT NO ASSUMPTION ABOUT THE RELATIONS OF THE PREDICATES IN THE DEPENDENCIES AND THE
-         NODES ARE NEEDED.
-
 *** DONE Optimize the add message to buffer to not wait for the next heartbeat
 
 At the moment, a message is added to the buffer without even thinking whether it might need to be released
@@ -204,50 +256,16 @@ In essence, a parent node, loses messages that satisfy its descendant predicates
 and so it shouldn't receive heartbeats for those messages, as it will learn from them
 when asking for a merge.
 
-*** TODO Allow dependencies to be based on predicates rather than tags
-
-At the moment there is a mismatch between tags and predicates and I need to decide on which of
-both to use. If we decide to use predicates we need to think about the dependencies and how should
-they be encoded in the system.
-
 *** DONE Implement an optimization that allows for part of the state to be left behind in a merge
 
 This can be implemented as an or-split, that has an empty predicate where the part of the state is left
 behind.
-
-*** TODO Implement an optimization that allows for merges to happen in any order
-
-All independent merges should be mergable in any order, (associativity, commutativity).
-If we only allow them to happen in the order they were split, this might deteriorate performance.
-
-*** TODO Maybe we need an and-merge
-
-It seems like there should be an and-merge to be paired with the and_split because it
-seems that usually an or-merge could/shpould be different than the and-merge. 
-
-*** TODO Implement infastructure for producers.   
-
-Their input should be a list of messages. 
-The following should be configurable:
-- The rate at which they send messages
-- The density of heartbeats that they will interleave in the data
-- Whether or not to reorder data that are independent
-
-*** TODO Implement a compiler
-
-That given the topology and the specification of the computation,
-distributes the computation accordingly (as we have done now in the 
-distributed() function in the abexample)
 
 *** DONE Implement a message tracing mechanism
 
 It should trace all the messages that are exchanged, and the function calls that are made.
 Then by using this information together with the topology of the network and a mapping
 of the process ids to nodes, we could estimate statistics on the execution of the program.
-
-*** TODO Implement infastructure that allows for a separate msg and split predicate
-
-At the moment the message predicate of a node is the same as its split predicate
 
 *** DONE (Make sure that the implementation makes sense) Implement the alpha and beta mappings
 
@@ -262,7 +280,3 @@ is described in node:remove_unnecassary_dependencies/3. In short, a node doesn't
 for the messages that are processed by its descendants because it will learn for them when it asks
 for a merge, as only the leaf nodes do processing without merging.
 
-*** TODO Improve the simplicity of implementing something in our framework
-
-Test how easy it is implement complicated queries in our intermediate language.
-Try to push its expresiveness.
