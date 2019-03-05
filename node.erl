@@ -247,13 +247,13 @@ clear_tag_buffer(WorkTag, {Buffers, Timers}, Deps, Attachee) ->
 	    {[], {Buffers, Timers}}
     end.
 
--spec clear_buffer0([message_or_merge()], buffers_timers(), [tag()], pid()) 
-		  -> {'released' | 'not_released', [message_or_merge()]}.
+-spec clear_buffer0([gen_message_or_merge()], buffers_timers(), [tag()], pid()) 
+		   -> {'released' | 'not_released', [gen_message_or_merge()]}.
 clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee) ->
     clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee, not_released).
 
--spec clear_buffer0([message_or_merge()], buffers_timers(), [tag()], pid(), 'released' | 'not_released') 
-		  -> {'released' | 'not_released', [message_or_merge()]}.
+-spec clear_buffer0([gen_message_or_merge()], buffers_timers(), [tag()], pid(), 'released' | 'not_released') 
+		   -> {'released' | 'not_released', [gen_message_or_merge()]}.
 clear_buffer0([], {_Buffers, _Timers}, _TagDeps, _Attachee, AnyReleased) ->
     {AnyReleased, []};
 clear_buffer0([Msg|Buffer], {Buffers, Timers}, TagDeps, Attachee, AnyReleased) ->
@@ -266,7 +266,7 @@ clear_buffer0([Msg|Buffer], {Buffers, Timers}, TagDeps, Attachee, AnyReleased) -
 	    
 
 %% This function checks whether to release a message
--spec maybe_release_message(message_or_merge(), buffers_timers(), [tag()], pid()) 
+-spec maybe_release_message(gen_message_or_merge(), buffers_timers(), [tag()], pid()) 
 			   -> 'released' | 'not_released'.
 maybe_release_message(Msg, {Buffers, Timers}, TagDeps, Attachee) ->
     {_MsgOrMerge, {Tag, Ts, _Payload}} = Msg,
@@ -285,7 +285,7 @@ maybe_release_message(Msg, {Buffers, Timers}, TagDeps, Attachee) ->
     end.
 
  
--spec empty_or_later({tag(), integer()}, [message_or_merge()]) -> boolean().
+-spec empty_or_later({tag(), integer()}, [gen_message_or_merge()]) -> boolean().
 empty_or_later(_TagTs, []) ->
     true;
 empty_or_later({Tag, Ts}, [{_MsgOrMerge, {BTag, BTs, _Payload}}|_Rest]) ->
@@ -296,7 +296,7 @@ empty_or_later({Tag, Ts}, [{_MsgOrMerge, {BTag, BTs, _Payload}}|_Rest]) ->
     {Ts, Tag} =< {BTs, BTag}.
 
 %% This function inserts a newly arrived message to the buffers
--spec add_to_buffers_timers(message_or_merge(), buffers_timers()) -> buffers_timers().
+-spec add_to_buffers_timers(gen_message_or_merge(), buffers_timers()) -> buffers_timers().
 add_to_buffers_timers(Msg, {Buffers, Timers}) ->
     {_MsgOrMerge, {Tag, _Ts, _Payload}} = Msg,
     Buffer = maps:get(Tag, Buffers),
@@ -304,12 +304,12 @@ add_to_buffers_timers(Msg, {Buffers, Timers}) ->
     NewBuffers = maps:update(Tag, NewBuffer, Buffers),
     {NewBuffers, Timers}.
 
--spec add_to_buffer0(message_or_merge(), [message_or_merge()]) -> [message_or_merge()].
+-spec add_to_buffer0(gen_message_or_merge(), [gen_message_or_merge()]) -> [gen_message_or_merge()].
 add_to_buffer0(Msg, Buffer) ->
     add_to_buffer0(Msg, Buffer, []).
 
--spec add_to_buffer0(message_or_merge(), [message_or_merge()], [message_or_merge()]) 
-		    -> [message_or_merge()].
+-spec add_to_buffer0(gen_message_or_merge(), [gen_message_or_merge()], [gen_message_or_merge()]) 
+		    -> [gen_message_or_merge()].
 add_to_buffer0(Msg, [], NewBuffer) ->
     lists:reverse([Msg|NewBuffer]);
 add_to_buffer0(Msg, [BMsg|Buf], NewBuf) ->
@@ -329,7 +329,7 @@ add_to_buffer0(Msg, [BMsg|Buf], NewBuf) ->
 
 %% This function sends the message to the head node of the subtree,
 %% and the merge request to all its children
--spec route_message_and_merge_requests(message(), configuration()) -> 'ok'.
+-spec route_message_and_merge_requests(gen_message(), configuration()) -> 'ok'.
 route_message_and_merge_requests(Msg, ConfTree) ->
     %% This finds the head node of the subtree
     [{SendTo, undef}|Rest] = router:find_responsible_subtree_pids(ConfTree, Msg),
@@ -341,7 +341,7 @@ route_message_and_merge_requests(Msg, ConfTree) ->
 
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
--spec broadcast_heartbeat({tag(), integer()}, configuration()) -> [heartbeat()].
+-spec broadcast_heartbeat({tag(), integer()}, configuration()) -> [gen_heartbeat()].
 broadcast_heartbeat({Tag, Ts}, ConfTree) ->    
     %% WARNING: WE HAVE MADE THE ASSUMPTION THAT EACH ROOT NODE PROCESSES A DIFFERENT
     %%          SET OF TAGS. SO THE OR-SPLIT NEVER REALLY CHOOSES BETWEEN TWO AT THE MOMENT
@@ -391,14 +391,14 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 	    end
     end.
 
--spec handle_message(message() | merge_request(), State::any(), pid(), update_fun(), configuration()) 
+-spec handle_message(gen_message() | gen_merge_request(), State::any(), pid(), update_fun(), configuration()) 
 		    -> State::any().
 handle_message({msg, Msg}, State, Output, UFun, _Conf) ->
     update_on_msg(Msg, State, Output, UFun);
 handle_message({merge, {_Tag, _Ts, Father}}, State, _Output, _UFun, Conf) ->
     respond_to_merge(Father, State, Conf).
 
--spec update_on_msg(message(), State::any(), pid(), update_fun()) -> State::any().
+-spec update_on_msg(gen_message(), State::any(), pid(), update_fun()) -> State::any().
 update_on_msg(Msg, State, Output, UFun) ->
     NewState = UFun(Msg, State, Output),    
     NewState.

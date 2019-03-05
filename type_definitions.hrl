@@ -1,12 +1,22 @@
 
--type predicate() :: fun((...) -> boolean()).
--type message_predicate() :: fun((message()) -> boolean()).
 -type tag() :: any().
--type message() :: {tag(), integer(), Payload::any()}.
--type merge_request() :: {'merge', {tag(), integer(), Father::pid()}}. 
--type message_or_merge() :: {'msg', message()} | merge_request().
--type heartbeat() :: {heartbeat, {tag(), integer()}}.
--type update_fun() :: fun((message(), State::any(), pid()) -> State::any()).
+
+-type message(Tag, Payload) :: {Tag, integer(), Payload}.
+-type gen_message() :: message(tag(), any()).
+
+-type merge_request(Tag) :: {'merge', {Tag, integer(), Father::pid()}}. 
+-type gen_merge_request() :: merge_request(tag()).
+
+-type message_or_merge(Tag, Payload) :: {'msg', message(Tag, Payload)} | merge_request(Tag).
+-type gen_message_or_merge() :: message_or_merge(tag(), any()).
+
+-type heartbeat(Tag) :: {heartbeat, {Tag, integer()}}.
+-type gen_heartbeat() :: heartbeat(tag()).
+
+-type predicate() :: fun((...) -> boolean()).
+-type message_predicate() :: fun((gen_message()) -> boolean()).
+
+-type update_fun() :: fun((gen_message(), State::any(), pid()) -> State::any()).
 -type split_fun() :: fun(({message_predicate(), message_predicate()}, State::any()) 
 			 -> {State::any(), State::any()}).
 -type merge_fun() :: fun((State::any(), State::any()) -> State::any()).
@@ -14,8 +24,8 @@
 
 -type dependencies() :: #{tag() := [tag()]}.
 -type timers() :: #{tag() := [integer()]}.
--type message_buffer() :: {[message_or_merge()], timers()}.
--type buffers() :: #{tag() := [message_or_merge()]}.
+-type message_buffer() :: {[gen_message_or_merge()], timers()}.
+-type buffers() :: #{tag() := [gen_message_or_merge()]}.
 -type buffers_timers() :: {buffers(), timers()}.
 
 %% The configuration tree, contains the pid and the mailbox pid of each node
