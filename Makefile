@@ -6,7 +6,9 @@ ERL = $(OTP_DIR)/bin/erl
 ERL_COMPILE_FLAGS = +debug_info
 EBIN_DIR   = ebin
 EBIN_DIRS  = ebin ebin/* erlang-dot/ebin
-I_DIRS = erlang-dot/include/
+I_DIR1 = erlang-dot/include/
+I_DIR2 = ./include
+I_DIRS = -I $(I_DIR1) -I $(I_DIR2)
 ERL_FILES  = $(wildcard *.erl)
 BEAM_FILES = $(subst .erl,.beam,$(ERL_FILES))
 
@@ -18,16 +20,19 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 
 .PHONY: all
 
-dialyzer: compile_all
+dialyzer: all
 	@echo ""
 	@echo " --- --- --- --- DIALYZER --- --- --- --- "
-	dialyzer --src .
+	dialyzer --src -r src examples
 
-compile_all: $(BEAM_FILES) $(NIF_FILES)
+all: $(BEAM_FILES)
+	@(cd src && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
+		I_DIR1="../$(I_DIR1)" I_DIR2="../$(I_DIR2)" $@)
+	@(cd examples && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
+		I_DIR1="../$(I_DIR1)" I_DIR2="../$(I_DIR2)" $@)
 
 %.beam: %.erl
-	$(ERLC) $(ERL_COMPILE_FLAGS) -I $(I_DIRS) -o $(EBIN_DIR) $<
-
+	$(ERLC) $(ERL_COMPILE_FLAGS) $(I_DIRS) -o $(EBIN_DIR) $<
 
 open_erl:
 	$(ERL) -pa $(EBIN_DIRS)

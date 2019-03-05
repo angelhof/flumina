@@ -1,19 +1,5 @@
 ** Work TODO
 
-*** TODO Optimize buffer insertions by implementing each tag buffer list as a FIFO queue
-
-At the moment the buffer is implemented as a map of lists. 
-Each message removal is optimized to take O(|Σimpl|) time as we only look the first elements of each list.
-
-However insertions search from the beginning of each list to insert a message which is not optimal.
-In theory, with the newest changes, because channels are ordered, we can never receive a message that
-has an earlier timestamp than whatever message we have in this message's tag buffer. Because of that,
-we can always (safely i think) add it to the end of the list.
-
-However, with the current list implementation this takes time proportional to the number of
-same tag messages in the buffer. In order to optimize this, we need to implement the list as a
-real FIFO queue, where both insertions in the end, and removals from the beginning take constant time.
-
 *** TODO Move the implementation source in ./src and the examples in ./examples
 *** TODO Make tests fail even if we get more messages
 
@@ -67,6 +53,20 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Optimize buffer insertions by implementing each tag buffer list as a FIFO queue
+
+At the moment the buffer is implemented as a map of lists. 
+Each message removal is optimized to take O(|Σimpl|) time as we only look the first elements of each list.
+
+However insertions search from the beginning of each list to insert a message which is not optimal.
+In theory, with the newest changes, because channels are ordered, we can never receive a message that
+has an earlier timestamp than whatever message we have in this message's tag buffer. Because of that,
+we can always (safely i think) add it to the end of the list.
+
+However, with the current list implementation this takes time proportional to the number of
+same tag messages in the buffer. In order to optimize this, we need to implement the list as a
+real FIFO queue, where both insertions in the end, and removals from the beginning take constant time.
+
 *** DONE Instead of sending merge requests from parent nodes, send them immediately from the input
 
 In theory this way the input initiates all the merge requests and the nodes just enter the merging mode
