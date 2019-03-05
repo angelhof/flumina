@@ -300,32 +300,16 @@ empty_or_later({Tag, Ts}, [{_MsgOrMerge, {BTag, BTs, _Payload}}|_Rest]) ->
 add_to_buffers_timers(Msg, {Buffers, Timers}) ->
     {_MsgOrMerge, {Tag, _Ts, _Payload}} = Msg,
     Buffer = maps:get(Tag, Buffers),
-    NewBuffer = add_to_buffer0(Msg, Buffer),
+    NewBuffer = add_to_buffer(Msg, Buffer),
     NewBuffers = maps:update(Tag, NewBuffer, Buffers),
     {NewBuffers, Timers}.
 
--spec add_to_buffer0(gen_message_or_merge(), [gen_message_or_merge()]) -> [gen_message_or_merge()].
-add_to_buffer0(Msg, Buffer) ->
-    add_to_buffer0(Msg, Buffer, []).
-
--spec add_to_buffer0(gen_message_or_merge(), [gen_message_or_merge()], [gen_message_or_merge()]) 
-		    -> [gen_message_or_merge()].
-add_to_buffer0(Msg, [], NewBuffer) ->
-    lists:reverse([Msg|NewBuffer]);
-add_to_buffer0(Msg, [BMsg|Buf], NewBuf) ->
-    {_MsgOrMerge, {Tag, Ts, Payload}} = Msg,
-    {_BMsgOrMerge, {BTag, BTs, _}} = BMsg,
-    %% Note: I am comparing the tuple {Ts, Tag} to have a total ordering 
-    %% between messages with different tags but the same timestamp. 
-    %% NOTE: This is left over from before, all messages in the same
-    %%       buffer should have the same tag.
-    case {Ts, Tag} < {BTs, BTag} of
-	true ->
-	    lists:reverse([Msg|NewBuf]) ++ [BMsg|Buf];
-	false ->
-	    add_to_buffer0(Msg, Buf, [BMsg|NewBuf])
-    end.
-    
+%% This function adds a newly arrived message to its buffer.
+%% As messages arrive from the same channel, we can be certain that 
+%% any message will be the last one on its buffer
+-spec add_to_buffer(gen_message_or_merge(), [gen_message_or_merge()]) -> [gen_message_or_merge()].
+add_to_buffer(Msg, Buffer) ->
+    Buffer ++ [Msg].    
 
 %% This function sends the message to the head node of the subtree,
 %% and the merge request to all its children
