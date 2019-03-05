@@ -76,7 +76,7 @@ init_mailbox(Dependencies, Pred, Attachee) ->
 	    %% All the tags that we depend on
 	    AllDependingTags = lists:flatten(maps:values(RelevantDependencies)),
 	    Timers = maps:from_list([{T, 0} || T <-  AllDependingTags]),
-	    Buffers = maps:from_list([{T, []} || T <-  AllDependingTags]),
+	    Buffers = maps:from_list([{T, queue:new()} || T <-  AllDependingTags]),
 	    mailbox({Buffers, Timers}, RelevantDependencies, Pred, Attachee, ConfTree)
     end.
 
@@ -239,7 +239,7 @@ clear_tag_buffer(WorkTag, {Buffers, Timers}, Deps, Attachee) ->
     %% Also we don't want to return it as a new work tag
     %% because we just released all its messages
     TagDeps = maps:get(WorkTag, Deps) -- [WorkTag],
-    case clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee) of
+    case clear_buffer(Buffer, {Buffers, Timers}, TagDeps, Attachee) of
 	{released, NewBuffer} ->
 	    NewBuffers = maps:update(WorkTag, NewBuffer, Buffers),
 	    {TagDeps, {NewBuffers, Timers}};
@@ -247,21 +247,24 @@ clear_tag_buffer(WorkTag, {Buffers, Timers}, Deps, Attachee) ->
 	    {[], {Buffers, Timers}}
     end.
 
--spec clear_buffer0([gen_message_or_merge()], buffers_timers(), [tag()], pid()) 
-		   -> {'released' | 'not_released', [gen_message_or_merge()]}.
-clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee) ->
-    clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee, not_released).
+-spec clear_buffer(buffer(), buffers_timers(), [tag()], pid()) 
+		   -> {'released' | 'not_released', buffer()}.
+clear_buffer(Buffer, {Buffers, Timers}, TagDeps, Attachee) ->
+    clear_buffer(Buffer, {Buffers, Timers}, TagDeps, Attachee, not_released).
 
--spec clear_buffer0([gen_message_or_merge()], buffers_timers(), [tag()], pid(), 'released' | 'not_released') 
-		   -> {'released' | 'not_released', [gen_message_or_merge()]}.
-clear_buffer0([], {_Buffers, _Timers}, _TagDeps, _Attachee, AnyReleased) ->
-    {AnyReleased, []};
-clear_buffer0([Msg|Buffer], {Buffers, Timers}, TagDeps, Attachee, AnyReleased) ->
-    case maybe_release_message(Msg, {Buffers, Timers}, TagDeps, Attachee) of
-	released ->
-	    clear_buffer0(Buffer, {Buffers, Timers}, TagDeps, Attachee, released);
-	not_released ->
-	    {AnyReleased, [Msg|Buffer]}
+-spec clear_buffer(buffer(), buffers_timers(), [tag()], pid(), 'released' | 'not_released') 
+		   -> {'released' | 'not_released', buffer()}.
+clear_buffer(Buffer, {Buffers, Timers}, TagDeps, Attachee, AnyReleased) ->
+    case queue:out(Buffer) of
+	{empty, Buffer} ->
+	    {AnyReleased, Buffer};
+	{{value, Msg}, Rest} ->
+	    case maybe_release_message(Msg, {Buffers, Timers}, TagDeps, Attachee) of
+		released ->
+		    clear_buffer(Rest, {Buffers, Timers}, TagDeps, Attachee, released);
+		not_released ->
+		    {AnyReleased, Buffer}
+	    end
     end.
 	    
 
@@ -285,15 +288,18 @@ maybe_release_message(Msg, {Buffers, Timers}, TagDeps, Attachee) ->
     end.
 
  
--spec empty_or_later({tag(), integer()}, [gen_message_or_merge()]) -> boolean().
-empty_or_later(_TagTs, []) ->
-    true;
-empty_or_later({Tag, Ts}, [{_MsgOrMerge, {BTag, BTs, _Payload}}|_Rest]) ->
-    %% Note: I am comparing the tuple {Ts, Tag} to have a total ordering 
-    %% between messages with different tags but the same timestamp. 
-    %% Regarding correctness, we should be allowed to reorder concurrent
-    %% messages, any way we want.
-    {Ts, Tag} =< {BTs, BTag}.
+-spec empty_or_later({tag(), integer()}, buffer()) -> boolean().
+empty_or_later({Tag, Ts}, Buffer) ->
+    case queue:peek(Buffer) of
+	empty -> 
+	    true;
+	{value, {_MsgOrMerge, {BTag, BTs, _Payload}}} ->
+	    %% Note: I am comparing the tuple {Ts, Tag} to have a total ordering 
+	    %% between messages with different tags but the same timestamp. 
+	    %% Regarding correctness, we should be allowed to reorder concurrent
+	    %% messages, any way we want.
+	    {Ts, Tag} =< {BTs, BTag}
+    end.
 
 %% This function inserts a newly arrived message to the buffers
 -spec add_to_buffers_timers(gen_message_or_merge(), buffers_timers()) -> buffers_timers().
@@ -307,9 +313,9 @@ add_to_buffers_timers(Msg, {Buffers, Timers}) ->
 %% This function adds a newly arrived message to its buffer.
 %% As messages arrive from the same channel, we can be certain that 
 %% any message will be the last one on its buffer
--spec add_to_buffer(gen_message_or_merge(), [gen_message_or_merge()]) -> [gen_message_or_merge()].
+-spec add_to_buffer(gen_message_or_merge(), buffer()) -> buffer().
 add_to_buffer(Msg, Buffer) ->
-    Buffer ++ [Msg].    
+    queue:in(Msg, Buffer).    
 
 %% This function sends the message to the head node of the subtree,
 %% and the merge request to all its children
