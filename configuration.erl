@@ -123,34 +123,41 @@ union_children_preds(Children) ->
 	      end, Children)
     end.
 
--spec is_found({'found' | 'not_found', message_predicate()}) -> boolean().
-is_found({found, _}) -> true;
-is_found(_) -> false.
+-spec is_acc({'acc' | 'rest', message_predicate()}) -> boolean().
+is_acc({acc, _}) -> true;
+is_acc(_) -> false.
 
--spec get_relevant_predicates(pid(), configuration()) -> {'found' | 'not_found', message_predicate()}.
-get_relevant_predicates(Attachee, {node, Attachee, _MPid, Pred, Children}) ->
+-spec get_relevant_predicates(pid(), configuration()) -> {'ok', message_predicate()}.
+get_relevant_predicates(Attachee, ConfTree) ->
+    [{acc, RelevantPred}] =
+	lists:filter(fun is_acc/1, get_relevant_predicates0(Attachee, ConfTree)),
+    {ok, RelevantPred}.
+
+-spec get_relevant_predicates0(pid(), configuration()) -> [{'acc' | 'rest', message_predicate()}].
+get_relevant_predicates0(Attachee, {node, Attachee, _MPid, Pred, Children}) ->
     ChildrenPred = union_children_preds(Children),
     ReturnPred =
 	fun(Msg) ->
 		Pred(Msg) andalso not ChildrenPred(Msg)
 	end,
-    {found, ReturnPred};
-get_relevant_predicates(Attachee, {node, _NotAttachee, _MPid, Pred, Children}) ->
-    ChildrenPredicates = [get_relevant_predicates(Attachee, C) || C <- Children],
-    case lists:partition(fun(C) -> is_found(C) end, ChildrenPredicates) of
+    [{acc, ReturnPred}, {rest, Pred}];
+get_relevant_predicates0(Attachee, {node, _NotAttachee, _MPid, Pred, Children}) ->
+    ChildrenPredicates = 
+	lists:flatten([get_relevant_predicates0(Attachee, C) || C <- Children]),
+    case lists:partition(fun(C) -> is_acc(C) end, ChildrenPredicates) of
 	{[], _} ->
 	    %% No child matches the Attachee pid in this subtree
-	    {not_found, Pred};
-	{[{found, ChildPred}], Rest} ->
+	    [{rest, Pred}];
+	{[{acc, ChildPred}], Rest} ->
 	    %% One child matches thhe Attachee pid
 	    ReturnPred =
 		fun(Msg) ->
 			%% My child's pred, or my predicate without the other children predicates
 			ChildPred(Msg) 
 			    orelse (Pred(Msg) andalso 
-				    not lists:any(fun({not_found, Pr}) -> Pr(Msg) end, Rest))
+				    not lists:any(fun({rest, Pr}) -> Pr(Msg) end, Rest))
 		end,
-	    {found, ReturnPred}
+	    [{acc, ReturnPred}, {rest, Pred}]
     end.
 
 %% It returns the pairs of mailbox and father ids

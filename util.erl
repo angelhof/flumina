@@ -3,7 +3,8 @@
 -export([err/2,
 	 crash/2,
 	 exec/1,
-	 sink/0]).
+	 sink/0,
+	 merge_with/3]).
 
 -include("type_definitions.hrl").
 
@@ -35,3 +36,17 @@ sink() ->
 	5000 ->
 	    ok
     end.
+
+%% This function accepts a merging function that takes a 
+%% key and the two associated values and then merges them.
+%% It merges two maps, and in case they both have a key, 
+%% it merges the two values based on the merge function.
+merge_with(Fun, Map1, Map2) ->
+    maps:fold(
+      fun(K2, V2, Map) ->
+	      maps:update_with(
+		K2,
+		fun(V1) ->
+			Fun(K2, V1, V2)
+		end, V2, Map)
+      end, Map1, Map2).

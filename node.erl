@@ -92,7 +92,7 @@ init_mailbox(Dependencies, Pred, Attachee) ->
 %% (MyPred - ChildrenPreds), (ParentPred - SiblingPred), (GrandParentPred - UnclePred)
 -spec filter_relevant_dependencies(dependencies(), pid(), configuration()) -> dependencies().
 filter_relevant_dependencies(Dependencies0, Attachee, ConfTree) ->
-    {found, Predicate} = configuration:get_relevant_predicates(Attachee, ConfTree),
+    {ok, Predicate} = configuration:get_relevant_predicates(Attachee, ConfTree),
     Dependencies1 = 
 	maps:map(
 	  fun(Tag, DTags) ->
@@ -158,7 +158,7 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 	    NewBuffersTimers = add_to_buffers_timers({merge, {Tag, Ts, Father}}, BuffersTimers),
 	    ClearedBuffersTimers = 
 		update_timers_clear_buffers({Tag, Ts}, NewBuffersTimers, Dependencies, Attachee),
-	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedMessageBuffer]),
+	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedBuffersTimers]),
 	    mailbox(ClearedBuffersTimers, Dependencies, Pred, Attachee, ConfTree);
 	{state, State} ->
 	    %% This is the reply of a child node with its state 

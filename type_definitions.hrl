@@ -15,12 +15,15 @@
 
 -type predicate() :: fun((...) -> boolean()).
 -type message_predicate() :: fun((gen_message()) -> boolean()).
+-type split_pred() :: message_predicate().
+-type split_preds() :: {split_pred(), split_pred()}.
 
 -type update_fun() :: fun((gen_message(), State::any(), pid()) -> State::any()).
--type split_fun() :: fun(({message_predicate(), message_predicate()}, State::any()) 
-			 -> {State::any(), State::any()}).
+-type split_fun() :: fun((split_preds(), State::any()) -> {State::any(), State::any()}).
 -type merge_fun() :: fun((State::any(), State::any()) -> State::any()).
 -type spec_functions() :: {update_fun(), split_fun(), merge_fun()}.
+
+
 
 -type dependencies() :: #{tag() := [tag()]}.
 -type timers() :: #{tag() := [integer()]}.

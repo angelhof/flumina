@@ -216,7 +216,7 @@ split_2({Pred1, Pred2}, DriverPosDists) ->
      maps:filter(fun(K,_) -> Pred2({K, dummy, dummy}) end, DriverPosDists)}.
 
 merge_2(DriverPosDists1, DriverPosDists2) ->
-    merge_with(
+    util:merge_with(
       fun(K, _V1, _V2) ->
 	      %% This should never be called
 	      util:err("Key: ~p shouldn't exist in both maps~n", [K]),
@@ -316,11 +316,11 @@ split_1({Pred1, Pred2}, {TipSums, WindowTips}) ->
       maps:filter(fun({K, _T},_) -> Pred2({K, dummy, dummy}) end, WindowTips)}}.
 
 merge_1({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
-    {merge_with(
+    {util:merge_with(
        fun(_K, V1, V2) ->
 	       V1 + V2
        end, TipsMap1, TipsMap2), 
-     merge_with(
+     util:merge_with(
        fun(_K, V1, V2) ->
 	       %% There shouldn't be a common key between those
 	       erlang:halt(1)
@@ -358,7 +358,7 @@ update(Msg, TipSums, SendTo) ->
 
 
 merge(TipsMap1, TipsMap2) ->
-    merge_with(
+    util:merge_with(
       fun(_K, V1, V2) ->
 	      V1 + V2
       end, TipsMap1, TipsMap2).
@@ -398,19 +398,7 @@ isWindow(_) -> false.
 
 true_pred(_) -> true.
 
-%% This function accepts a merging function that takes a 
-%% key and the two associated values and then merges them.
-%% It merges two maps, and in case they both have a key, 
-%% it merges the two values based on the merge function.
-merge_with(Fun, Map1, Map2) ->
-    maps:fold(
-      fun(K2, V2, Map) ->
-	      maps:update_with(
-		K2,
-		fun(V1) ->
-			Fun(K2, V1, V2)
-		end, V2, Map)
-      end, Map1, Map2).
+
 
 
 %% Source and Sink
