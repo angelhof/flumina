@@ -11,6 +11,8 @@ I_DIR2 = ./include
 I_DIRS = -I $(I_DIR1) -I $(I_DIR2)
 ERL_FILES  = $(wildcard *.erl)
 BEAM_FILES = $(subst .erl,.beam,$(ERL_FILES))
+NNAME ?= main
+NAME_OPT ?= -sname $(NNAME)
 
 HALT = -s erlang halt
 
@@ -35,19 +37,19 @@ all: $(BEAM_FILES)
 	$(ERLC) $(ERL_COMPILE_FLAGS) $(I_DIRS) -o $(EBIN_DIR) $<
 
 open_erl:
-	$(ERL) -pa $(EBIN_DIRS)
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS)
 
 abexample:
-	$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample main $(args) $(HALT)
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run abexample main $(args) $(HALT)
 
 taxiexample_tumble:
-	$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample main $(args) $(HALT)
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run taxiexample main $(args) $(HALT)
 
 taxiexample_slide:
-	$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample distributed_1 $(args) $(HALT)
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run taxiexample distributed_1 $(args) $(HALT)
 
 exec:
-	$(ERL) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)
 
 tests:
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample test $(HALT)

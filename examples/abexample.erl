@@ -69,19 +69,29 @@ real_distributed() ->
 
 real_distributed_conf(SinkPid) ->
 
+    A1NodeName = 'a1node@Work-PC',
+    A2NodeName = 'a2node@Work-PC',
+
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, {'proc_a1', node()}, fun isA1/1, Funs, []},
-    NodeA2 = {0, {'proc_a2', node()}, fun isA2/1, Funs, []},
+    NodeA1 = {0, {'proc_a1', A1NodeName}, fun isA1/1, Funs, []},
+    NodeA2 = {0, {'proc_a2', A2NodeName}, fun isA2/1, Funs, []},
     NodeB  = {0, {'proc_b', node()}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    Input = input_example2(),
-    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
-    Producer = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
+    {{_HeadNodePid, HeadMailboxPid},
+     [{{_NP1, MPA1}, []}, 
+      {{_NP2, MPA2}, []}]} = PidTree,
 
-    io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
+    BsInput = bs_input_example(),
+    {A1input, A2input} = as_input_example(),
+    BsProducer = spawn_link(node(), ?MODULE, source, [BsInput, HeadMailboxPid]),
+    A1producer = spawn_link(A1NodeName, ?MODULE, source, [A1input, MPA1]),
+    A2producer = spawn_link(A2NodeName, ?MODULE, source, [A2input, MPA2]),
+
+
+    io:format("Prod: ~p~nTree: ~p~n", [[BsProducer, A1producer, A2producer], PidTree]),
     SinkPid ! finished,
     ok.
     
@@ -139,6 +149,19 @@ input_example() ->
     [gen_a(V) || V <- lists:seq(1, 1000)] ++ [{b, 1001, empty}]
 	++ [gen_a(V) || V <- lists:seq(1002, 2000)] ++ [{b, 2001, empty}]
 	++ [{heartbeat, {{a,1},2005}}, {heartbeat, {{a,2},2005}}, {heartbeat, {b,2005}}].
+
+bs_input_example() ->
+    [{b, 1001, empty},
+     {b, 2001, empty},
+     {heartbeat, {b,2005}}].
+
+as_input_example() ->
+    AllAs = 
+	[gen_a(V) || V <- lists:seq(1, 1000, 2)] ++ 
+	[gen_a(V) || V <- lists:seq(1002, 2000, 2)],
+    {A1s, A2s} = lists:partition(fun({{a,Id},_,_}) -> Id =:= 1 end, AllAs),
+    {A1s ++ [{heartbeat, {{a,1},2005}}], 
+     A2s ++ [{heartbeat, {{a,2},2005}}]}. 
 
 gen_a(V) ->
     Id = random:uniform(2),

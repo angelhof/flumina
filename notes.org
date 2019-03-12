@@ -1,5 +1,15 @@
 ** Work TODO
 
+*** TODO Implement infastructure for producers.   
+
+Their input should be a list of messages. 
+The following should be configurable:
+- The rate at which they send messages
+- The density of heartbeats that they will interleave in the data
+- Whether or not to reorder data that are independent
+
+Also the node that they spawn in must be configurable
+
 *** TODO Implement an example with a key value store and write read incr for each key
 *** TODO Implement a reset feature
 
@@ -66,14 +76,6 @@ If we only allow them to happen in the order they were split, this might deterio
 
 It seems like there should be an and-merge to be paired with the and_split because it
 seems that usually an or-merge could/shpould be different than the and-merge. 
-
-*** TODO Implement infastructure for producers.   
-
-Their input should be a list of messages. 
-The following should be configurable:
-- The rate at which they send messages
-- The density of heartbeats that they will interleave in the data
-- Whether or not to reorder data that are independent
 
 *** TODO Implement a compiler
 
