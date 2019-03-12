@@ -31,9 +31,11 @@
 -type buffers() :: #{tag() := buffer()}.
 -type buffers_timers() :: {buffers(), timers()}.
 
+-type mailbox() :: {Name::atom(), node()}.
+
 %% The configuration tree, contains the pid and the mailbox pid of each node
 %% as well as a predicate that represents which messages does this node process.
--type configuration() :: {'node', Node::pid(), Mailbox::pid(), message_predicate(), [configuration()]}.
+-type configuration() :: {'node', Node::pid(), mailbox(), message_predicate(), [configuration()]}.
 
--type pid_tree() :: {{pid(), pid()}, [pid_tree()]}.
--type temp_setup_tree() :: {State::any(), message_predicate(), spec_functions(), [temp_setup_tree()]}.
+-type pid_tree() :: {{pid(), mailbox()}, [pid_tree()]}.
+-type temp_setup_tree() :: {State::any(), mailbox(), message_predicate(), spec_functions(), [temp_setup_tree()]}.

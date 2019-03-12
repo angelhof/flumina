@@ -1,6 +1,42 @@
 ** Work TODO
 
-*** TODO Move the implementation source in ./src and the examples in ./examples
+*** TODO Implement an example with a key value store and write read incr for each key
+*** TODO Implement a reset feature
+
+Instead of splitting the new state, it might be the case that the state can just be reset after the update,
+thus sending one less message for every merge.
+
+*** TODO Implement the possibility of each state type having its own dependency relation
+
+NOTE: This just seems a part of the compiler, which should never call the splits
+with wrong predicates.
+
+The problem is that having only one state type, makes writting split and merge functions
+very difficult, as one has to take into account all possible split subsets of tags. 
+
+For that reason, we can extend each state type to have its own dependency relation, 
+(which can only be stricter than the original one) to limit the possible parallelization
+in each split. 
+
+The dependency relation of a state type is used to limit the cases that we have to take
+into account when designing a split and a merge.  
+
+I am not sure whether it matters for the mailbox of each node, or whether the mailbox of
+each node can just care about the total dependency relation. Probably a mailbox should 
+just take into account the original dependency relation.
+
+*** TODO Implement dynamic reconfiguration
+
+The system at the moment chooses a configuration initially based on fixed rates. We should
+have infastructure for dynamic reconfiguration, which would mean some tracing mechanism and
+rerunning the compiler based on the gathered traces.
+
+*** TODO Extend the system to infer missing updates
+
+When the updates for some tags for some state types are missing, it should be possible to
+infer them by applying some state type conversion and then the given update, and then the
+conversion back.
+
 *** TODO Make tests fail even if we get more messages
 
 At the moment tests fail only if we get less (on not equal) messages to the ones that 
@@ -53,6 +89,10 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Implement the infastracture to distribute computation to multiple erlang nodes
+
+Modify the implementation so that the mailbox is defined by its name and node instead from its pid.
+
 *** DONE Optimize buffer insertions by implementing each tag buffer list as a FIFO queue
 
 At the moment the buffer is implemented as a map of lists. 
@@ -280,3 +320,4 @@ is described in node:remove_unnecassary_dependencies/3. In short, a node doesn't
 for the messages that are processed by its descendants because it will learn for them when it asks
 for a merge, as only the leaf nodes do processing without merging.
 
+*** DONE Move the implementation source in ./src and the examples in ./examples

@@ -4,7 +4,9 @@
 	 crash/2,
 	 exec/1,
 	 sink/0,
-	 merge_with/3]).
+	 merge_with/3,
+	 nothing/0,
+	 unregister_names/1]).
 
 -include("type_definitions.hrl").
 
@@ -50,3 +52,12 @@ merge_with(Fun, Map1, Map2) ->
 			Fun(K2, V1, V2)
 		end, V2, Map)
       end, Map1, Map2).
+
+%% Eunit setup
+nothing() -> ok.
+
+unregister_names(Names) ->
+    lists:foreach(
+      fun(Name) ->
+	      true = unregister(Name)
+      end,Names).

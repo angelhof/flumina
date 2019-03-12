@@ -19,6 +19,7 @@
 %% so it has to be implemented in some other way.
 
 %% Interface
+%% -spec or_route(message(), configuration()) ->
 or_route(Msg, Tree) ->
     find_one_responsible(Tree, Msg).
 
@@ -29,18 +30,20 @@ and_route(Router, Msg) ->
 	    Pids
     end.
 
+-spec heartbeat_route(gen_message(), configuration()) -> [mailbox()].
 heartbeat_route(Msg, Tree) ->
     find_responsibles(Tree, Msg).
     %% Subtrees = find_lowest_responsible_subtrees(Tree, Msg),
     %% lists:flatmap(fun configuration:find_node_mailbox_pids/1, Subtrees).
 
+-spec init(configuration()) -> pid().
 init(Tree) -> 
     Router = spawn_link(?MODULE, loop, [Tree]),
-    register(router, Router),
+    true = register(router, Router),
     Router.
 
 %% Internal Function
-
+-spec loop(configuration()) -> no_return().
 loop(Tree) ->
     receive
 	{ReplyTo, {or_route, Msg}} ->
@@ -57,12 +60,14 @@ loop(Tree) ->
 	    loop(Tree)
     end.
 
+-spec find_responsible_subtree_pids(configuration(), gen_message()) -> [{mailbox(), mailbox() | 'undef'}].
 find_responsible_subtree_pids(Tree, Msg) ->
     Subtree = find_responsible_subtree(Tree, Msg),
     configuration:find_node_mailbox_father_pid_pairs(Subtree).
 
 %% This functions finds and returns **ONE OF** the responsible
 %% subtrees for this message
+-spec find_responsible_subtree(configuration(), gen_message()) -> configuration().
 find_responsible_subtree(Tree, Msg) ->
     ResponsibleSubtrees = find_lowest_responsible_subtrees(Tree, Msg),
     %% WARNING: Extremely Inefficient
@@ -72,6 +77,7 @@ find_responsible_subtree(Tree, Msg) ->
 %% This is a very bad find_responsible implementation
 %% because it locally finds all responsible nodes
 %% Also it only finds the or-split responsible nodes
+-spec find_one_responsible(configuration(), gen_message()) -> mailbox().
 find_one_responsible(Tree, Msg) ->
     Responsibles = find_lowest_responsibles(Tree, Msg),
     %% Extremely Inefficient
@@ -80,9 +86,11 @@ find_one_responsible(Tree, Msg) ->
 
 %% This is used to find the first lower responsibles for this message,
 %% so the lowest nodes that can process it.
+-spec find_lowest_responsibles(configuration(), gen_message()) -> [mailbox()].
 find_lowest_responsibles(Tree, Msg) ->
-    [MPid || {node, _NPid, MPid, _Pred, _Children} <- find_lowest_responsible_subtrees(Tree, Msg)].
+    [MboxNameNode || {node, _NP, MboxNameNode, _Pred, _Cs} <- find_lowest_responsible_subtrees(Tree, Msg)].
 
+-spec find_lowest_responsible_subtrees(configuration(), gen_message()) -> [configuration()].
 find_lowest_responsible_subtrees({node, _NodePid, _MailboxPid, Pred, Children} = Node, Msg) ->
     case lists:flatmap(fun(C) -> find_lowest_responsible_subtrees(C, Msg) end, Children) of
 	[] ->
@@ -95,13 +103,15 @@ find_lowest_responsible_subtrees({node, _NodePid, _MailboxPid, Pred, Children} =
 	    Responsibles
     end.
 
-find_responsibles({node, _NodePid, MailboxPid, Pred, Children}, Msg) ->
+-spec find_responsibles(configuration(), gen_message()) -> [mailbox()].
+find_responsibles({node, _NodePid, MboxNameNode, Pred, Children}, Msg) ->
     ChildrenResponsibles = lists:flatmap(fun(C) -> find_responsibles(C, Msg) end, Children),
     case Pred(Msg) of
-	true -> [MailboxPid|ChildrenResponsibles];
+	true -> [MboxNameNode|ChildrenResponsibles];
 	false -> ChildrenResponsibles
     end.
 
-		    
-all_pids({node, _NodePid, MailboxPid, _, Children}) ->
-    [MailboxPid|lists:flatmap(fun all_pids/1, Children)].
+		 
+-spec all_pids(configuration()) -> [mailbox()].
+all_pids({node, _NodePid, MboxNameNode, _, Children}) ->
+    [MboxNameNode|lists:flatmap(fun all_pids/1, Children)].

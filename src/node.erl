@@ -1,7 +1,7 @@
 -module(node).
 
--export([node/5,
-	 init_mailbox/3,
+-export([node/6,
+	 init_mailbox/4,
 	 mailbox/5,
 	 init_node/3,
 	 loop/4]).
@@ -13,13 +13,14 @@
 	       mrg = undefined :: merge_fun()}).
 
 %% Initializes and spawns a node and its mailbox
--spec node(State::any(), message_predicate(), spec_functions(), dependencies(), pid()) -> {pid(), pid()}.
-node(State, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
+-spec node(State::any(), mailbox(), message_predicate(), spec_functions(), dependencies(), pid()) 
+	  -> {pid(), mailbox()}.
+node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
-    NodePid = spawn_link(?MODULE, init_node, [State, Funs, Output]),
-    MailboxPid = spawn_link(?MODULE, init_mailbox, [Dependencies, Pred, NodePid]),
+    NodePid = spawn_link(Node, ?MODULE, init_node, [State, Funs, Output]),
+    _MailboxPid = spawn_link(Node, ?MODULE, init_mailbox, [Name, Dependencies, Pred, NodePid]),
     %% We return the mailbox pid because every message should first arrive to the mailbox
-    {NodePid, MailboxPid}.
+    {NodePid, {Name, Node}}.
 
 
 
@@ -27,8 +28,12 @@ node(State, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
 %% Mailbox
 %%
 
--spec init_mailbox(dependencies(), message_predicate(), pid()) -> no_return().
-init_mailbox(Dependencies, Pred, Attachee) ->
+-spec init_mailbox(atom(), dependencies(), message_predicate(), pid()) -> no_return().
+init_mailbox(Name, Dependencies, Pred, Attachee) ->
+
+    %% Register the mailbox to have a name
+    true = register(Name, self()),
+
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
     %% after all the nodes have already been spawned
@@ -371,7 +376,7 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 		Children ->
 		    %% TODO: There are things missing
 		    {_IsMsgMerge, {Tag, Ts, _Payload}} = MessageMerge,
-		    [State1, State2] = send_merge_requests({Tag, Ts}, Children),
+		    [State1, State2] = receive_states({Tag, Ts}, Children),
 		    MergedState = MFun(State1, State2),
 		    NewState = handle_message(MessageMerge, MergedState, Output, UFun, ConfTree),
 		    [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
@@ -398,24 +403,23 @@ respond_to_merge(Father, State, ConfTree) ->
     %% We have to send our mailbox's pid to our parent
     %% so that they can recognize where does this state message come from
     Self = self(),
-    {node, Self, MPid, _P, _Children} = 
+    {node, Self, MboxNameNode, _P, _Children} = 
 	configuration:find_node(Self, ConfTree),
-    Father ! {state, {MPid, State}},
+    Father ! {state, {MboxNameNode, State}},
     receive
 	{state, NewState} ->
 	    NewState
     end.
 
--spec receive_state(pid()) -> State::any().
+-spec receive_state(mailbox()) -> State::any().
 receive_state(C) ->
     receive
 	{state, {C, State}} ->
 	    State
     end.
 
--spec send_merge_requests({tag(), integer()}, [pid()]) -> [State::any()].
-send_merge_requests({Tag, Ts}, Children) ->
-    %% [C ! {merge, {Tag, Ts, self()}} || C <- Children],
+-spec receive_states({tag(), integer()}, [mailbox()]) -> [State::any()].
+receive_states({Tag, Ts}, Children) ->
     [receive_state(C) || C <- Children].
 
 -spec id(any()) -> any().

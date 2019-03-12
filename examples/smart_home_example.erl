@@ -20,7 +20,7 @@ main() ->
 %% the computation but for now we can assume that it is correct.
 
 distributed() ->
-    ExecPid = spawn_link(?MODULE, distributed_conf, [self()]),
+    _ExecPid = spawn_link(?MODULE, distributed_conf, [self()]),
     util:sink().
 
 distributed_conf(SinkPid) ->
@@ -35,11 +35,11 @@ distributed_conf(SinkPid) ->
     {InitA1, InitA2} = split_a({fun isA1/1, fun isA2/1}, InitA),
 
     %% Initializing the nodes
-    NodeA1 = {InitA1, fun isA1/1, FunsA, []},
-    NodeA2 = {InitA2, fun isA2/1, FunsA, []},
-    NodeA = {InitA, fun isA/1, FunsA, [NodeA1, NodeA2]},
-    NodeB = {InitB, fun isB/1, FunsB, []},
-    Node  = {Init, fun true_pred/1, Funs, [NodeA, NodeB]},
+    NodeA1 = {InitA1, {'proc_a1', node()}, fun isA1/1, FunsA, []},
+    NodeA2 = {InitA2, {'proc_a2', node()}, fun isA2/1, FunsA, []},
+    NodeA = {InitA, {'proc_a', node()}, fun isA/1, FunsA, [NodeA1, NodeA2]},
+    NodeB = {InitB, {'proc_b', node()}, fun isB/1, FunsB, []},
+    Node  = {Init, {'proc_minutes', node()}, fun true_pred/1, Funs, [NodeA, NodeB]},
     PidTree = configuration:create(Node, dependencies(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NPA, MPA}, 
@@ -53,14 +53,14 @@ distributed_conf(SinkPid) ->
     SinkPid ! finished.
 
 sequential() ->
-    ExecPid = spawn_link(?MODULE, sequential_conf, [self()]),
+    _ExecPid = spawn_link(?MODULE, sequential_conf, [self()]),
     util:sink().
 
 sequential_conf(SinkPid) ->
     %% Configuration Tree
     Funs = {fun update0/3, fun util:crash/2, fun util:crash/2},
     Ids = init_state(),
-    Node  = {Ids, fun true_pred/1, Funs, []},
+    Node  = {Ids, {'proc', node()}, fun true_pred/1, Funs, []},
     PidTree = configuration:create(Node, dependencies(), SinkPid),
     {{_HeadNodePid, HeadMPid}, _} = PidTree,
 
@@ -71,16 +71,16 @@ sequential_conf(SinkPid) ->
 
 create_producers(MarkerFun, [Pid1, Pid2, Pid3, Pid4]) ->
     Input1 = a1_input_with_heartbeats(),
-    Producer1 = spawn_link(?MODULE, source, [Input1, Pid1]),
+    _Producer1 = spawn_link(?MODULE, source, [Input1, Pid1]),
 
     Input2 = a2_input_with_heartbeats(),
-    Producer2 = spawn_link(?MODULE, source, [Input2, Pid2]),
+    _Producer2 = spawn_link(?MODULE, source, [Input2, Pid2]),
 
     Input3 = b_input_with_heartbeats(),
-    Producer3 = spawn_link(?MODULE, source, [Input3, Pid3]),
+    _Producer3 = spawn_link(?MODULE, source, [Input3, Pid3]),
 
     Input4 = MarkerFun(),
-    Producer4 = spawn_link(?MODULE, source, [Input4, Pid4]).
+    _Producer4 = spawn_link(?MODULE, source, [Input4, Pid4]).
 
 %%
 %% The specification of the computation
@@ -338,11 +338,21 @@ output() ->
 
 distributed_test_() ->
     Rounds = lists:seq(1,100),
-    [?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, output()))
-     || _ <- Rounds].
+    Names = ['proc_a', 'proc_a1', 'proc_a2', 'proc_b', 'proc_minutes'],
+    [{setup,
+      fun util:nothing/0,
+      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) ->
+	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, output()))
+      end} || _ <- Rounds].
 
 sequential_test_() ->
     Rounds = lists:seq(1,100),
-    [?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
-     || _ <- Rounds].
+    Names = ['proc'],
+    [{setup,
+      fun util:nothing/0,
+      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) ->
+	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
+      end} || _ <- Rounds].
 

@@ -5,6 +5,8 @@
 %% TODO:
 %% - Register the nodes with names
 
+%% NOTE: This module only works when we have local execution
+
 -include("type_definitions.hrl").
 
 -type trace_msg() :: {'send', pid(), any(), pid()}.
@@ -74,9 +76,11 @@ preprocess_messages(EdgeMessages, ConfTree) ->
     PidPairs = configuration:find_node_mailbox_pid_pairs(ConfTree),
     PidMapsTo = 
 	lists:foldl(
-	  fun({NPid, MPid}, Acc) ->
-		  Acc1 = maps:put(NPid, NPid, Acc),
-		  maps:put(MPid, NPid, Acc1)
+	  fun({NPid, MboxNameNode}, Acc) ->
+		  Acc1 = maps:put(NPid, MboxNameNode, Acc),
+		  Acc2 = maps:put(MboxNameNode, MboxNameNode, Acc1),
+		  {Name, _Node} = MboxNameNode,
+		  maps:put(whereis(Name), MboxNameNode, Acc2)
 	  end, #{}, PidPairs),
     MergedPidsMessages = 
 	[{send, maps:get(From, PidMapsTo, From), Msg, maps:get(To, PidMapsTo, To)}
@@ -122,7 +126,8 @@ add_vertex_if_not_exists(Pid, Graph, VertexIds) ->
 	    VertexIds;
 	false ->
 	    V0 = digraph:add_vertex(Graph),
-	    V = digraph:add_vertex(Graph, V0, [{label, pid_to_list(Pid)}]),
+	    Label = lists:flatten(io_lib:format("~w",[Pid])),
+	    V = digraph:add_vertex(Graph, V0, [{label, Label}]),
 	    maps:put(Pid, V, VertexIds)
     end.
 

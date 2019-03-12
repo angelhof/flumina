@@ -37,23 +37,24 @@ create(Tree, Dependencies, OutputPid) ->
 
 %% Spawns the nodes based on the tree configuration
 -spec spawn_nodes(temp_setup_tree(), dependencies(), pid()) -> pid_tree().
-spawn_nodes({State, Pred, Funs, Children}, Dependencies, OutputPid) ->
+spawn_nodes({State, NameNode, Pred, Funs, Children}, Dependencies, OutputPid) ->
     ChildrenPidTrees = [spawn_nodes(C, Dependencies, OutputPid) || C <- Children],
     ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
-    {NodePid, MailboxPid} = node:node(State, Pred, Funs, Dependencies, OutputPid),
-    {{NodePid, MailboxPid}, ChildrenPidTrees}.
+    {NodePid, NameNode} = node:node(State, NameNode, Pred, Funs, Dependencies, OutputPid),
+    {{NodePid, NameNode}, ChildrenPidTrees}.
 
     
 %% Prepares the router tree
 -spec prepare_configuration_tree(pid_tree(), temp_setup_tree()) -> configuration().
-prepare_configuration_tree({{NodePid, MailboxPid}, ChildrenPids}, {State, Pred, Funs, Children}) ->
+prepare_configuration_tree({{NodePid, MboxNameNode}, ChildrenPids}, 
+			   {State, MboxNameNode, Pred, Funs, Children}) ->
     ChildrenTrees = [prepare_configuration_tree(P, N) || {P, N} <- lists:zip(ChildrenPids, Children)],
-    {node, NodePid, MailboxPid, Pred, ChildrenTrees}.
+    {node, NodePid, MboxNameNode, Pred, ChildrenTrees}.
 
 %% Sends the conf tree to all children in a Pid tree
 -spec send_conf_tree(configuration(), pid_tree()) -> ok.
-send_conf_tree(ConfTree, {{_NodePid, MailboxPid}, ChildrenPids}) ->
-    MailboxPid ! {configuration, ConfTree},
+send_conf_tree(ConfTree, {{_NodePid, MailboxNameNode}, ChildrenPids}) ->
+    MailboxNameNode ! {configuration, ConfTree},
     [send_conf_tree(ConfTree, CP) || CP <- ChildrenPids],
     ok.
 
@@ -85,7 +86,7 @@ find_children(Pid, ConfTree) ->
     Children.
 
 %% This function returns the pids of the children nodes of a node in the tree
--spec find_children_mbox_pids(pid(), configuration()) -> [pid()].
+-spec find_children_mbox_pids(pid(), configuration()) -> [mailbox()].
 find_children_mbox_pids(Pid, ConfTree) ->
     [MPid || {node, _, MPid,  _, _} <- find_children(Pid, ConfTree)].
 
@@ -109,7 +110,7 @@ find_descendant_preds(Pid, ConfTree) ->
     ChildrenPreds ++ ChildrenDescendants.
 
 %% Returns a list with all the pairs of node and mailbox pids
--spec find_node_mailbox_pid_pairs(configuration()) -> [{pid(), pid()}].
+-spec find_node_mailbox_pid_pairs(configuration()) -> [{pid(), mailbox()}].
 find_node_mailbox_pid_pairs({node, NPid, MPid, _Pred, Children}) ->
     ChildrenPairs = lists:flatten([find_node_mailbox_pid_pairs(C) || C <- Children]),
     [{NPid, MPid}|ChildrenPairs].
@@ -154,19 +155,20 @@ get_relevant_predicates0(Attachee, {node, _NotAttachee, _MPid, Pred, Children}) 
 		fun(Msg) ->
 			%% My child's pred, or my predicate without the other children predicates
 			ChildPred(Msg) 
-			    orelse (Pred(Msg) andalso 
-				    not lists:any(fun({rest, Pr}) -> Pr(Msg) end, Rest))
+			    orelse 
+			      (Pred(Msg) andalso 
+			       not lists:any(fun({rest, Pr}) -> Pr(Msg) end, Rest))
 		end,
 	    [{acc, ReturnPred}, {rest, Pred}]
     end.
 
 %% It returns the pairs of mailbox and father ids
--spec find_node_mailbox_father_pid_pairs(configuration()) -> [{pid(), pid() | 'undef'}].
-find_node_mailbox_father_pid_pairs({node, NPid, MPid, _Pred, Children}) ->
+-spec find_node_mailbox_father_pid_pairs(configuration()) -> [{mailbox(), mailbox() | 'undef'}].
+find_node_mailbox_father_pid_pairs({node, _NPid, MboxNameNode, _Pred, Children}) ->
     ChildrenPairs = lists:flatten([find_node_mailbox_father_pid_pairs(C) || C <- Children]),
-    [{MPid, undef}|[add_father_if_undef(ChildPair, NPid) || ChildPair <- ChildrenPairs]].
+    [{MboxNameNode, undef}|[add_father_if_undef(ChildPair, MboxNameNode) || ChildPair <- ChildrenPairs]].
     
--spec add_father_if_undef({pid(), pid() | 'undef'}, pid()) -> {pid(), pid()}.
+-spec add_father_if_undef({mailbox(), mailbox() | 'undef'}, mailbox()) -> {mailbox(), mailbox()}.
 add_father_if_undef({ChildMPid, undef}, Father) -> {ChildMPid, Father};
 add_father_if_undef(ChildPair, _Father) -> ChildPair.
     
