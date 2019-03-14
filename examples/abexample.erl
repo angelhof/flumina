@@ -6,6 +6,10 @@
 	 distributed_conf_1/1,
 	 real_distributed/0,
 	 real_distributed_conf/1,
+	 seq_big/0,
+	 seq_big_conf/1,
+	 distr_big/0,
+	 distr_big_conf/1,
 	 source/2]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -17,6 +21,51 @@
 %% At the moment we assume that everything written in this module
 %% is correct. Normally we would typecheck the specification of
 %% the computation but for now we can assume that it is correct.
+
+seq_big() ->
+    _ExecPid = spawn_link(?MODULE, seq_big_conf, [self()]),
+    util:sink().
+
+seq_big_conf(SinkPid) ->
+    %% Configuration Tree
+    Funs = {fun update/3, fun util:crash/2, fun util:crash/2},
+    Node  = {0, {'proc', node()}, fun true_pred/1, Funs, []},
+    PidTree = configuration:create(Node, dependencies(), SinkPid),
+    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+
+    %% Set up where will the input arrive
+    Input = big_input_example(),
+    _Producer1 = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
+
+    SinkPid ! finished.
+
+distr_big() ->
+    ExecPid = spawn_link(?MODULE, distr_big_conf, [self()]),
+    util:sink().
+
+distr_big_conf(SinkPid) ->
+
+    %% Configuration Tree
+    Funs = {fun update/3, fun split/2, fun merge/2},
+    NodeA1 = {0, {'proc_a1', node()}, fun isA1/1, Funs, []},
+    NodeA2 = {0, {'proc_a2', node()}, fun isA2/1, Funs, []},
+    NodeB  = {0, {'proc_b', node()}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    PidTree = configuration:create(NodeB, dependencies(), SinkPid),
+
+    %% Set up where will the input arrive
+    {A1, A2, Bs} = big_input_distr_example(),
+    {{_HeadNodePid, HeadMailboxPid},
+     [{{_NP1, MPA1}, []}, 
+      {{_NP2, MPA2}, []}]} = PidTree,
+
+    BsProducer = spawn_link(node(), ?MODULE, source, [Bs, HeadMailboxPid]),
+
+    A1producer = spawn_link(node(), ?MODULE, source, [A1, MPA1]),
+    A2producer = spawn_link(node(), ?MODULE, source, [A2, MPA2]),
+
+    SinkPid ! finished.
+
+
 
 %% This is what our compiler would come up with
 distributed() ->
@@ -149,6 +198,32 @@ input_example() ->
     [gen_a(V) || V <- lists:seq(1, 1000)] ++ [{b, 1001, empty}]
 	++ [gen_a(V) || V <- lists:seq(1002, 2000)] ++ [{b, 2001, empty}]
 	++ [{heartbeat, {{a,1},2005}}, {heartbeat, {{a,2},2005}}, {heartbeat, {b,2005}}].
+
+big_input_example() ->
+    lists:flatten(
+      [[gen_a(T + (1000 * BT)) || T <- lists:seq(1, 999) ] ++ [{b, 1000 + (1000 * BT), empty}]
+		  || BT <- lists:seq(1,1000)]) 
+	++ [{heartbeat, {{a,1},10000000}}, 
+	    {heartbeat, {{a,2},10000000}}, 
+	    {heartbeat, {b,10000000}}].
+
+big_input_distr_example() ->
+    A1 = lists:flatten(
+	   [[{{a,1}, T + (1000 * BT), T + (1000 * BT)} 
+	     || T <- lists:seq(1, 999, 2)]
+	    || BT <- lists:seq(1,1000)])
+	++ [{heartbeat, {{a,1},10000000}}], 
+
+    A2 = lists:flatten(
+	   [[{{a,2}, T + (1000 * BT), T + (1000 * BT)} 
+	     || T <- lists:seq(2, 998, 2)]
+	    || BT <- lists:seq(1,1000)])
+	++ [{heartbeat, {{a,2},10000000}}],
+
+    Bs = [{b, 1000 + (1000 * BT), empty} || BT <- lists:seq(1,1000)]
+	++ [{heartbeat, {b,10000000}}],
+    {A1, A2, Bs}.
+    
 
 bs_input_example() ->
     [{b, 1001, empty},

@@ -35,7 +35,7 @@ sink() ->
 	    io:format("~p~n", [Msg]),
 	    sink()
     after 
-	5000 ->
+	10000 ->
 	    ok
     end.
 

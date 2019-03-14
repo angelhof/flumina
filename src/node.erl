@@ -164,6 +164,7 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 	    ClearedBuffersTimers = 
 		update_timers_clear_buffers({Tag, Ts}, NewBuffersTimers, Dependencies, Attachee),
 	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedBuffersTimers]),
+	    %% io:format("~p -- ~p~n", [self(), erlang:process_info(self(), message_queue_len)]),
 	    mailbox(ClearedBuffersTimers, Dependencies, Pred, Attachee, ConfTree);
 	{state, State} ->
 	    %% This is the reply of a child node with its state 
