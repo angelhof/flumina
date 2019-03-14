@@ -118,8 +118,11 @@ real_distributed() ->
 
 real_distributed_conf(SinkPid) ->
 
-    A1NodeName = 'a1node@Work-PC',
-    A2NodeName = 'a2node@Work-PC',
+    A1NodeName = 'a1node@caleb-XPS-13-9370',
+    A2NodeName = 'a2node@caleb-XPS-13-9370',
+    %% ^^ Disgusting
+    %% Maybe we can at least separate @Work-PC as a variable in a separate file
+    %% that each of us can modify?
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
