@@ -39,6 +39,9 @@ all: $(BEAM_FILES)
 open_erl:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS)
 
+open_erl_noshell:
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell
+
 abexample:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run abexample main $(args) $(HALT)
 

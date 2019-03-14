@@ -4,8 +4,8 @@
 	 distributed_conf/1,
 	 distributed_1/0,
 	 distributed_conf_1/1,
-	 real_distributed/0,
-	 real_distributed_conf/1,
+	 real_distributed/1,
+	 real_distributed_conf/2,
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
@@ -112,23 +112,18 @@ distributed_conf_1(SinkPid) ->
     SinkPid ! finished,
     ok.
 
-real_distributed() ->
-    ExecPid = spawn_link(?MODULE, real_distributed_conf, [self()]),
+%%% Has to be called with long node names
+real_distributed(NodeNames) ->
+    ExecPid = spawn_link(?MODULE, real_distributed_conf, [self(), NodeNames]),
     util:sink().
 
-real_distributed_conf(SinkPid) ->
-
-    A1NodeName = 'a1node@caleb-XPS-13-9370',
-    A2NodeName = 'a2node@caleb-XPS-13-9370',
-    %% ^^ Disgusting
-    %% Maybe we can at least separate @Work-PC as a variable in a separate file
-    %% that each of us can modify?
+real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     NodeA1 = {0, {'proc_a1', A1NodeName}, fun isA1/1, Funs, []},
     NodeA2 = {0, {'proc_a2', A2NodeName}, fun isA2/1, Funs, []},
-    NodeB  = {0, {'proc_b', node()}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeB  = {0, {'proc_b', BNodeName}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
@@ -138,7 +133,7 @@ real_distributed_conf(SinkPid) ->
 
     BsInput = bs_input_example(),
     {A1input, A2input} = as_input_example(),
-    BsProducer = spawn_link(node(), ?MODULE, source, [BsInput, HeadMailboxPid]),
+    BsProducer = spawn_link(BNodeName, ?MODULE, source, [BsInput, HeadMailboxPid]),
     A1producer = spawn_link(A1NodeName, ?MODULE, source, [A1input, MPA1]),
     A2producer = spawn_link(A2NodeName, ?MODULE, source, [A2input, MPA2]),
 
