@@ -10,8 +10,16 @@
 -type message_or_merge(Tag, Payload) :: {'msg', message(Tag, Payload)} | merge_request(Tag).
 -type gen_message_or_merge() :: message_or_merge(tag(), any()).
 
--type heartbeat(Tag) :: {heartbeat, {Tag, integer()}}.
+-type heartbeat(Tag) :: {'heartbeat', {Tag, integer()}}.
+-type iheartbeat(Tag) :: {'iheartbeat', {Tag, integer()}}.
 -type gen_heartbeat() :: heartbeat(tag()).
+
+-type message_or_heartbeat(Tag, Payload) :: message(Tag, Payload) | heartbeat(Tag).
+-type gen_message_or_heartbeat() :: message_or_heartbeat(tag(), any()).
+
+-type imessage_or_iheartbeat(Tag, Payload) :: {'imsg', message(Tag, Payload)} 
+					    | iheartbeat(Tag).
+-type gen_imessage_or_iheartbeat() :: imessage_or_iheartbeat(tag(), any()).
 
 -type predicate() :: fun((...) -> boolean()).
 -type message_predicate() :: fun((gen_message()) -> boolean()).

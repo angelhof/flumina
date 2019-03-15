@@ -12,8 +12,8 @@
 	 sequential_conf_1/1,
 	 distributed_conf_1/1,
 	 sequential_conf_2/1,
-	 distributed_conf_2/1,
-	 source/2]).
+	 distributed_conf_2/1
+	]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -49,13 +49,13 @@ distributed_conf_2(SinkPid) ->
 
     %% Set up where will the input arrive
     Input1 = id1_positions_with_heartbeats(),
-    _Producer1 = spawn_link(?MODULE, source, [Input1, MP1]),
+    _Producer1 = spawn_link(producer, dumper, [Input1, MP1]),
     
     Input2 = id2_positions_with_heartbeats(),
-    _Producer2 = spawn_link(?MODULE, source, [Input2, MP2]),
+    _Producer2 = spawn_link(producer, dumper, [Input2, MP2]),
     
     Input3 = hour_positions_input(),
-    _Producer3 = spawn_link(?MODULE, source, [Input3, MP0]),
+    _Producer3 = spawn_link(producer, dumper, [Input3, MP0]),
 
     %% io:format("Input3: ~p~n", [Input3]),
 
@@ -75,13 +75,13 @@ sequential_conf_2(SinkPid) ->
 
     %% Set up where will the input arrive
     Input1 = id1_positions_with_heartbeats(),
-    _Producer1 = spawn_link(?MODULE, source, [Input1, HeadMailboxPid]),
+    _Producer1 = spawn_link(producer, dumper, [Input1, HeadMailboxPid]),
     
     Input2 = id2_positions_with_heartbeats(),
-    _Producer2 = spawn_link(?MODULE, source, [Input2, HeadMailboxPid]),
+    _Producer2 = spawn_link(producer, dumper, [Input2, HeadMailboxPid]),
     
     Input3 = hour_positions_input(),
-    _Producer3 = spawn_link(?MODULE, source, [Input3, HeadMailboxPid]),
+    _Producer3 = spawn_link(producer, dumper, [Input3, HeadMailboxPid]),
 
     SinkPid ! finished.
 
@@ -152,7 +152,7 @@ distributed_conf(SinkPid) ->
     create_producers(fun hour_markets_input/0, [MP1, MP2, MP0]),
 
     Input3 = id3_input_with_heartbeats(),
-    _Producer3 = spawn_link(?MODULE, source, [Input3, MP2]),
+    _Producer3 = spawn_link(producer, dumper, [Input3, MP2]),
 
     SinkPid ! finished.
 
@@ -172,19 +172,19 @@ sequential_conf(SinkPid) ->
     create_producers(fun hour_markets_input/0, [HeadMailboxPid, HeadMailboxPid, HeadMailboxPid]),
 
     Input3 = id3_input_with_heartbeats(),
-    _Producer3 = spawn_link(?MODULE, source, [Input3, HeadMailboxPid]),
+    _Producer3 = spawn_link(producer, dumper, [Input3, HeadMailboxPid]),
 
     SinkPid ! finished.
 
 create_producers(MarkerFun, [Pid1, Pid2, Pid3]) ->
     Input1 = id1_input_with_heartbeats(),
-    _Producer1 = spawn_link(?MODULE, source, [Input1, Pid1]),
+    _Producer1 = spawn_link(producer, dumper, [Input1, Pid1]),
 
     Input2 = id2_input_with_heartbeats(),
-    _Producer2 = spawn_link(?MODULE, source, [Input2, Pid2]),
+    _Producer2 = spawn_link(producer, dumper, [Input2, Pid2]),
 
     Input3 = MarkerFun(),
-    _Producer3 = spawn_link(?MODULE, source, [Input3, Pid3]).
+    _Producer3 = spawn_link(producer, dumper, [Input3, Pid3]).
 
 %%
 %% The specification of the computation
@@ -398,21 +398,6 @@ isWindow(_) -> false.
 
 true_pred(_) -> true.
 
-
-
-
-%% Source and Sink
-
-source([], _SendTo) ->
-    ok;
-source([Msg|Rest], SendTo) ->
-    case Msg of
-	{heartbeat, Hearbeat} ->
-	    SendTo ! {iheartbeat, Hearbeat};
-	_ ->
-	    SendTo ! {imsg, Msg}
-    end,
-    source(Rest, SendTo).
 
 
 

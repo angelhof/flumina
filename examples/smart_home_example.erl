@@ -4,8 +4,8 @@
 	 sequential/0,
 	 distributed/0,
 	 sequential_conf/1,
-	 distributed_conf/1,
-	 source/2]).
+	 distributed_conf/1
+	]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("type_definitions.hrl").
@@ -71,16 +71,16 @@ sequential_conf(SinkPid) ->
 
 create_producers(MarkerFun, [Pid1, Pid2, Pid3, Pid4]) ->
     Input1 = a1_input_with_heartbeats(),
-    _Producer1 = spawn_link(?MODULE, source, [Input1, Pid1]),
+    _Producer1 = spawn_link(producer, constant_rate_source, [Input1, 100, Pid1]),
 
     Input2 = a2_input_with_heartbeats(),
-    _Producer2 = spawn_link(?MODULE, source, [Input2, Pid2]),
+    _Producer2 = spawn_link(producer, constant_rate_source, [Input2, 100, Pid2]),
 
     Input3 = b_input_with_heartbeats(),
-    _Producer3 = spawn_link(?MODULE, source, [Input3, Pid3]),
+    _Producer3 = spawn_link(producer, constant_rate_source, [Input3, 100, Pid3]),
 
     Input4 = MarkerFun(),
-    _Producer4 = spawn_link(?MODULE, source, [Input4, Pid4]).
+    _Producer4 = spawn_link(producer, constant_rate_source, [Input4, 100, Pid4]).
 
 %%
 %% The specification of the computation
@@ -229,20 +229,6 @@ isB(_) -> false.
 isA(Msg) -> isA1(Msg) orelse isA2(Msg).
 
 true_pred(_) -> true.
-
-
-%% Source and Sink
-
-source([], _SendTo) ->
-    ok;
-source([Msg|Rest], SendTo) ->
-    case Msg of
-	{heartbeat, Hearbeat} ->
-	    SendTo ! {iheartbeat, Hearbeat};
-	_ ->
-	    SendTo ! {imsg, Msg}
-    end,
-    source(Rest, SendTo).
 
 
 

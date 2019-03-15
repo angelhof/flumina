@@ -36,7 +36,7 @@ msg_trace(Mod, Function, Args) ->
 -spec msg_trace_loop(pid(), [trace_msg()], configuration() | 'undef') -> ok.
 msg_trace_loop(Pid, Results, ConfTree) ->
     receive
-	{trace, PidPort, send, {configuration, NewConfTree}, To} ->
+	{trace, _PidPort, send, {configuration, NewConfTree}, _To} ->
 	    %% io:format(" ~p -> ( ~p ) -> ~p~n", [PidPort, msg_pp(Msg), To]),
 	    msg_trace_loop(Pid, Results, NewConfTree);
 	{trace, PidPort, send, Msg, To} ->
@@ -52,9 +52,9 @@ msg_trace_loop(Pid, Results, ConfTree) ->
 	    msg_trace_loop(Pid, Results, ConfTree)
     end.
 
--spec msg_pp(trace_msg()) -> string().
-msg_pp(Msg) -> 
-    "msg".
+%% -spec msg_pp(trace_msg()) -> string().
+%% msg_pp(Msg) -> 
+%%     "msg".
     
 -spec print_results([trace_msg()], configuration()) -> ok.
 print_results(RevResults, ConfTree) ->

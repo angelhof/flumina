@@ -9,8 +9,8 @@
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
-	 distr_big_conf/1,
-	 source/2]).
+	 distr_big_conf/1
+	]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -35,7 +35,7 @@ seq_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     Input = big_input_example(),
-    _Producer1 = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
+    _Producer1 = spawn_link(producer, constant_rate_source, [Input, 10, HeadMailboxPid]),
 
     SinkPid ! finished.
 
@@ -58,10 +58,10 @@ distr_big_conf(SinkPid) ->
      [{{_NP1, MPA1}, []}, 
       {{_NP2, MPA2}, []}]} = PidTree,
 
-    BsProducer = spawn_link(node(), ?MODULE, source, [Bs, HeadMailboxPid]),
+    BsProducer = spawn_link(node(), producer, constant_rate_source, [Bs, 10, HeadMailboxPid]),
 
-    A1producer = spawn_link(node(), ?MODULE, source, [A1, MPA1]),
-    A2producer = spawn_link(node(), ?MODULE, source, [A2, MPA2]),
+    A1producer = spawn_link(node(), producer, constant_rate_source, [A1, 10, MPA1]),
+    A2producer = spawn_link(node(), producer, constant_rate_source, [A2, 10, MPA2]),
 
     SinkPid ! finished.
 
@@ -84,7 +84,7 @@ distributed_conf(SinkPid) ->
     %% Set up where will the input arrive
     Input = input_example2(),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
-    Producer = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
+    Producer = spawn_link(producer, dumper, [Input, HeadMailboxPid]),
 
     io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
     SinkPid ! finished,
@@ -106,7 +106,7 @@ distributed_conf_1(SinkPid) ->
     %% Set up where will the input arrive
     Input = input_example(),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
-    Producer = spawn_link(?MODULE, source, [Input, HeadMailboxPid]),
+    Producer = spawn_link(producer, dumper, [Input, HeadMailboxPid]),
 
     %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
     SinkPid ! finished,
@@ -133,9 +133,9 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     BsInput = bs_input_example(),
     {A1input, A2input} = as_input_example(),
-    BsProducer = spawn_link(BNodeName, ?MODULE, source, [BsInput, HeadMailboxPid]),
-    A1producer = spawn_link(A1NodeName, ?MODULE, source, [A1input, MPA1]),
-    A2producer = spawn_link(A2NodeName, ?MODULE, source, [A2input, MPA2]),
+    BsProducer = spawn_link(BNodeName, producer, dumper, [BsInput, HeadMailboxPid]),
+    A1producer = spawn_link(A1NodeName, producer, dumper, [A1input, MPA1]),
+    A2producer = spawn_link(A2NodeName, producer, dumper, [A2input, MPA2]),
 
 
     io:format("Prod: ~p~nTree: ~p~n", [[BsProducer, A1producer, A2producer], PidTree]),
@@ -172,23 +172,10 @@ isA1(_) -> false.
 isA2({{a,2}, _, _}) -> true;
 isA2(_) -> false.
 
-isB({b, _, _}) -> true;
-isB(_) -> false.    
+%% isB({b, _, _}) -> true;
+%% isB(_) -> false.    
 
 true_pred(_) -> true.
-
-%% Source and Sink
-
-source([], _SendTo) ->
-    ok;
-source([Msg|Rest], SendTo) ->
-    case Msg of
-	{heartbeat, Hearbeat} ->
-	    SendTo ! {iheartbeat, Hearbeat};
-	_ ->
-	    SendTo ! {imsg, Msg}
-    end,
-    source(Rest, SendTo).
 
 
 %% Some input examples

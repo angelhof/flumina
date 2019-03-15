@@ -100,7 +100,7 @@ filter_relevant_dependencies(Dependencies0, Attachee, ConfTree) ->
     {ok, Predicate} = configuration:get_relevant_predicates(Attachee, ConfTree),
     Dependencies1 = 
 	maps:map(
-	  fun(Tag, DTags) ->
+	  fun(_Tag, DTags) ->
 		  %% [io:format("~p -> ~p || ~p : ~p~n", 
 		  %% 	    [Tag, DT, self(), not DescendantPred({DT, undef, undef})])
 		  %% 	    || DT <- DTags],
@@ -420,9 +420,5 @@ receive_state(C) ->
     end.
 
 -spec receive_states({tag(), integer()}, [mailbox()]) -> [State::any()].
-receive_states({Tag, Ts}, Children) ->
+receive_states({_Tag, _Ts}, Children) ->
     [receive_state(C) || C <- Children].
-
--spec id(any()) -> any().
-id(X) ->
-    X.

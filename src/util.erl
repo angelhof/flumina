@@ -5,6 +5,7 @@
 	 exec/1,
 	 sink/0,
 	 merge_with/3,
+	 take_at_most/2,
 	 nothing/0,
 	 unregister_names/1]).
 
@@ -35,7 +36,7 @@ sink() ->
 	    io:format("~p~n", [Msg]),
 	    sink()
     after 
-	10000 ->
+	5000 ->
 	    ok
     end.
 
@@ -52,6 +53,18 @@ merge_with(Fun, Map1, Map2) ->
 			Fun(K2, V1, V2)
 		end, V2, Map)
       end, Map1, Map2).
+
+-spec take_at_most(integer(), [any()]) -> {[any()], [any()]}. 
+take_at_most(N, List) when N >= 0 ->
+    take_at_most(N, List, []).
+
+-spec take_at_most(integer(), [any()], [any()]) -> {[any()], [any()]}.
+take_at_most(0, Rest, Acc) ->
+    {lists:reverse(Acc), Rest};
+take_at_most(_, [], Acc) ->
+    {lists:reverse(Acc), []};
+take_at_most(N, [Msg|Rest], Acc) ->
+    take_at_most(N-1, Rest, [Msg|Acc]).
 
 %% Eunit setup
 nothing() -> ok.
