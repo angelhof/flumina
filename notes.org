@@ -1,12 +1,31 @@
 ** Work TODO
 
+*** TODO Implement a configuration generator
+
+Start implementing a trivial configuration generator
+  - [ ] Implement a trivial sequential optimization strategy module
+  - [ ] Modify SinkPid to be mailbox type and not pid
+  - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
+        (Or make sure that  can make predicates by impl tags)
+
+That given the topology and the specification of the computation,
+distributes the computation accordingly (as we have done now in the 
+distributed() function in the abexample)
+
+
+
+*** TODO Implement the possibility to have separate sink pid for each node
+*** TODO Implement a greedy optimization strategy
 *** TODO Implement infastructure for producers.   
 
 Their input should be a list of messages. 
 The following should be configurable:
-- The rate at which they send messages
-- The density of heartbeats that they will interleave in the data
-- Whether or not to reorder data that are independent
+
+  - [-] The rate at which they send messages
+    - [X] Data agnostic constant rate
+    - [ ] Rate that is relative to the timestamps of the messages
+  - [ ] The density of heartbeats that they will interleave in the data
+  - [ ] Whether or not to reorder data that are independent
 
 Also the node that they spawn in must be configurable
 
@@ -77,12 +96,6 @@ If we only allow them to happen in the order they were split, this might deterio
 It seems like there should be an and-merge to be paired with the and_split because it
 seems that usually an or-merge could/shpould be different than the and-merge. 
 
-*** TODO Implement a compiler
-
-That given the topology and the specification of the computation,
-distributes the computation accordingly (as we have done now in the 
-distributed() function in the abexample)
-
 *** TODO Implement infastructure that allows for a separate msg and split predicate
 
 At the moment the message predicate of a node is the same as its split predicate
@@ -124,7 +137,7 @@ appear only in periods of lack of messages to speed up progress.
 NOTE: Before implementing that, make sure that we have decided on what the model looks like exactly
 
 *** DONE Make sure that the top nodes propagate heartbeats to children nodes
-
+    
 WE HAVE MADE TO THE ASSUMPTION THAT EACH TAG HAS ONE ROOT NODE AND NOT MORE
 
 DONE: This has been implemented.
@@ -150,7 +163,7 @@ There is an implicit assumption that I have made that preds of children are subs
 I have to make sure that it is reasonable and correct.
 
 *** DONE Implement the buffer and its operations in a more efficient manner
-
+    
 Implemented Solution:
 
 In order to release a message two different conditions have to be satisfied.
@@ -220,7 +233,7 @@ been released.
     - [X] Define the computation
     - [X] Implement a producer that create {x,y} line coordinates for each taxi
     - [X] Define a sequential configuration
-    - [ ] Define a distributed configuration
+    - [X] Define a distributed configuration
 
 This could be messages with the position of the taxi, that arrive every second, and we want
 to get the distance that the taxi has covered in every hour. So we need to compute the distance
