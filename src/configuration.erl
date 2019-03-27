@@ -20,7 +20,7 @@
 %% - It initializes the router
 %%
 
--spec create(temp_setup_tree(), dependencies(), pid()) -> pid_tree().
+-spec create(temp_setup_tree(), dependencies(), mailbox()) -> pid_tree().
 create(Tree, Dependencies, OutputPid) ->
 
     %% Spawns the nodes
@@ -36,7 +36,7 @@ create(Tree, Dependencies, OutputPid) ->
     PidsTree.
 
 %% Spawns the nodes based on the tree configuration
--spec spawn_nodes(temp_setup_tree(), dependencies(), pid()) -> pid_tree().
+-spec spawn_nodes(temp_setup_tree(), dependencies(), mailbox()) -> pid_tree().
 spawn_nodes({State, NameNode, Pred, Funs, Children}, Dependencies, OutputPid) ->
     ChildrenPidTrees = [spawn_nodes(C, Dependencies, OutputPid) || C <- Children],
     ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],

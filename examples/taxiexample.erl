@@ -29,7 +29,9 @@ main() ->
 %% the computation but for now we can assume that it is correct.
 
 distributed_2() ->
-    _ExecPid = spawn_link(?MODULE, distributed_conf_2, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, distributed_conf_2, [SinkName]),
     util:sink().
 
 distributed_conf_2(SinkPid) ->
@@ -62,7 +64,9 @@ distributed_conf_2(SinkPid) ->
     SinkPid ! finished.
 
 sequential_2() ->
-    _ExecPid = spawn_link(?MODULE, sequential_conf_2, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, sequential_conf_2, [SinkName]),
     util:sink().
 
 sequential_conf_2(SinkPid) ->
@@ -86,7 +90,9 @@ sequential_conf_2(SinkPid) ->
     SinkPid ! finished.
 
 distributed_1() ->
-    _ExecPid = spawn_link(?MODULE, distributed_conf_1, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, distributed_conf_1, [SinkName]),
     util:sink().
 
 distributed_conf_1(SinkPid) ->
@@ -111,7 +117,9 @@ distributed_conf_1(SinkPid) ->
     SinkPid ! finished.
 
 sequential_1() ->
-    _ExecPid = spawn_link(?MODULE, sequential_conf_1, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, sequential_conf_1, [SinkName]),
     util:sink().
 
 sequential_conf_1(SinkPid) ->
@@ -129,7 +137,9 @@ sequential_conf_1(SinkPid) ->
     SinkPid ! finished.
 
 distributed() ->
-    _ExecPid = spawn_link(?MODULE, distributed_conf, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, distributed_conf, [SinkName]),
     util:sink().
 
 distributed_conf(SinkPid) ->
@@ -157,7 +167,9 @@ distributed_conf(SinkPid) ->
     SinkPid ! finished.
 
 sequential() ->
-    _ExecPid = spawn_link(?MODULE, sequential_conf, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, sequential_conf, [SinkName]),
     util:sink().
 
 sequential_conf(SinkPid) ->
@@ -520,7 +532,7 @@ distributed_2_test_() ->
     Names = ['proc_id1', 'proc_id2', 'proc_hour'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_2}, output_2()))
       end} || _ <- Rounds].
@@ -530,7 +542,7 @@ sequential_2_test_() ->
     Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf_2}, output_2()))
       end} || _ <- Rounds].
@@ -572,7 +584,7 @@ distributed_1_test_() ->
     Names = ['proc_id1', 'proc_id2', 'proc_window'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_1}, output_1()))
       end} || _ <- Rounds].
@@ -582,7 +594,7 @@ sequential_1_test_() ->
     Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf_1}, output_1()))
       end} || _ <- Rounds].
@@ -607,7 +619,7 @@ distributed_test_() ->
     Names = ['proc_id1', 'proc_id2', 'proc_id3', 'proc_ids23', 'proc_hour'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, output()))
       end} || _ <- Rounds].
@@ -617,7 +629,7 @@ sequential_test_() ->
     Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
       end} || _ <- Rounds].

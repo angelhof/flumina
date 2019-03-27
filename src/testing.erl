@@ -1,7 +1,8 @@
 -module(testing).
 
 -export([test_mfa/2,
-	 test_sink/2]).
+	 test_sink/2,
+	 unregister_names/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -13,7 +14,9 @@
 %%          the expected output, if we get more it doesn't fail.
 -spec test_mfa({atom(), atom()}, Messages::[any()]) -> 'ok'.
 test_mfa({M, F}, ExpOutput) ->
-    ExecPid = spawn_link(M, F, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    ExecPid = spawn_link(M, F, [SinkName]),
     test_sink(ExpOutput, testing).
 
 %% This is just a sink function that compares whatever it gets 
@@ -54,3 +57,8 @@ test_sink(ExpOutput, Mode) ->
     	    timeout
     end.
     
+%% This used to call the unregister names with the addition of sink
+%% which is the testing sink name. However, sink dies either way 
+%% so it is unregistered automatically.
+unregister_names(Names) ->
+    util:unregister_names(Names).

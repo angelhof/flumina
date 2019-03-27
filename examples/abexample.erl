@@ -23,24 +23,44 @@
 %% the computation but for now we can assume that it is correct.
 
 seq_big() ->
-    _ExecPid = spawn_link(?MODULE, seq_big_conf, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, seq_big_conf, [SinkName]),
     util:sink().
 
 seq_big_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{{'proc', node()}, b, 10},
+	     {{'proc', node()}, {a,1}, 1000},
+	     {{'proc', node()}, {a,2}, 1000}],
+    Topology =
+	configuration_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Tags = [b, {a,1}, {a,2}],
+    StateTypesMap = 
+	#{'state0' => {Tags, fun update/3}},
+    SplitsMerges = [],
+    Dependencies = dependencies(),
+    InitState = {'state0', 0},
+    Specification = 
+	configuration_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    
+    PidTree = configuration_gen:generate(Specification, Topology),
+
     %% Configuration Tree
-    Funs = {fun update/3, fun util:crash/2, fun util:crash/2},
-    Node  = {0, {'proc', node()}, fun true_pred/1, Funs, []},
-    PidTree = configuration:create(Node, dependencies(), SinkPid),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
 
     %% Set up where will the input arrive
     Input = big_input_example(),
-    _Producer1 = spawn_link(producer, constant_rate_source, [Input, 10, HeadMailboxPid]),
+    _Producer1 = spawn_link(producer, constant_rate_source, [Input, 5, HeadMailboxPid]),
 
     SinkPid ! finished.
 
 distr_big() ->
-    ExecPid = spawn_link(?MODULE, distr_big_conf, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    ExecPid = spawn_link(?MODULE, distr_big_conf, [SinkName]),
     util:sink().
 
 distr_big_conf(SinkPid) ->
@@ -69,7 +89,9 @@ distr_big_conf(SinkPid) ->
 
 %% This is what our compiler would come up with
 distributed() ->
-    ExecPid = spawn_link(?MODULE, distributed_conf, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    ExecPid = spawn_link(?MODULE, distributed_conf, [SinkName]),
     util:sink().
 
 distributed_conf(SinkPid) ->
@@ -91,7 +113,9 @@ distributed_conf(SinkPid) ->
     ok.
 
 distributed_1() ->
-    ExecPid = spawn_link(?MODULE, distributed_conf_1, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    ExecPid = spawn_link(?MODULE, distributed_conf_1, [SinkName]),
     util:sink().
 
 distributed_conf_1(SinkPid) ->
@@ -114,7 +138,9 @@ distributed_conf_1(SinkPid) ->
 
 %%% Has to be called with long node names
 real_distributed(NodeNames) ->
-    ExecPid = spawn_link(?MODULE, real_distributed_conf, [self(), NodeNames]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    ExecPid = spawn_link(?MODULE, real_distributed_conf, [SinkName, NodeNames]),
     util:sink().
 
 real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
@@ -266,7 +292,7 @@ input_example_test_() ->
     {"Input example test",
      [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_1}, input_example_output()))
       end} || _ <- Rounds]}.
@@ -283,7 +309,7 @@ input_example2_test_() ->
     {"Input example2 test",
      [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, input_example2_output()))
       end} || _ <- Rounds]}.

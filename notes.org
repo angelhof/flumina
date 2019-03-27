@@ -4,15 +4,21 @@
 
 Start implementing a trivial configuration generator
   - [ ] Implement a trivial sequential optimization strategy module
-  - [ ] Modify SinkPid to be mailbox type and not pid
+    + [ ] Modify abexample to use it
+    + [ ] Modify taxiexample to use it
+    + [ ] Modify smart home example to use it
+  - [X] Modify SinkPid to be mailbox type and not pid
+    + [X] Modify this in all examples
+  - [ ] Make both the specification and topology be records and not tuples
+  - [ ] Move the specification and topology interfaces to different files
+  - [ ] Move the type definitions in the type definitions file
   - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
         (Or make sure that  can make predicates by impl tags)
+
 
 That given the topology and the specification of the computation,
 distributes the computation accordingly (as we have done now in the 
 distributed() function in the abexample)
-
-
 
 *** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement a greedy optimization strategy

@@ -13,7 +13,7 @@
 	       mrg = undefined :: merge_fun()}).
 
 %% Initializes and spawns a node and its mailbox
--spec node(State::any(), mailbox(), message_predicate(), spec_functions(), dependencies(), pid()) 
+-spec node(State::any(), mailbox(), message_predicate(), spec_functions(), dependencies(), mailbox()) 
 	  -> {pid(), mailbox()}.
 node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
@@ -353,7 +353,7 @@ broadcast_heartbeat({Tag, Ts}, ConfTree) ->
 %%
 %% Main Processing Node
 %%
--spec init_node(State::any(), #funs{}, pid()) -> no_return().
+-spec init_node(State::any(), #funs{}, mailbox()) -> no_return().
 init_node(State, Funs, Output) ->
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
@@ -365,7 +365,7 @@ init_node(State, Funs, Output) ->
 	
 
 %% This is the main loop that each node executes.
--spec loop(State::any(), #funs{}, pid(), configuration()) -> no_return().
+-spec loop(State::any(), #funs{}, mailbox(), configuration()) -> no_return().
 loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
     receive
         {MsgOrMerge, _} = MessageMerge when MsgOrMerge =:= msg orelse MsgOrMerge =:= merge ->
@@ -387,14 +387,15 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
 	    end
     end.
 
--spec handle_message(gen_message() | gen_merge_request(), State::any(), pid(), update_fun(), configuration()) 
+-spec handle_message(gen_message() | gen_merge_request(), State::any(), mailbox(), 
+		     update_fun(), configuration()) 
 		    -> State::any().
 handle_message({msg, Msg}, State, Output, UFun, _Conf) ->
     update_on_msg(Msg, State, Output, UFun);
 handle_message({merge, {_Tag, _Ts, Father}}, State, _Output, _UFun, Conf) ->
     respond_to_merge(Father, State, Conf).
 
--spec update_on_msg(gen_message(), State::any(), pid(), update_fun()) -> State::any().
+-spec update_on_msg(gen_message(), State::any(), mailbox(), update_fun()) -> State::any().
 update_on_msg(Msg, State, Output, UFun) ->
     NewState = UFun(Msg, State, Output),    
     NewState.

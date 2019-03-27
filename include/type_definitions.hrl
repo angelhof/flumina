@@ -26,7 +26,7 @@
 -type split_pred() :: message_predicate().
 -type split_preds() :: {split_pred(), split_pred()}.
 
--type update_fun() :: fun((gen_message(), State::any(), pid()) -> State::any()).
+-type update_fun() :: fun((gen_message(), State::any(), mailbox()) -> State::any()).
 -type split_fun() :: fun((split_preds(), State::any()) -> {State::any(), State::any()}).
 -type merge_fun() :: fun((State::any(), State::any()) -> State::any()).
 -type spec_functions() :: {update_fun(), split_fun(), merge_fun()}.

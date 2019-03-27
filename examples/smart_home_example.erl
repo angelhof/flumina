@@ -20,7 +20,9 @@ main() ->
 %% the computation but for now we can assume that it is correct.
 
 distributed() ->
-    _ExecPid = spawn_link(?MODULE, distributed_conf, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, distributed_conf, [SinkName]),
     util:sink().
 
 distributed_conf(SinkPid) ->
@@ -53,7 +55,9 @@ distributed_conf(SinkPid) ->
     SinkPid ! finished.
 
 sequential() ->
-    _ExecPid = spawn_link(?MODULE, sequential_conf, [self()]),
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, sequential_conf, [SinkName]),
     util:sink().
 
 sequential_conf(SinkPid) ->
@@ -327,7 +331,7 @@ distributed_test_() ->
     Names = ['proc_a', 'proc_a1', 'proc_a2', 'proc_b', 'proc_minutes'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, output()))
       end} || _ <- Rounds].
@@ -337,7 +341,7 @@ sequential_test_() ->
     Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> util:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names(Names) end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
       end} || _ <- Rounds].
