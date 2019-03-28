@@ -1,5 +1,16 @@
 ** Work TODO
 
+*** TODO Implement a greedy optimization strategy
+    
+  - [ ] Implement the most basic greedy optimization
+  - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
+
+Remove a tag, if it disconnects, split and iterate.
+
+*** TODO Change the digraph library with some other graph library
+
+Maybe aggelgian's??
+
 *** TODO Move the specification and topology interfaces to different files
 
 Also make make both the specification and topology be records and not tuples
@@ -12,13 +23,6 @@ Generalize rates to talk about nodes, and in the process implement a generic nod
 that receives/sends all the messages that are supposed to arrive at a specific node
 
 *** TODO Implement the possibility to have separate sink pid for each node
-*** TODO Implement a greedy optimization strategy
-    
-  - [ ] Implement the most basic greedy optimization
-  - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
-
-Remove a tag, if it disconnects, split and iterate.
-
 *** TODO Implement infastructure for producers.   
 
 Their input should be a list of messages. 

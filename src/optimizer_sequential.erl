@@ -27,10 +27,23 @@ generate_setup_tree(Specification, Topology) ->
     
     
 -spec max_rate_node(nodes_rates()) -> mailbox().
-max_rate_node([{NameNode, _Tag, _Rate}|_]) ->
-    %% TODO: Implement this by summing the rate for each
-    %%       node, and returning the one with the maximum rate
-    NameNode.
+max_rate_node(NodesRates) ->
+    NodesTotalRates = 
+	lists:foldl(
+	  fun({Node, _Tag, Rate}, Acc) ->
+	      maps:update_with(
+		Node, fun(Rate0) ->
+			      Rate0 + Rate
+		      end, Rate, Acc)
+	  end, #{}, NodesRates),
+    SortedNodesTotalRates =
+	lists:sort(
+	 fun({Node1, Rate1}, {Node2, Rate2}) ->
+		 Rate1 > Rate2
+	 end, maps:to_list(NodesTotalRates)),
+    [{MaxNode, _MaxRate}|_] = SortedNodesTotalRates,
+    MaxNode.
+    
 
 -spec can_state_type_handle_tags(state_type_name(), tags(), specification()) -> boolean().
 can_state_type_handle_tags(StateType, Tags, Specification) ->

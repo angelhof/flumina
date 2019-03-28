@@ -9,7 +9,9 @@
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
-	 distr_big_conf/1
+	 distr_big_conf/1,
+	 greedy_big/0,
+	 greedy_big_conf/1
 	]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -85,7 +87,44 @@ distr_big_conf(SinkPid) ->
 
     SinkPid ! finished.
 
+greedy_big() ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, greedy_big_conf, [SinkName]),
+    util:sink().
 
+greedy_big_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{{'proc', node()}, b, 10},
+	     {{'proc', node()}, {a,1}, 1000},
+	     {{'proc', node()}, {a,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Tags = [b, {a,1}, {a,2}],
+    StateTypesMap = 
+	#{'state0' => {Tags, fun update/3}},
+    SplitsMerges = [],
+    Dependencies = dependencies(),
+    InitState = {'state0', 0},
+    Specification = 
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    
+    PidTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+
+    %% Set up where will the input arrive
+    {A1, A2, Bs} = big_input_distr_example(),
+    {{_HeadNodePid, HeadMailboxPid},
+     [{{_NP1, MPA1}, []}, 
+      {{_NP2, MPA2}, []}]} = PidTree,
+
+    BsProducer = spawn_link(node(), producer, constant_rate_source, [Bs, 10, HeadMailboxPid]),
+
+    A1producer = spawn_link(node(), producer, constant_rate_source, [A1, 10, MPA1]),
+    A2producer = spawn_link(node(), producer, constant_rate_source, [A2, 10, MPA2]),
+
+    SinkPid ! finished.
 
 %% This is what our compiler would come up with
 distributed() ->
