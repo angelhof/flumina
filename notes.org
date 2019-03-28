@@ -1,27 +1,24 @@
 ** Work TODO
 
-*** TODO Implement a configuration generator
+*** TODO Move the specification and topology interfaces to different files
 
-Start implementing a trivial configuration generator
-  - [ ] Implement a trivial sequential optimization strategy module
-    + [ ] Modify abexample to use it
-    + [ ] Modify taxiexample to use it
-    + [ ] Modify smart home example to use it
-  - [X] Modify SinkPid to be mailbox type and not pid
-    + [X] Modify this in all examples
-  - [ ] Make both the specification and topology be records and not tuples
-  - [ ] Move the specification and topology interfaces to different files
-  - [ ] Move the type definitions in the type definitions file
-  - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
-        (Or make sure that  can make predicates by impl tags)
+Also make make both the specification and topology be records and not tuples
 
+*** TODO Implement rates to be connected to nodes instead of processes
 
-That given the topology and the specification of the computation,
-distributes the computation accordingly (as we have done now in the 
-distributed() function in the abexample)
+At the moment, rates are given for processes in nodes, rather than for nodes.
+
+Generalize rates to talk about nodes, and in the process implement a generic node source/producer, 
+that receives/sends all the messages that are supposed to arrive at a specific node
 
 *** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement a greedy optimization strategy
+    
+  - [ ] Implement the most basic greedy optimization
+  - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
+
+Remove a tag, if it disconnects, split and iterate.
+
 *** TODO Implement infastructure for producers.   
 
 Their input should be a list of messages. 
@@ -110,6 +107,24 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Implement a configuration generator
+
+Start implementing a trivial configuration generator
+  - [X] Implement a trivial sequential optimization strategy module
+    + [X] Modify abexample to use it
+    + [X] Modify taxiexample to use it
+    + [X] Modify smart home example to use it
+  - [X] Modify SinkPid to be mailbox type and not pid
+    + [X] Modify this in all examples
+  - [X] Move the type definitions in the type definitions file
+        (Or make sure that  can make predicates by impl tags)
+  - [X] Give the optimizer to the configuration generator as argument
+
+
+That given the topology and the specification of the computation,
+distributes the computation accordingly (as we have done now in the 
+distributed() function in the abexample)
+
 *** DONE Implement the infastracture to distribute computation to multiple erlang nodes
 
 Modify the implementation so that the mailbox is defined by its name and node instead from its pid.

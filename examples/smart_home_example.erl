@@ -61,11 +61,27 @@ sequential() ->
     util:sink().
 
 sequential_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{{'proc', node()}, minute, 10},
+	     {{'proc', node()}, {a,1}, 1000},
+	     {{'proc', node()}, {a,2}, 1000},
+	     {{'proc', node()}, b, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Tags = [minute, {a,1}, {a,2}, b],
+    StateTypesMap = 
+	#{'state0' => {Tags, fun update0/3}},
+    SplitsMerges = [],
+    Dependencies = dependencies(),
+    InitState = {'state0', init_state()},
+    Specification = 
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+
+    PidTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
+
     %% Configuration Tree
-    Funs = {fun update0/3, fun util:crash/2, fun util:crash/2},
-    Ids = init_state(),
-    Node  = {Ids, {'proc', node()}, fun true_pred/1, Funs, []},
-    PidTree = configuration:create(Node, dependencies(), SinkPid),
     {{_HeadNodePid, HeadMPid}, _} = PidTree,
 
     %% Set up where will the input arrive

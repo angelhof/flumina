@@ -47,3 +47,44 @@
 
 -type pid_tree() :: {{pid(), mailbox()}, [pid_tree()]}.
 -type temp_setup_tree() :: {State::any(), mailbox(), message_predicate(), spec_functions(), [temp_setup_tree()]}.
+
+%%
+%% Configuration Generator
+%%
+
+-type state_type_name() :: atom().
+-type state_type_triple() :: {state_type_name(), 
+			      state_type_name(), 
+			      state_type_name()}.
+-type split_merge() :: {split_fun(), merge_fun()}.
+-type split_merge_fun() :: {state_type_triple(), split_merge()}.
+-type split_merge_funs() :: [split_merge_fun()].
+
+%% TODO: I am not sure whether this should be about processes in nodes,
+%%       or whether it should talk about whole nodes
+-type nodes_rates() :: [{mailbox(), tag(), non_neg_integer()}].
+-type state_types_map() :: #{state_type_name() := {tags(), update_fun()}}.
+-type state_type_pair() :: {state_type_name(), State::any()}.
+-type tags() :: [tag()].
+
+-type specification() :: 
+        { %% For each tag there exists a maximum subset
+	  %% of tags that it can handle, as well as an
+	  %% update function
+	  state_types_map(), 
+	  %% A possibly empty list of splits and merges,
+	  %% and the state types that they are done from
+	  %% and to.
+	  split_merge_funs(),
+	  %% The dependencies
+	  dependencies(),
+	  %% The initial state, and its type
+	  state_type_pair()
+	}.
+-type topology() ::
+	{ %% An association list containing triples of
+	  %% a node pid, an implementation tag, and the input rate
+	  nodes_rates(),
+	  %% The sink pid
+	  mailbox()
+	}.

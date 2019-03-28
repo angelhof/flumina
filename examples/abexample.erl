@@ -34,7 +34,7 @@ seq_big_conf(SinkPid) ->
 	     {{'proc', node()}, {a,1}, 1000},
 	     {{'proc', node()}, {a,2}, 1000}],
     Topology =
-	configuration_gen:make_topology(Rates, SinkPid),
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
@@ -44,9 +44,9 @@ seq_big_conf(SinkPid) ->
     Dependencies = dependencies(),
     InitState = {'state0', 0},
     Specification = 
-	configuration_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
-    PidTree = configuration_gen:generate(Specification, Topology),
+    PidTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
 
     %% Configuration Tree
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
