@@ -41,7 +41,7 @@ seq_big_conf(SinkPid) ->
     %% Computation
     Tags = [b, {a,1}, {a,2}],
     StateTypesMap = 
-	#{'state0' => {Tags, fun update/3}},
+	#{'state0' => {sets:from_list(Tags), fun update/3}},
     SplitsMerges = [],
     Dependencies = dependencies(),
     InitState = {'state0', 0},
@@ -104,8 +104,9 @@ greedy_big_conf(SinkPid) ->
     %% Computation
     Tags = [b, {a,1}, {a,2}],
     StateTypesMap = 
-	#{'state0' => {Tags, fun update/3}},
-    SplitsMerges = [],
+	#{'state0' => {sets:from_list(Tags), fun update/3},
+	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
     Dependencies = dependencies(),
     InitState = {'state0', 0},
     Specification = 

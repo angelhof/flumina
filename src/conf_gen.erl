@@ -5,6 +5,7 @@
 	 make_topology/2,
 	 get_state_type_tags_upd/2,
 	 get_state_types_map/1, 
+	 get_split_merge_funs/1,
 	 get_dependencies/1, 
 	 get_init_state/1, 
 	 get_nodes_rates/1, 
@@ -51,7 +52,7 @@ make_specification(StateTypesMap, SplitMergeFuns, Dependencies, StateTypePair) -
 make_topology(NodesRates, SinkNode) ->
     {NodesRates, SinkNode}.
 
--spec get_state_type_tags_upd(state_type_name(), specification()) -> {tags(), update_fun()}.
+-spec get_state_type_tags_upd(state_type_name(), specification()) -> {sets:set(tag()), update_fun()}.
 get_state_type_tags_upd(StateType, Specification) ->
     StateTypesMap = get_state_types_map(Specification),
     maps:get(StateType, StateTypesMap).
@@ -59,6 +60,10 @@ get_state_type_tags_upd(StateType, Specification) ->
 -spec get_state_types_map(specification()) -> state_types_map().
 get_state_types_map({StateTypes, _SplitMerges, _Dependencies, _InitState}) ->
     StateTypes.
+
+-spec get_split_merge_funs(specification()) -> split_merge_funs().
+get_split_merge_funs({_StateTypes, SplitMerges, _Dependencies, _InitState}) ->
+    SplitMerges.
 
 -spec get_dependencies(specification()) -> dependencies().
 get_dependencies({_StateTypes, _SplitMerges, Dependencies, _InitState}) ->

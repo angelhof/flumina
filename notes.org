@@ -3,9 +3,14 @@
 *** TODO Implement a greedy optimization strategy
     
   - [ ] Implement the most basic greedy optimization
+  - [ ] To test this, try an abexample that has a lot of different as as well
+        as a smart home example with many as
   - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
 
 Remove a tag, if it disconnects, split and iterate.
+
+For now the greedy algorithm, assumes that there is only one split for each tiple
+
 
 *** TODO Change the digraph library with some other graph library
 

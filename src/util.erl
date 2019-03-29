@@ -6,6 +6,7 @@
 	 sink/0,
 	 merge_with/3,
 	 take_at_most/2,
+	 map_focus/2,
 	 nothing/0,
 	 unregister_names/1]).
 
@@ -65,6 +66,22 @@ take_at_most(_, [], Acc) ->
     {lists:reverse(Acc), []};
 take_at_most(N, [Msg|Rest], Acc) ->
     take_at_most(N-1, Rest, [Msg|Acc]).
+
+%% This function applies a focus function 
+%% to every element in the list. Focus means that
+%% it takes as an argument the element, and the rest
+%% of the list.
+%% 
+%% WARNING: The function shouldn't depend on the 
+%%          ordering of the rest of the elements shouldn't matter.
+-spec map_focus(fun((X, [X]) -> Y), [X]) -> [Y].
+map_focus(Fun, [_|_] = List) ->
+    map_focus(Fun, [], List, []).
+
+map_focus(Fun, Prev, [X], Acc) ->
+    lists:reverse([Fun(X, Prev)|Acc]);
+map_focus(Fun, Prev, [X|Rest], Acc) ->
+    map_focus(Fun, [X|Prev], Rest, [Fun(X, Prev ++ Rest)|Acc]).
 
 %% Eunit setup
 nothing() -> ok.

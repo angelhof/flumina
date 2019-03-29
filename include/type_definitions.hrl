@@ -46,7 +46,8 @@
 -type configuration() :: {'node', Node::pid(), mailbox(), message_predicate(), [configuration()]}.
 
 -type pid_tree() :: {{pid(), mailbox()}, [pid_tree()]}.
--type temp_setup_tree() :: {State::any(), mailbox(), message_predicate(), spec_functions(), [temp_setup_tree()]}.
+-type temp_setup_tree() :: {State::any(), mailbox(), 
+			    message_predicate(), spec_functions(), [temp_setup_tree()]}.
 
 %%
 %% Configuration Generator
@@ -63,7 +64,7 @@
 %% TODO: I am not sure whether this should be about processes in nodes,
 %%       or whether it should talk about whole nodes
 -type nodes_rates() :: [{mailbox(), tag(), non_neg_integer()}].
--type state_types_map() :: #{state_type_name() := {tags(), update_fun()}}.
+-type state_types_map() :: #{state_type_name() := {sets:set(tag()), update_fun()}}.
 -type state_type_pair() :: {state_type_name(), State::any()}.
 -type tags() :: [tag()].
 

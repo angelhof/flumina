@@ -72,7 +72,7 @@ sequential_conf(SinkPid) ->
     %% Computation
     Tags = [minute, {a,1}, {a,2}, b],
     StateTypesMap = 
-	#{'state0' => {Tags, fun update0/3}},
+	#{'state0' => {sets:from_list(Tags), fun update0/3}},
     SplitsMerges = [],
     Dependencies = dependencies(),
     InitState = {'state0', init_state()},
