@@ -34,9 +34,9 @@ seq_big() ->
 
 seq_big_conf(SinkPid) ->
     %% Architecture
-    Rates = [{{'proc', node()}, b, 10},
-	     {{'proc', node()}, {a,1}, 1000},
-	     {{'proc', node()}, {a,2}, 1000}],
+    Rates = [{node(), b, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000}],
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
@@ -71,9 +71,9 @@ distr_big_conf(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, {'proc_a1', node()}, fun isA1/1, Funs, []},
-    NodeA2 = {0, {'proc_a2', node()}, fun isA2/1, Funs, []},
-    NodeB  = {0, {'proc_b', node()}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeA1 = {0, node(), fun isA1/1, Funs, []},
+    NodeA2 = {0, node(), fun isA2/1, Funs, []},
+    NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
@@ -97,9 +97,9 @@ greedy_big() ->
 
 greedy_big_conf(SinkPid) ->
     %% Architecture
-    Rates = [{{'proc_b', node()}, b, 10},
-	     {{'proc_a1', node()}, {a,1}, 1000},
-	     {{'proc_a2', node()}, {a,2}, 1000}],
+    Rates = [{node(), b, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000}],
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
@@ -137,11 +137,11 @@ greedy_complex() ->
 
 greedy_complex_conf(SinkPid) ->
     %% Architecture
-    Rates = [{{'proc_b', node()}, b, 10},
-	     {{'proc_a1', node()}, {a,1}, 1000},
-	     {{'proc_a2', node()}, {a,2}, 1000},
-	     {{'proc_a3', node()}, {a,3}, 1000},
-	     {{'proc_a4', node()}, {a,4}, 1000}],
+    Rates = [{node(), b, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000},
+	     {node(), {a,3}, 1000},
+	     {node(), {a,4}, 1000}],
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
@@ -183,9 +183,9 @@ distributed_conf(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, {'proc_a1', node()}, fun isA1/1, Funs, []},
-    NodeA2 = {0, {'proc_a2', node()}, fun isA2/1, Funs, []},
-    NodeB  = {0, {'proc_b', node()}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeA1 = {0, node(), fun isA1/1, Funs, []},
+    NodeA2 = {0, node(), fun isA2/1, Funs, []},
+    NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
@@ -207,9 +207,9 @@ distributed_conf_1(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, {'proc_a1', node()}, fun isA1/1, Funs, []},
-    NodeA2 = {0, {'proc_a2', node()}, fun isA2/1, Funs, []},
-    NodeB  = {0, {'proc_b', node()}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeA1 = {0, node(), fun isA1/1, Funs, []},
+    NodeA2 = {0, node(), fun isA2/1, Funs, []},
+    NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
@@ -232,9 +232,9 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, {'proc_a1', A1NodeName}, fun isA1/1, Funs, []},
-    NodeA2 = {0, {'proc_a2', A2NodeName}, fun isA2/1, Funs, []},
-    NodeB  = {0, {'proc_b', BNodeName}, fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeA1 = {0, A1NodeName, fun isA1/1, Funs, []},
+    NodeA2 = {0, A2NodeName, fun isA2/1, Funs, []},
+    NodeB  = {0, BNodeName, fun true_pred/1, Funs, [NodeA1, NodeA2]},
     PidTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
@@ -395,11 +395,10 @@ input_example_output() ->
 
 input_example_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc_a1', 'proc_a2', 'proc_b'],
     {"Input example test",
      [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_1}, input_example_output()))
       end} || _ <- Rounds]}.
@@ -412,11 +411,10 @@ input_example2_output() ->
 
 input_example2_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc_a1', 'proc_a2', 'proc_b'],
     {"Input example2 test",
      [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, input_example2_output()))
       end} || _ <- Rounds]}.

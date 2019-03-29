@@ -41,9 +41,9 @@ distributed_conf_2(SinkPid) ->
     FunsP = {fun update_id_2/3, fun split_2/2, fun merge_2/2},
     Ids = init_state_2(),
     {Ids1, Ids2} = split_2({fun isId1/1, fun isId2/1}, Ids),
-    Node1 = {Ids1, {'proc_id1', node()}, fun isId1/1, FunsP, []},
-    Node2 = {Ids2, {'proc_id2', node()}, fun isId2/1, FunsP, []},    
-    Node0  = {Ids, {'proc_hour', node()}, fun isHour/1, Funs, [Node1, Node2]},
+    Node1 = {Ids1, node(), fun isId1/1, FunsP, []},
+    Node2 = {Ids2, node(), fun isId2/1, FunsP, []},    
+    Node0  = {Ids, node(), fun isHour/1, Funs, [Node1, Node2]},
     PidTree = configuration:create(Node0, dependencies_2(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
@@ -71,9 +71,9 @@ sequential_2() ->
 
 sequential_conf_2(SinkPid) ->
     %% Architecture
-    Rates = [{{'proc', node()}, hour, 10},
-	     {{'proc', node()}, {id,1}, 1000},
-	     {{'proc', node()}, {id,2}, 1000}],
+    Rates = [{node(), hour, 10},
+	     {node(), {id,1}, 1000},
+	     {node(), {id,2}, 1000}],
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
@@ -116,9 +116,9 @@ distributed_conf_1(SinkPid) ->
     %% for leaf nodes
     FunsP = {fun update_id_1/3, fun util:crash/2, fun util:crash/2},
     Ids = init_state_1(),
-    Node1 = {Ids, {'proc_id1', node()}, fun isId1/1, FunsP, []},
-    Node2 = {Ids, {'proc_id2', node()}, fun isId2/1, FunsP, []},
-    Node0  = {Ids, {'proc_window', node()}, fun isWindow/1, Funs, [Node1, Node2]},
+    Node1 = {Ids, node(), fun isId1/1, FunsP, []},
+    Node2 = {Ids, node(), fun isId2/1, FunsP, []},
+    Node0  = {Ids, node(), fun isWindow/1, Funs, [Node1, Node2]},
     PidTree = configuration:create(Node0, dependencies_1(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
@@ -140,7 +140,7 @@ sequential_conf_1(SinkPid) ->
     %% Configuration Tree
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
     Ids = init_state_1(),
-    Node  = {Ids, {'proc', node()}, fun true_pred/1, Funs, []},
+    Node  = {Ids, node(), fun true_pred/1, Funs, []},
     PidTree = configuration:create(Node, dependencies_1(), SinkPid),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
 
@@ -161,11 +161,11 @@ distributed_conf(SinkPid) ->
     Funs = {fun update/3, fun split/2, fun merge/2},
     FunsP = {fun update_id/3, fun split/2, fun merge/2},
     Ids = init_state(),
-    Node1 = {Ids, {'proc_id1', node()}, fun isId1/1, FunsP, []},
-    Node22 = {Ids, {'proc_id2', node()}, fun isId2/1, FunsP, []},
-    Node23 = {Ids, {'proc_id3', node()}, fun isId3/1, FunsP, []},
-    Node2 = {Ids, {'proc_ids23', node()}, fun isId23/1, FunsP, [Node22, Node23]},    
-    Node0  = {Ids, {'proc_hour', node()}, fun isHour/1, Funs, [Node1, Node2]},
+    Node1 = {Ids, node(), fun isId1/1, FunsP, []},
+    Node22 = {Ids, node(), fun isId2/1, FunsP, []},
+    Node23 = {Ids, node(), fun isId3/1, FunsP, []},
+    Node2 = {Ids, node(), fun isId23/1, FunsP, [Node22, Node23]},    
+    Node0  = {Ids, node(), fun isHour/1, Funs, [Node1, Node2]},
     PidTree = configuration:create(Node0, dependencies(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NP1, MP1}, []}, 
@@ -189,7 +189,7 @@ sequential_conf(SinkPid) ->
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     Ids = init_state(),
-    Node  = {Ids, {'proc', node()}, fun true_pred/1, Funs, []},
+    Node  = {Ids, node(), fun true_pred/1, Funs, []},
     PidTree = configuration:create(Node, dependencies(), SinkPid),
     {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
 
@@ -542,20 +542,18 @@ output_2() ->
 
 distributed_2_test_() ->
     Rounds = lists:seq(1,10),
-    Names = ['proc_id1', 'proc_id2', 'proc_hour'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_2}, output_2()))
       end} || _ <- Rounds].
 
 sequential_2_test_() ->
     Rounds = lists:seq(1,10),
-    Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf_2}, output_2()))
       end} || _ <- Rounds].
@@ -594,20 +592,18 @@ output_1() ->
 
 distributed_1_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc_id1', 'proc_id2', 'proc_window'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf_1}, output_1()))
       end} || _ <- Rounds].
 
 sequential_1_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf_1}, output_1()))
       end} || _ <- Rounds].
@@ -629,20 +625,18 @@ output() ->
 
 distributed_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc_id1', 'proc_id2', 'proc_id3', 'proc_ids23', 'proc_hour'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, output()))
       end} || _ <- Rounds].
 
 sequential_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
       end} || _ <- Rounds].

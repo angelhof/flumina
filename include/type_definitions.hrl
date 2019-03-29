@@ -46,7 +46,7 @@
 -type configuration() :: {'node', Node::pid(), mailbox(), message_predicate(), [configuration()]}.
 
 -type pid_tree() :: {{pid(), mailbox()}, [pid_tree()]}.
--type temp_setup_tree() :: {State::any(), mailbox(), 
+-type temp_setup_tree() :: {State::any(), node(), 
 			    message_predicate(), spec_functions(), [temp_setup_tree()]}.
 
 %%
@@ -63,7 +63,7 @@
 
 %% TODO: I am not sure whether this should be about processes in nodes,
 %%       or whether it should talk about whole nodes
--type nodes_rates() :: [{mailbox(), tag(), non_neg_integer()}].
+-type nodes_rates() :: [{node(), tag(), non_neg_integer()}].
 -type state_types_map() :: #{state_type_name() := {sets:set(tag()), update_fun()}}.
 -type state_type_pair() :: {state_type_name(), State::any()}.
 -type tags() :: [tag()].
@@ -92,7 +92,9 @@
 
 -type tag_vertices() :: #{tag() := digraph:vertex()}.
 -type tag_root_tree() :: {tags(), [tag_root_tree()]}.
--type root_tree() :: {{tags(), mailbox()}, [root_tree()]}.
+-type root_tree() :: {{tags(), node()}, [root_tree()]}.
 -type set_root_tree() :: {{sets:set(tag()), mailbox()}, [set_root_tree()]}.
 -type holed_setup_tree() :: {'left' | 'right', split_merge_fun(), temp_setup_tree(), 
 			     state_type_pair(), sets:set(tag()), [set_root_tree()]}.
+
+-type name_seed() :: integer().

@@ -2,7 +2,7 @@
 
 -export([test_mfa/2,
 	 test_sink/2,
-	 unregister_names/1]).
+	 unregister_names/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -60,5 +60,24 @@ test_sink(ExpOutput, Mode) ->
 %% This used to call the unregister names with the addition of sink
 %% which is the testing sink name. However, sink dies either way 
 %% so it is unregistered automatically.
-unregister_names(Names) ->
-    util:unregister_names(Names).
+%%
+%% WARNING: We assume that only our processes have proc_Num names
+unregister_names() ->
+    %% In order to find all the names to unregister,
+    %% we look at all the registered names, and unregister
+    %% all those that are 'proc_' ++ Number
+    AllNames = [atom_to_list(Name) || Name <- registered()],
+    Pattern = "proc_[0-9]+",
+    FilteredNames =
+	lists:filter(
+	 fun(Name) ->
+		 case re:run(Name, Pattern) of
+		     {match, _} ->
+			 true;
+		     nomatch ->
+			 false
+		 end
+	 end, AllNames),
+    AtomFilteredNames = [list_to_atom(Name) || Name <- FilteredNames],
+    util:unregister_names(AtomFilteredNames).
+

@@ -1,17 +1,42 @@
 ** Work TODO
 
-*** TODO Implement a greedy optimization strategy
-    
-  - [ ] Implement the most basic greedy optimization
-  - [ ] To test this, try an abexample that has a lot of different as as well
-        as a smart home example with many as
-  - [ ] Modify Splits/Merges/Nodes to not take predicates, but Implementation tags
+*** TODO Implement rates to be connected to nodes instead of processes
 
-Remove a tag, if it disconnects, split and iterate.
+At the moment, rates are given for processes in nodes, rather than for nodes.
 
-For now the greedy algorithm, assumes that there is only one split for each tiple
+  - [ ] Create a producer for each tag, and then given the configuration tree,
+        decide to which process, each producer sends the data to.
+  - [X] Make the configuration generator create names for processes on its own.
+    + [X] Make the setup tree not contain process names anymore
+    + [X] Make the configuration generator create names for nodes in some way
+  - [X] Generalize rates to talk about nodes
+  - [ ] Implement a generic node source/producer, that receives/sends all the 
+        messages that are supposed to arrive at a specific node.
+  - [X] Make the optimizer tag nodes in the root tree with a node and not a process name. 
 
 
+*** TODO Implement the possibility to have separate sink pid for each node
+*** TODO Implement a complete root tree to setup tree function
+
+At the moment the root tree to setup tree function greedily tries to
+find splits that can handle any child of the root tree. 
+
+This can obviously lead the procedure into a stuck state that
+no split can be chosen, but in case of backtracking a split could have been chosen 
+previously to allow us to make this setup tree.
+
+   - [ ] Make the root to setup tree complete, in the sense that it should
+         return all possible splits. This way if there *IS* a way to split
+         as much as the root tree requires it will find it.
+   - [ ] Implement some warning message mechanism that warns the user if
+         a split is missing and it is not possible to completely split
+         a root tree. If it is not possible, just end up with a sequential 
+	 (approximation) subtree.
+
+Maybe implement it by passing a continuation or sth for each possible tree.
+Then return a set of possible trees instead of one tree.
+
+*** TODO Implement the DP algorithm that maps a root tree to physical nodes
 *** TODO Change the digraph library with some other graph library
 
 Maybe aggelgian's??
@@ -20,14 +45,6 @@ Maybe aggelgian's??
 
 Also make make both the specification and topology be records and not tuples
 
-*** TODO Implement rates to be connected to nodes instead of processes
-
-At the moment, rates are given for processes in nodes, rather than for nodes.
-
-Generalize rates to talk about nodes, and in the process implement a generic node source/producer, 
-that receives/sends all the messages that are supposed to arrive at a specific node
-
-*** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement infastructure for producers.   
 
 Their input should be a list of messages. 
@@ -116,6 +133,16 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Implement a greedy optimization strateyg
+    
+  - [X] Implement the most basic greedy optimization
+  - [ ] To test this, try an abexample that has a lot of different a tags as well
+        as a smart home example with many a tags.
+
+Remove a tag, if it disconnects, split and iterate.
+
+For now the greedy algorithm, assumes that there is only one split for each tiple
+
 *** DONE Implement a configuration generator
 
 Start implementing a trivial configuration generator

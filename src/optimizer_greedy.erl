@@ -155,7 +155,7 @@ greedy_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}}, Speci
 	filter_splits_satisfy_any_child(StateTypePair, SplitMergeFuns, Children, Specification),
     {LeftRight, SplitMergeFun, TempSetupTree, RestStateTypePair, RestTags, RestSetRootTrees} =
 	HoledSetupTree,
-    io:format("~p: ~p~n", [LeftRight, TempSetupTree]),
+    %% io:format("~p: ~p~n", [LeftRight, TempSetupTree]),
     %% WARNING: We assume that StateType must be the same as our current type.
     %%          That means that there are no chains of splits merges without
     %%          letting behind any tag.

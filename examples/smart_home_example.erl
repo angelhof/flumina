@@ -37,11 +37,11 @@ distributed_conf(SinkPid) ->
     {InitA1, InitA2} = split_a({fun isA1/1, fun isA2/1}, InitA),
 
     %% Initializing the nodes
-    NodeA1 = {InitA1, {'proc_a1', node()}, fun isA1/1, FunsA, []},
-    NodeA2 = {InitA2, {'proc_a2', node()}, fun isA2/1, FunsA, []},
-    NodeA = {InitA, {'proc_a', node()}, fun isA/1, FunsA, [NodeA1, NodeA2]},
-    NodeB = {InitB, {'proc_b', node()}, fun isB/1, FunsB, []},
-    Node  = {Init, {'proc_minutes', node()}, fun true_pred/1, Funs, [NodeA, NodeB]},
+    NodeA1 = {InitA1, node(), fun isA1/1, FunsA, []},
+    NodeA2 = {InitA2, node(), fun isA2/1, FunsA, []},
+    NodeA = {InitA, node(), fun isA/1, FunsA, [NodeA1, NodeA2]},
+    NodeB = {InitB, node(), fun isB/1, FunsB, []},
+    Node  = {Init, node(), fun true_pred/1, Funs, [NodeA, NodeB]},
     PidTree = configuration:create(Node, dependencies(), SinkPid),
     {{_NP0, MP0}, 
      [{{_NPA, MPA}, 
@@ -62,10 +62,10 @@ sequential() ->
 
 sequential_conf(SinkPid) ->
     %% Architecture
-    Rates = [{{'proc', node()}, minute, 10},
-	     {{'proc', node()}, {a,1}, 1000},
-	     {{'proc', node()}, {a,2}, 1000},
-	     {{'proc', node()}, b, 1000}],
+    Rates = [{node(), minute, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000},
+	     {node(), b, 1000}],
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
@@ -344,20 +344,18 @@ output() ->
 
 distributed_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc_a', 'proc_a1', 'proc_a2', 'proc_b', 'proc_minutes'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, output()))
       end} || _ <- Rounds].
 
 sequential_test_() ->
     Rounds = lists:seq(1,100),
-    Names = ['proc'],
     [{setup,
       fun util:nothing/0,
-      fun(ok) -> testing:unregister_names(Names) end,
+      fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
       end} || _ <- Rounds].

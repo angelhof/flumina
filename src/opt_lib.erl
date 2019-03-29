@@ -30,7 +30,7 @@ can_state_type_handle_tags(StateType, Tags, Specification) ->
     {HandledTagsSet, _UpdFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
     sets:is_subset(Tags, HandledTagsSet).
 
--spec max_rate_node(nodes_rates()) -> mailbox().
+-spec max_rate_node(nodes_rates()) -> node().
 max_rate_node(NodesRates) ->
     NodesTotalRates = 
 	lists:foldl(
@@ -52,7 +52,7 @@ max_rate_node(NodesRates) ->
 %% WARNING: This never works, because mapping the same name and node means
 %% that many processes will try to be registered with the same name 
 %% (which clearly fails)
--spec map_physical_node_root_tree_constant(mailbox(), tag_root_tree()) -> root_tree().
+-spec map_physical_node_root_tree_constant(node(), tag_root_tree()) -> root_tree().
 map_physical_node_root_tree_constant(SinkNode, {Tags, Children}) ->
     MappedChildren = [map_physical_node_root_tree_constant(SinkNode, C) || C <- Children],
     {{Tags, SinkNode}, MappedChildren}.

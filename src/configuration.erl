@@ -24,7 +24,8 @@
 create(Tree, Dependencies, OutputPid) ->
 
     %% Spawns the nodes
-    PidsTree = spawn_nodes(Tree, Dependencies, OutputPid),
+    NameSeed = make_name_seed(),
+    {PidsTree, _NewNameSeed} = spawn_nodes(Tree, NameSeed, Dependencies, OutputPid),
 
     %% Create the configuration tree
     ConfTree = prepare_configuration_tree(PidsTree, Tree),
@@ -36,18 +37,36 @@ create(Tree, Dependencies, OutputPid) ->
     PidsTree.
 
 %% Spawns the nodes based on the tree configuration
--spec spawn_nodes(temp_setup_tree(), dependencies(), mailbox()) -> pid_tree().
-spawn_nodes({State, NameNode, Pred, Funs, Children}, Dependencies, OutputPid) ->
-    ChildrenPidTrees = [spawn_nodes(C, Dependencies, OutputPid) || C <- Children],
+-spec spawn_nodes(temp_setup_tree(), name_seed(), dependencies(), mailbox()) -> {pid_tree(), name_seed()}.
+spawn_nodes({State, Node, Pred, Funs, Children}, NameSeed, Dependencies, OutputPid) ->
+    {ChildrenPidTrees, NewNameSeed} = 
+	lists:foldr(
+	 fun(C, {AccTrees, NameSeed0}) ->
+		 {CTree, NameSeed1} =
+		     spawn_nodes(C, NameSeed0, Dependencies, OutputPid),
+		 {[CTree|AccTrees], NameSeed1}
+	 end, {[], NameSeed}, Children),
     ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
-    {NodePid, NameNode} = node:node(State, NameNode, Pred, Funs, Dependencies, OutputPid),
-    {{NodePid, NameNode}, ChildrenPidTrees}.
+    {Name, FinalNameSeed} = gen_proc_name(NewNameSeed),
+    {NodePid, NameNode} = node:node(State, {Name, Node}, Pred, Funs, Dependencies, OutputPid),
+    {{{NodePid, NameNode}, ChildrenPidTrees}, FinalNameSeed}.
 
+-spec make_name_seed() -> name_seed().
+make_name_seed() ->
+    make_name_seed(0).
+
+-spec make_name_seed(name_seed()) -> name_seed().
+make_name_seed(0) ->
+    0.
+
+-spec gen_proc_name(name_seed()) -> {atom(), name_seed()}.
+gen_proc_name(Seed) ->
+    {list_to_atom("proc_" ++ integer_to_list(Seed)), Seed + 1}.
     
 %% Prepares the router tree
 -spec prepare_configuration_tree(pid_tree(), temp_setup_tree()) -> configuration().
-prepare_configuration_tree({{NodePid, MboxNameNode}, ChildrenPids}, 
-			   {State, MboxNameNode, Pred, Funs, Children}) ->
+prepare_configuration_tree({{NodePid, {_, Node} = MboxNameNode}, ChildrenPids}, 
+			   {State, Node, Pred, Funs, Children}) ->
     ChildrenTrees = [prepare_configuration_tree(P, N) || {P, N} <- lists:zip(ChildrenPids, Children)],
     {node, NodePid, MboxNameNode, Pred, ChildrenTrees}.
 
