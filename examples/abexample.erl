@@ -11,7 +11,9 @@
 	 distr_big/0,
 	 distr_big_conf/1,
 	 greedy_big/0,
-	 greedy_big_conf/1
+	 greedy_big_conf/1,
+	 greedy_complex/0,
+	 greedy_complex_conf/1
 	]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -95,9 +97,9 @@ greedy_big() ->
 
 greedy_big_conf(SinkPid) ->
     %% Architecture
-    Rates = [{{'proc', node()}, b, 10},
-	     {{'proc', node()}, {a,1}, 1000},
-	     {{'proc', node()}, {a,2}, 1000}],
+    Rates = [{{'proc_b', node()}, b, 10},
+	     {{'proc_a1', node()}, {a,1}, 1000},
+	     {{'proc_a2', node()}, {a,2}, 1000}],
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
@@ -116,6 +118,49 @@ greedy_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
+    {{_HeadNodePid, HeadMailboxPid},
+     [{{_NP1, MPA1}, []}, 
+      {{_NP2, MPA2}, []}]} = PidTree,
+
+    BsProducer = spawn_link(node(), producer, constant_rate_source, [Bs, 10, HeadMailboxPid]),
+
+    A1producer = spawn_link(node(), producer, constant_rate_source, [A1, 10, MPA1]),
+    A2producer = spawn_link(node(), producer, constant_rate_source, [A2, 10, MPA2]),
+
+    SinkPid ! finished.
+
+greedy_complex() ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, greedy_complex_conf, [SinkName]),
+    util:sink().
+
+greedy_complex_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{{'proc_b', node()}, b, 10},
+	     {{'proc_a1', node()}, {a,1}, 1000},
+	     {{'proc_a2', node()}, {a,2}, 1000},
+	     {{'proc_a3', node()}, {a,3}, 1000},
+	     {{'proc_a4', node()}, {a,4}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Tags = [b, {a,1}, {a,2}, {a,3}, {a,4}],
+    StateTypesMap = 
+	#{'state0' => {sets:from_list(Tags), fun update/3},
+	  'state_a' => {sets:from_list([{a,1}, {a,2}, {a,3}, {a,4}]), fun update/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
+		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+    Dependencies = complex_dependencies(),
+    InitState = {'state0', 0},
+    Specification = 
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    
+    PidTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+
+    %% Set up where will the input arrive
+    {A1, A2, A3, A4, Bs} = complex_input_distr_example(),
     {{_HeadNodePid, HeadMailboxPid},
      [{{_NP1, MPA1}, []}, 
       {{_NP2, MPA2}, []}]} = PidTree,
@@ -231,6 +276,14 @@ dependencies() ->
       b => [{a,1}, {a,2}, b]
      }.
 
+complex_dependencies() ->
+    #{{a,1} => [b],
+      {a,2} => [b],
+      {a,3} => [b],
+      {a,4} => [b],
+      b => [{a,1}, {a,2}, {a,3}, {a,4}, b]
+     }.
+
 %% The predicates
 isA1({{a,1}, _, _}) -> true;
 isA1(_) -> false.
@@ -274,7 +327,21 @@ big_input_distr_example() ->
     Bs = [{b, 1000 + (1000 * BT), empty} || BT <- lists:seq(1,1000)]
 	++ [{heartbeat, {b,10000000}}],
     {A1, A2, Bs}.
+
+complex_input_distr_example() ->
+    {A1, A2, Bs} = big_input_distr_example(),
+    A3 = lists:flatten(
+	   [[{{a,3}, T + (1000 * BT), T + (1000 * BT)} 
+	     || T <- lists:seq(1, 999, 2)]
+	    || BT <- lists:seq(1,1000)])
+	++ [{heartbeat, {{a,3},10000000}}], 
     
+    A4 = lists:flatten(
+	   [[{{a,4}, T + (1000 * BT), T + (1000 * BT)} 
+	     || T <- lists:seq(2, 998, 2)]
+	    || BT <- lists:seq(1,1000)])
+	++ [{heartbeat, {{a,4},10000000}}],
+    {A1, A2, A3, A4, Bs}.
 
 bs_input_example() ->
     [{b, 1001, empty},

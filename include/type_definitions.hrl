@@ -89,3 +89,10 @@
 	  %% The sink pid
 	  mailbox()
 	}.
+
+-type tag_vertices() :: #{tag() := digraph:vertex()}.
+-type tag_root_tree() :: {tags(), [tag_root_tree()]}.
+-type root_tree() :: {{tags(), mailbox()}, [root_tree()]}.
+-type set_root_tree() :: {{sets:set(tag()), mailbox()}, [set_root_tree()]}.
+-type holed_setup_tree() :: {'left' | 'right', split_merge_fun(), temp_setup_tree(), 
+			     state_type_pair(), sets:set(tag()), [set_root_tree()]}.

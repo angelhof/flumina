@@ -12,13 +12,6 @@
 %%
 
 
--type tag_vertices() :: #{tag() := digraph:vertex()}.
--type tag_root_tree() :: {tags(), [tag_root_tree()]}.
--type root_tree() :: {{tags(), mailbox()}, [root_tree()]}.
--type set_root_tree() :: {{sets:set(tag()), mailbox()}, [set_root_tree()]}.
--type holed_setup_tree() :: {'left' | 'right', split_merge_fun(), temp_setup_tree(), 
-			     state_type_pair(), sets:set(tag()), [set_root_tree()]}.
-
 %%
 %% This returns a setup tree (from which a configuration tree is derivable).
 %% There are three steps in the generation process:
@@ -85,15 +78,13 @@ generate_setup_tree(Specification, Topology) ->
 root_tree_physical_mapping(TagRootTree, Topology) ->
     %% TODO: Implement this
     %% 
-    %% WARNING: For the moment just assign the sink physical node 
-    %% to every node in the root tree
-    SinkNode = conf_gen:get_sink_pid(Topology),
-    map_physical_node_root_tree_constant(SinkNode, TagRootTree).
+    %% WARNING: For the moment just assign each root tree node
+    %%          to the node with the highest rate for the tags
+    %%          handled by the root node.
+    NodesRates = conf_gen:get_nodes_rates(Topology),
+    opt_lib:map_physical_node_root_tree_max_rate(NodesRates, TagRootTree).
     
--spec map_physical_node_root_tree_constant(mailbox(), tag_root_tree()) -> root_tree().
-map_physical_node_root_tree_constant(SinkNode, {Tags, Children}) ->
-    MappedChildren = [map_physical_node_root_tree_constant(SinkNode, C) || C <- Children],
-    {{Tags, SinkNode}, MappedChildren}.
+
 
 %% Map over the tree, having (a set of options at each stage)
 %% 1. How to find one option (greedy) for each time.
@@ -141,8 +132,8 @@ greedy_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, []}}, Specificati
 %% TODO: Probably it is better to handle two children together, as then,
 %%       if they can't be handled, then we can just return the whole tree,
 %%       instead of being stuck with a child that we cannot do anything about.
-greedy_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, [Child]}}, Specification) ->
-    {StateType, State} = StateTypePair,
+greedy_root_tree_to_setup_tree({StateTypePair, {{HTags, _Node}, [Child]}}, Specification) ->
+    {StateType, _State} = StateTypePair,
     case opt_lib:can_state_type_handle_tags(StateType, HTags, Specification) of
 	true ->
 	    greedy_root_tree_to_setup_tree({StateTypePair, Child}, Specification);
@@ -314,7 +305,7 @@ iterative_greedy_split(Tags, NodesRates, TagsVertices, Graph) ->
     SortedTagsCCs =
 	lists:map(
 	  fun(TagsCC) ->
-		  FilteredTags = filter_tags_in_nodes_rates(TagsCC, NodesRates),
+		  FilteredTags = opt_lib:filter_tags_in_nodes_rates(TagsCC, NodesRates),
 		  sort_tags_by_rate_ascending(FilteredTags)
 	  end, TagsCCs),
     ChildrenRootTrees = 
@@ -337,7 +328,7 @@ best_greedy_split(Tags, TagsVertices, Graph) ->
     best_greedy_split(Tags, TagsVertices, Graph, []).
 
 -spec best_greedy_split(tags(), tag_vertices(), digraph:graph(), tags()) -> {tags(), [tags()]}.
-best_greedy_split([], TagsVertices, Graph, Acc) ->
+best_greedy_split([], _TagsVertices, _Graph, Acc) ->
     {Acc, []};
 best_greedy_split([Tag|Tags], TagsVertices, Graph, Acc) ->
     Vertex = maps:get(Tag, TagsVertices),
@@ -367,12 +358,6 @@ does_disconnect(Vertex, Graph) ->
 	Components ->
 	    {disconnected, Components}
     end.
-
-
--spec filter_tags_in_nodes_rates(tags(), nodes_rates()) -> nodes_rates().
-filter_tags_in_nodes_rates(Tags, NodesRates) ->
-    TagsSet = sets:from_list(Tags),
-    [{Node, Tag, Rate} || {Node, Tag, Rate} <- NodesRates, sets:is_element(Tag, TagsSet)].
 
 -spec make_dependency_graph(dependencies()) -> {digraph:graph(), tag_vertices()}.
 make_dependency_graph(Dependencies) ->

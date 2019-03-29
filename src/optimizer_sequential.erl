@@ -12,7 +12,7 @@
 -spec generate_setup_tree(specification(), topology()) -> temp_setup_tree().
 generate_setup_tree(Specification, Topology) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
-    MaxRateNode = max_rate_node(NodesRates),
+    MaxRateNode = opt_lib:max_rate_node(NodesRates),
     AllTags = conf_gen:get_implementation_tags(Topology),
     AllTagsSet = sets:from_list(AllTags),
     {InitStateType, InitState} = conf_gen:get_init_state(Specification),
@@ -27,21 +27,4 @@ generate_setup_tree(Specification, Topology) ->
     Node.
     
     
--spec max_rate_node(nodes_rates()) -> mailbox().
-max_rate_node(NodesRates) ->
-    NodesTotalRates = 
-	lists:foldl(
-	  fun({Node, _Tag, Rate}, Acc) ->
-	      maps:update_with(
-		Node, fun(Rate0) ->
-			      Rate0 + Rate
-		      end, Rate, Acc)
-	  end, #{}, NodesRates),
-    SortedNodesTotalRates =
-	lists:sort(
-	 fun({Node1, Rate1}, {Node2, Rate2}) ->
-		 Rate1 > Rate2
-	 end, maps:to_list(NodesTotalRates)),
-    [{MaxNode, _MaxRate}|_] = SortedNodesTotalRates,
-    MaxNode.
     
