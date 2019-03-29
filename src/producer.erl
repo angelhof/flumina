@@ -1,6 +1,8 @@
 -module(producer).
 
--export([constant_rate_source/3,
+-export([make_producers/2,
+	 constant_rate_source/3,
+	 route_constant_rate_source/3,
 	 dumper/2,
 	 interleave_heartbeats/3
 	]).
@@ -10,6 +12,13 @@
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%% 
+
+-spec make_producers([{[gen_message_or_heartbeat()], integer()}], configuration()) -> ok.
+make_producers(InputStreams, Configuration) ->
+    lists:foreach(
+      fun({InputStream, Rate}) ->
+	      spawn_link(node(), producer, route_constant_rate_source, [InputStream, Rate, Configuration])
+     end, InputStreams).
 
 %%
 %% This producer, sends a sequence of messages one by one
@@ -52,6 +61,15 @@ constant_rate_source_slow([Msg|Rest], Period, SendTo) ->
     send_message_or_heartbeat(Msg, SendTo),
     timer:sleep(Period),
     constant_rate_source_slow(Rest, Period, SendTo).
+
+
+-spec route_constant_rate_source([gen_message_or_heartbeat()], integer(), configuration()) -> ok.
+route_constant_rate_source(Messages, Period, Configuration) ->
+    %% WARNING: This assumes that every producer handles exactly one tag
+    [{Tag, _, _}|_] = Messages,
+    %% Find where to route the message in the configuration tree
+    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    constant_rate_source(Messages, Period, SendTo).
 
 %%
 %% This is the simplest producer, that takes as input a list of 

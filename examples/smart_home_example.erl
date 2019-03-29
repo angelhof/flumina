@@ -42,15 +42,10 @@ distributed_conf(SinkPid) ->
     NodeA = {InitA, node(), fun isA/1, FunsA, [NodeA1, NodeA2]},
     NodeB = {InitB, node(), fun isB/1, FunsB, []},
     Node  = {Init, node(), fun true_pred/1, Funs, [NodeA, NodeB]},
-    PidTree = configuration:create(Node, dependencies(), SinkPid),
-    {{_NP0, MP0}, 
-     [{{_NPA, MPA}, 
-       [{{_NPA1, MPA1}, []}, 
-	{{_NPA2, MPA2}, []}]}, 
-      {{_NPB, MPB}, []}]} = PidTree,
+    ConfTree = configuration:create(Node, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/0, [MPA1, MPA2, MPB, MP0]),
+    create_producers(fun minute_markers_input/0, ConfTree),
 
     SinkPid ! finished.
 
@@ -79,28 +74,21 @@ sequential_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    PidTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
-
-    %% Configuration Tree
-    {{_HeadNodePid, HeadMPid}, _} = PidTree,
+    ConfTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/0, [HeadMPid, HeadMPid, HeadMPid, HeadMPid]),
+    create_producers(fun minute_markers_input/0, ConfTree),
 
     SinkPid ! finished.
 
-create_producers(MarkerFun, [Pid1, Pid2, Pid3, Pid4]) ->
+create_producers(MarkerFun, ConfTree) ->
     Input1 = a1_input_with_heartbeats(),
-    _Producer1 = spawn_link(producer, constant_rate_source, [Input1, 100, Pid1]),
-
     Input2 = a2_input_with_heartbeats(),
-    _Producer2 = spawn_link(producer, constant_rate_source, [Input2, 100, Pid2]),
-
     Input3 = b_input_with_heartbeats(),
-    _Producer3 = spawn_link(producer, constant_rate_source, [Input3, 100, Pid3]),
-
     Input4 = MarkerFun(),
-    _Producer4 = spawn_link(producer, constant_rate_source, [Input4, 100, Pid4]).
+
+    InputStreams = [{Input1, 100}, {Input2, 100}, {Input3, 100}, {Input4, 100}],
+    producer:make_producers(InputStreams, ConfTree).
 
 %%
 %% The specification of the computation

@@ -44,20 +44,14 @@ distributed_conf_2(SinkPid) ->
     Node1 = {Ids1, node(), fun isId1/1, FunsP, []},
     Node2 = {Ids2, node(), fun isId2/1, FunsP, []},    
     Node0  = {Ids, node(), fun isHour/1, Funs, [Node1, Node2]},
-    PidTree = configuration:create(Node0, dependencies_2(), SinkPid),
-    {{_NP0, MP0}, 
-     [{{_NP1, MP1}, []}, 
-      {{_NP2, MP2}, []}]} = PidTree,
+    ConfTree = configuration:create(Node0, dependencies_2(), SinkPid),
 
     %% Set up where will the input arrive
     Input1 = id1_positions_with_heartbeats(),
-    _Producer1 = spawn_link(producer, dumper, [Input1, MP1]),
-    
-    Input2 = id2_positions_with_heartbeats(),
-    _Producer2 = spawn_link(producer, dumper, [Input2, MP2]),
-    
+    Input2 = id2_positions_with_heartbeats(),    
     Input3 = hour_positions_input(),
-    _Producer3 = spawn_link(producer, dumper, [Input3, MP0]),
+    InputStreams = [{Input1, 10}, {Input2, 10}, {Input3, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     %% io:format("Input3: ~p~n", [Input3]),
 
@@ -87,18 +81,14 @@ sequential_conf_2(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    PidTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
-    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+    ConfTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
 
     %% Set up where will the input arrive
     Input1 = id1_positions_with_heartbeats(),
-    _Producer1 = spawn_link(producer, dumper, [Input1, HeadMailboxPid]),
-    
     Input2 = id2_positions_with_heartbeats(),
-    _Producer2 = spawn_link(producer, dumper, [Input2, HeadMailboxPid]),
-    
     Input3 = hour_positions_input(),
-    _Producer3 = spawn_link(producer, dumper, [Input3, HeadMailboxPid]),
+    InputStreams = [{Input1, 10}, {Input2, 10}, {Input3, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     SinkPid ! finished.
 
@@ -119,13 +109,10 @@ distributed_conf_1(SinkPid) ->
     Node1 = {Ids, node(), fun isId1/1, FunsP, []},
     Node2 = {Ids, node(), fun isId2/1, FunsP, []},
     Node0  = {Ids, node(), fun isWindow/1, Funs, [Node1, Node2]},
-    PidTree = configuration:create(Node0, dependencies_1(), SinkPid),
-    {{_NP0, MP0}, 
-     [{{_NP1, MP1}, []}, 
-      {{_NP2, MP2}, []}]} = PidTree,
+    ConfTree = configuration:create(Node0, dependencies_1(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/0, [MP1, MP2, MP0]),
+    create_producers(fun sliding_period_input/0, ConfTree),
 
     SinkPid ! finished.
 
@@ -141,11 +128,10 @@ sequential_conf_1(SinkPid) ->
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
     Ids = init_state_1(),
     Node  = {Ids, node(), fun true_pred/1, Funs, []},
-    PidTree = configuration:create(Node, dependencies_1(), SinkPid),
-    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+    ConfTree = configuration:create(Node, dependencies_1(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/0, [HeadMailboxPid, HeadMailboxPid, HeadMailboxPid]),
+    create_producers(fun sliding_period_input/0, ConfTree),
 
     SinkPid ! finished.
 
@@ -166,16 +152,14 @@ distributed_conf(SinkPid) ->
     Node23 = {Ids, node(), fun isId3/1, FunsP, []},
     Node2 = {Ids, node(), fun isId23/1, FunsP, [Node22, Node23]},    
     Node0  = {Ids, node(), fun isHour/1, Funs, [Node1, Node2]},
-    PidTree = configuration:create(Node0, dependencies(), SinkPid),
-    {{_NP0, MP0}, 
-     [{{_NP1, MP1}, []}, 
-      {{_NP2, MP2}, [_, _]}]} = PidTree,
+    ConfTree = configuration:create(Node0, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/0, [MP1, MP2, MP0]),
+    create_producers(fun hour_markets_input/0, ConfTree),
 
     Input3 = id3_input_with_heartbeats(),
-    _Producer3 = spawn_link(producer, dumper, [Input3, MP2]),
+    InputStreams = [{Input3, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     SinkPid ! finished.
 
@@ -190,26 +174,23 @@ sequential_conf(SinkPid) ->
     Funs = {fun update/3, fun split/2, fun merge/2},
     Ids = init_state(),
     Node  = {Ids, node(), fun true_pred/1, Funs, []},
-    PidTree = configuration:create(Node, dependencies(), SinkPid),
-    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+    ConfTree = configuration:create(Node, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/0, [HeadMailboxPid, HeadMailboxPid, HeadMailboxPid]),
+    create_producers(fun hour_markets_input/0, ConfTree),
 
     Input3 = id3_input_with_heartbeats(),
-    _Producer3 = spawn_link(producer, dumper, [Input3, HeadMailboxPid]),
+    InputStreams = [{Input3, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     SinkPid ! finished.
 
-create_producers(MarkerFun, [Pid1, Pid2, Pid3]) ->
+create_producers(MarkerFun, ConfTree) ->
     Input1 = id1_input_with_heartbeats(),
-    _Producer1 = spawn_link(producer, dumper, [Input1, Pid1]),
-
     Input2 = id2_input_with_heartbeats(),
-    _Producer2 = spawn_link(producer, dumper, [Input2, Pid2]),
-
     Input3 = MarkerFun(),
-    _Producer3 = spawn_link(producer, dumper, [Input3, Pid3]).
+    InputStreams = [{Input1, 10}, {Input2, 10}, {Input3, 10}],
+    producer:make_producers(InputStreams, ConfTree).
 
 %%
 %% The specification of the computation

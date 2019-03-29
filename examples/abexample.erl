@@ -50,14 +50,12 @@ seq_big_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
-    PidTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
-
-    %% Configuration Tree
-    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
+    ConfTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
 
     %% Set up where will the input arrive
-    Input = big_input_example(),
-    _Producer1 = spawn_link(producer, constant_rate_source, [Input, 5, HeadMailboxPid]),
+    {A1, A2, Bs} = big_input_distr_example(),
+    InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     SinkPid ! finished.
 
@@ -74,20 +72,16 @@ distr_big_conf(SinkPid) ->
     NodeA1 = {0, node(), fun isA1/1, Funs, []},
     NodeA2 = {0, node(), fun isA2/1, Funs, []},
     NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
-    PidTree = configuration:create(NodeB, dependencies(), SinkPid),
+    ConfTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    {{_HeadNodePid, HeadMailboxPid},
-     [{{_NP1, MPA1}, []}, 
-      {{_NP2, MPA2}, []}]} = PidTree,
-
-    BsProducer = spawn_link(node(), producer, constant_rate_source, [Bs, 10, HeadMailboxPid]),
-
-    A1producer = spawn_link(node(), producer, constant_rate_source, [A1, 10, MPA1]),
-    A2producer = spawn_link(node(), producer, constant_rate_source, [A2, 10, MPA2]),
+    InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
+    producer:make_producers(InputStreams, ConfTree),   
 
     SinkPid ! finished.
+
+
 
 greedy_big() ->
     true = register('sink', self()),
@@ -114,18 +108,12 @@ greedy_big_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
-    PidTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    {{_HeadNodePid, HeadMailboxPid},
-     [{{_NP1, MPA1}, []}, 
-      {{_NP2, MPA2}, []}]} = PidTree,
-
-    BsProducer = spawn_link(node(), producer, constant_rate_source, [Bs, 10, HeadMailboxPid]),
-
-    A1producer = spawn_link(node(), producer, constant_rate_source, [A1, 10, MPA1]),
-    A2producer = spawn_link(node(), producer, constant_rate_source, [A2, 10, MPA2]),
+    InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     SinkPid ! finished.
 
@@ -157,18 +145,12 @@ greedy_complex_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
-    PidTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
 
     %% Set up where will the input arrive
     {A1, A2, A3, A4, Bs} = complex_input_distr_example(),
-    {{_HeadNodePid, HeadMailboxPid},
-     [{{_NP1, MPA1}, []}, 
-      {{_NP2, MPA2}, []}]} = PidTree,
-
-    BsProducer = spawn_link(node(), producer, constant_rate_source, [Bs, 10, HeadMailboxPid]),
-
-    A1producer = spawn_link(node(), producer, constant_rate_source, [A1, 10, MPA1]),
-    A2producer = spawn_link(node(), producer, constant_rate_source, [A2, 10, MPA2]),
+    InputStreams = [{A1, 10}, {A2, 10}, {A3, 10}, {A4, 10}, {Bs, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     SinkPid ! finished.
 
@@ -186,14 +168,14 @@ distributed_conf(SinkPid) ->
     NodeA1 = {0, node(), fun isA1/1, Funs, []},
     NodeA2 = {0, node(), fun isA2/1, Funs, []},
     NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
-    PidTree = configuration:create(NodeB, dependencies(), SinkPid),
+    ConfTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
     Input = input_example2(),
-    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
-    Producer = spawn_link(producer, dumper, [Input, HeadMailboxPid]),
+    InputStreams = [{Input, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
-    io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
+    io:format("Tree: ~p~n", [ConfTree]),
     SinkPid ! finished,
     ok.
 
@@ -210,12 +192,12 @@ distributed_conf_1(SinkPid) ->
     NodeA1 = {0, node(), fun isA1/1, Funs, []},
     NodeA2 = {0, node(), fun isA2/1, Funs, []},
     NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
-    PidTree = configuration:create(NodeB, dependencies(), SinkPid),
+    ConfTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
     Input = input_example(),
-    {{_HeadNodePid, HeadMailboxPid}, _} = PidTree,
-    Producer = spawn_link(producer, dumper, [Input, HeadMailboxPid]),
+    InputStreams = [{Input, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
     %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
     SinkPid ! finished,
@@ -235,21 +217,16 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     NodeA1 = {0, A1NodeName, fun isA1/1, Funs, []},
     NodeA2 = {0, A2NodeName, fun isA2/1, Funs, []},
     NodeB  = {0, BNodeName, fun true_pred/1, Funs, [NodeA1, NodeA2]},
-    PidTree = configuration:create(NodeB, dependencies(), SinkPid),
+    ConfTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    {{_HeadNodePid, HeadMailboxPid},
-     [{{_NP1, MPA1}, []}, 
-      {{_NP2, MPA2}, []}]} = PidTree,
 
     BsInput = bs_input_example(),
     {A1input, A2input} = as_input_example(),
-    BsProducer = spawn_link(BNodeName, producer, dumper, [BsInput, HeadMailboxPid]),
-    A1producer = spawn_link(A1NodeName, producer, dumper, [A1input, MPA1]),
-    A2producer = spawn_link(A2NodeName, producer, dumper, [A2input, MPA2]),
+    InputStreams = [{BsInput, 10}, {A1input, 10}, {A2input, 10}],
+    producer:make_producers(InputStreams, ConfTree),
 
-
-    io:format("Prod: ~p~nTree: ~p~n", [[BsProducer, A1producer, A2producer], PidTree]),
+    io:format("Tree: ~p~n", [ConfTree]),
     SinkPid ! finished,
     ok.
     
@@ -303,13 +280,13 @@ input_example() ->
 	++ [gen_a(V) || V <- lists:seq(1002, 2000)] ++ [{b, 2001, empty}]
 	++ [{heartbeat, {{a,1},2005}}, {heartbeat, {{a,2},2005}}, {heartbeat, {b,2005}}].
 
-big_input_example() ->
-    lists:flatten(
-      [[gen_a(T + (1000 * BT)) || T <- lists:seq(1, 999) ] ++ [{b, 1000 + (1000 * BT), empty}]
-		  || BT <- lists:seq(1,1000)]) 
-	++ [{heartbeat, {{a,1},10000000}}, 
-	    {heartbeat, {{a,2},10000000}}, 
-	    {heartbeat, {b,10000000}}].
+%% big_input_example() ->
+%%     lists:flatten(
+%%       [[gen_a(T + (1000 * BT)) || T <- lists:seq(1, 999) ] ++ [{b, 1000 + (1000 * BT), empty}]
+%% 		  || BT <- lists:seq(1,1000)]) 
+%% 	++ [{heartbeat, {{a,1},10000000}}, 
+%% 	    {heartbeat, {{a,2},10000000}}, 
+%% 	    {heartbeat, {b,10000000}}].
 
 big_input_distr_example() ->
     A1 = lists:flatten(

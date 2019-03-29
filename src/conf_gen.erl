@@ -21,7 +21,7 @@
 %% specifying the computation and the topology of the network.
 %%
 
--spec generate(specification(), topology(), atom()) -> pid_tree().
+-spec generate(specification(), topology(), atom()) -> configuration().
 generate(Specification, Topology, OptimizerModule) ->
     SetupTree = gen_setup_tree(Specification, Topology, OptimizerModule),
     Dependencies = get_dependencies(Specification),
