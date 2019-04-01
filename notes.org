@@ -1,6 +1,69 @@
 ** Work TODO
 
 *** TODO Implement the possibility to have separate sink pid for each node
+*** TODO Implement dynamic reconfiguration
+
+The system at the moment chooses a configuration initially based on fixed rates. We should
+have infastructure for dynamic reconfiguration, which would mean some tracing mechanism and
+rerunning the compiler based on the gathered traces.
+
+WARNING:
+As a requirement for this, we have to design a snapshot
+algorithm, that manages to take a snapshot of the state of the whole
+system (including all the messages in flight, etc).
+
+Snapshot algorithm:
+
+Messages enter in the system through the routers (which are now implemented in the producer module).
+Each implementation tag, arrives in exactly one node, and therefore in exactly one router.
+A router thus initiate the snapshot for each of the implementation tags that it handles.
+
+A sketch of the algorithm goes as follows:
+- Each router receives a reconfigure/snapshot message
+- Each router sends a message for each tag that it handles 
+  (Question: To whom does it send that? To the root of the tag
+   or to the whole subtree that knows about this tag??)
+- After sending the snapshot message, each router stops sending
+  normal messages (and heartbeats) until it is receives a
+  continuation message.
+- Each node receives a reconfigure message, saving that
+  it has seen a reconfigure message and thus is waiting
+  to get all snapshot messages to exit.
+- Each node keeps processing messages until they process
+  all necessary snapshot messages (Question: For which tags
+  should each node wait?). When a tree node processes all the
+  snapshot messages, its erlang_mailbox should be empty
+  and now it can send its state (both the mailbox and 
+  the processor need to send their state) to the root of the
+  tree and consequently to an external master node that will create the 
+  new configuration (or immediately to the master node).
+- After sending those messages, each node exits gracefully.
+- The master node merges the states into a consistent total state,
+  and then initializes the nodes using the correctly split
+  up state.
+- The master node then sends a continue message to the routers/producers
+  in each node.
+
+The above can be split up in the following tasks:
+  - [ ] Router
+    + [ ] The router must handle a reconfigure/continue message.
+    + [ ] Each node should have a router/producer for each tag so that there is no bottleneck.
+    + [ ] Is it possible to have the router/producer in every node have the same name?
+    + [ ] Each router sends a snapshot message to every node (TODO: Find out whether it sends it
+          at the root node or all nodes in the subtree. 
+  - [ ] Node
+    + [ ] Extend a mailbox to be initialized with a buffer.
+    + [ ] When a mailbox receives a reconfigure message, it saves it in its state
+          so that it knows to wait for all snapshot messages (one for each tag).
+    + [ ] When a mailbox receives all snapshot tags, it informs its processing node to
+          send it its state (using a message that is handled similarly to a merge request)
+    + [ ] Then the mailbox sends its state and its processing node's state to the master,
+          configuration node. (otherwise it sends it to its parent, and the parent does
+          the merging of the mailbox and the processor state)
+  - [ ] Master/Configuration Creator
+    + [ ] The master node merges the mailbox and processing nodes state (or receives them merged from the
+          root node), and then reinitializes the configuration tree with the new splitted states.
+
 *** TODO Implement a complete root tree to setup tree function
 
 At the moment the root tree to setup tree function greedily tries to
@@ -22,6 +85,10 @@ Maybe implement it by passing a continuation or sth for each possible tree.
 Then return a set of possible trees instead of one tree.
 
 *** TODO Implement the DP algorithm that maps a root tree to physical nodes
+*** TODO Improve the greedy dependency graph separation algorithm
+
+At the very least make it try to add back tags after having removed them to separate some components.
+
 *** TODO Change the digraph library with some other graph library
 
 Maybe aggelgian's??
@@ -29,6 +96,35 @@ Maybe aggelgian's??
 *** TODO Move the specification and topology interfaces to different files
 
 Also make make both the specification and topology be records and not tuples
+
+*** TODO (Maybe Optimization) Unify all mailboxes in each node in one big mailbox
+
+I am not sure how much of an optimization that is.
+
+*** TODO (Maybe) Unify the mailbox and processing node into one Erlang process
+
+At the moment the mailbox and the processing node are separate processes
+but that doesn't really make sense. Performance wise however it is not clear
+whether unifying them will improve performance at all.
+Below are some pros and cons:
+
+Pros:
++ It adds a performance overhead as every message has to be sent twice
+  (even though the second message is local, it is still unnecassary)
+
++ Every message should be processed after it is released so it doesn't really
+  make any sense putting it in the mailbox queue of the processing node.
+
++ It is a bit confusing having two pids for each processing node, one for its
+  mailbox and one for the processing node.
+
+Cons:
+- IMPORTANT:
+  When a process sends a merge request, its mailbox can still process 
+  and reorder messages and release them to be ready for processing.
+  Merging them both would require some different design so that merging 
+  doesn't really block, and so that respones to the merge messages
+  (state messages) are also handled by the mailbox immediately.
 
 *** TODO Implement infastructure for producers.   
 
@@ -67,12 +163,6 @@ into account when designing a split and a merge.
 I am not sure whether it matters for the mailbox of each node, or whether the mailbox of
 each node can just care about the total dependency relation. Probably a mailbox should 
 just take into account the original dependency relation.
-
-*** TODO Implement dynamic reconfiguration
-
-The system at the moment chooses a configuration initially based on fixed rates. We should
-have infastructure for dynamic reconfiguration, which would mean some tracing mechanism and
-rerunning the compiler based on the gathered traces.
 
 *** TODO Extend the system to infer missing updates
 
