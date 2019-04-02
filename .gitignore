@@ -3,3 +3,5 @@
 
 *.beam
 *.dump
+
+docker/read-only
