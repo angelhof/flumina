@@ -4,4 +4,4 @@
 *.beam
 *.dump
 
-docker/read-only
+docker/read-only/*

@@ -3,15 +3,15 @@
 ## only directory
 ##
 ## TODO: Maybe they should pull from github?
-mkdir -p ./read-only
-cp -r ../erlang-dot read-only/erlang-dot
-cp -r ../examples read-only/examples
-cp -r ../include read-only/include
-cp -r ../scenarios read-only/scenarios
-cp -r ../src read-only/src
-cp ../Makefile read-only/Makefile
+mkdir -p "read-only/$1"
+cp -r ../erlang-dot "read-only/$1"
+cp -r ../examples "read-only/$1"
+cp -r ../include "read-only/$1"
+cp -r ../scenarios "read-only/$1"
+cp -r ../src "read-only/$1"
+cp ../Makefile "read-only/$1/Makefile"
 
-rm -f read-only/ebin/*
+rm -f "read-only/$1/ebin/*"
 
 set -x
 
@@ -20,8 +20,12 @@ set -x
 ##
 ## Call this script with a name for the node as a first argument
 docker run -e ERL_TOP='/usr/local/'\
-       -v "${PWD}/read-only/":/stream-processing-prototype -it --rm\
+       -v "${PWD}/read-only/$1/":/stream-processing-prototype -it --rm\
        --network temp\
        --name "$1.local"\
        --hostname "$1.local"\
-       erlang:21.0 erl -name "$1@$1.local" -setcookie docker
+       erlang:21.0 bash -c \
+       "cd stream-processing-prototype && make all && erl -name $1@$1.local -setcookie docker -pa ebin"
+
+
+## abexample:real_distributed(['a1node@a1node.local', 'a2node@a2node.local', 'main@main.local']).

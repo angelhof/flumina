@@ -234,6 +234,7 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 %% The specification of the computation
 update({{a,_}, Ts, Value}, Sum, SendTo) ->
     %% This is here for debugging purposes
+    %% io:format("log: ~p~n", [{self(), a, Value, Ts}]),
     %% SendTo ! {self(), a, Value, Ts},
     Sum + Value;
 update({b, Ts, empty}, Sum, SendTo) ->
