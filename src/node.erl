@@ -106,7 +106,7 @@ filter_relevant_dependencies(Dependencies0, Attachee, ConfTree) ->
 		  %% 	    || DT <- DTags],
 		  [DT || DT <- DTags, Predicate({DT, 0, 0})]
 	  end, Dependencies0),
-    io:format("Clean Deps:~p~n~p~n", [self(), Dependencies1]),
+    %% io:format("Clean Deps:~p~n~p~n", [self(), Dependencies1]),
     Dependencies1.
     
 

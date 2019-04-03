@@ -35,6 +35,12 @@ distributed_2() ->
     util:sink().
 
 distributed_conf_2(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), hour, 10},
+	     {node(), {id,1}, 1000},
+	     {node(), {id,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Configuration Tree
     Funs = {fun update_2/3, fun split_2/2, fun merge_2/2},
@@ -50,8 +56,8 @@ distributed_conf_2(SinkPid) ->
     Input1 = id1_positions_with_heartbeats(),
     Input2 = id2_positions_with_heartbeats(),    
     Input3 = hour_positions_input(),
-    InputStreams = [{Input1, 10}, {Input2, 10}, {Input3, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, hour, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     %% io:format("Input3: ~p~n", [Input3]),
 
@@ -87,8 +93,8 @@ sequential_conf_2(SinkPid) ->
     Input1 = id1_positions_with_heartbeats(),
     Input2 = id2_positions_with_heartbeats(),
     Input3 = hour_positions_input(),
-    InputStreams = [{Input1, 10}, {Input2, 10}, {Input3, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, hour, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -99,6 +105,12 @@ distributed_1() ->
     util:sink().
 
 distributed_conf_1(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), window, 10},
+	     {node(), {id,1}, 1000},
+	     {node(), {id,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Configuration Tree
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
@@ -112,7 +124,7 @@ distributed_conf_1(SinkPid) ->
     ConfTree = configuration:create(Node0, dependencies_1(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/0, ConfTree),
+    create_producers(fun sliding_period_input/0, window, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -123,6 +135,12 @@ sequential_1() ->
     util:sink().
 
 sequential_conf_1(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), window, 10},
+	     {node(), {id,1}, 1000},
+	     {node(), {id,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Configuration Tree
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
@@ -131,7 +149,7 @@ sequential_conf_1(SinkPid) ->
     ConfTree = configuration:create(Node, dependencies_1(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/0, ConfTree),
+    create_producers(fun sliding_period_input/0, window, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -142,6 +160,13 @@ distributed() ->
     util:sink().
 
 distributed_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), hour, 10},
+	     {node(), {id,1}, 1000},
+	     {node(), {id,2}, 1000},
+	     {node(), {id,3}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
@@ -155,11 +180,11 @@ distributed_conf(SinkPid) ->
     ConfTree = configuration:create(Node0, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/0, ConfTree),
+    create_producers(fun hour_markets_input/0, hour, ConfTree, Topology),
 
     Input3 = id3_input_with_heartbeats(),
-    InputStreams = [{Input3, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{Input3, {id,3}, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -170,6 +195,14 @@ sequential() ->
     util:sink().
 
 sequential_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), hour, 10},
+	     {node(), {id,1}, 1000},
+	     {node(), {id,2}, 1000},
+	     {node(), {id,3}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     Ids = init_state(),
@@ -177,20 +210,20 @@ sequential_conf(SinkPid) ->
     ConfTree = configuration:create(Node, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/0, ConfTree),
+    create_producers(fun hour_markets_input/0, hour, ConfTree, Topology),
 
     Input3 = id3_input_with_heartbeats(),
-    InputStreams = [{Input3, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{Input3, {id,3}, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
-create_producers(MarkerFun, ConfTree) ->
+create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
     Input1 = id1_input_with_heartbeats(),
     Input2 = id2_input_with_heartbeats(),
     Input3 = MarkerFun(),
-    InputStreams = [{Input1, 10}, {Input2, 10}, {Input3, 10}],
-    producer:make_producers(InputStreams, ConfTree).
+    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, MarkerTag, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
 %% The specification of the computation

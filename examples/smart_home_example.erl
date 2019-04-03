@@ -26,6 +26,14 @@ distributed() ->
     util:sink().
 
 distributed_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), minute, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000},
+	     {node(), b, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
     %% The functions of each node
     Funs = {fun update0/3, fun split1/2, fun merge1/2},
     FunsA = {fun update_a/3, fun split_a/2, fun merge_a/2},
@@ -45,7 +53,7 @@ distributed_conf(SinkPid) ->
     ConfTree = configuration:create(Node, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/0, ConfTree),
+    create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -77,18 +85,18 @@ sequential_conf(SinkPid) ->
     ConfTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/0, ConfTree),
+    create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
 
     SinkPid ! finished.
 
-create_producers(MarkerFun, ConfTree) ->
+create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
     Input1 = a1_input_with_heartbeats(),
     Input2 = a2_input_with_heartbeats(),
     Input3 = b_input_with_heartbeats(),
     Input4 = MarkerFun(),
 
-    InputStreams = [{Input1, 100}, {Input2, 100}, {Input3, 100}, {Input4, 100}],
-    producer:make_producers(InputStreams, ConfTree).
+    InputStreams = [{Input1, {a,1}, 100}, {Input2, {a,2}, 100}, {Input3, b, 100}, {Input4, MarkerTag, 100}],
+    producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
 %% The specification of the computation

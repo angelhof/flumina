@@ -1,8 +1,8 @@
 -module(producer).
 
--export([make_producers/2,
+-export([make_producers/3,
 	 constant_rate_source/3,
-	 route_constant_rate_source/3,
+	 route_constant_rate_source/4,
 	 dumper/2,
 	 interleave_heartbeats/3
 	]).
@@ -13,11 +13,16 @@
 %%% This module contains code that will be usually used by producer nodes
 %%% 
 
--spec make_producers([{[gen_message_or_heartbeat()], integer()}], configuration()) -> ok.
-make_producers(InputStreams, Configuration) ->
+-spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), topology()) -> ok.
+make_producers(InputStreams, Configuration, Topology) ->
+    NodesRates = conf_gen:get_nodes_rates(Topology),
     lists:foreach(
-      fun({InputStream, Rate}) ->
-	      spawn_link(node(), producer, route_constant_rate_source, [InputStream, Rate, Configuration])
+      fun({InputStream, Tag, Rate}) ->
+	      %% TODO: Maybe at some point I will use the real given rate
+	      {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
+	      %% Log producer creation
+	      io:format("Spawning producer for tag: ~p in node: ~p~n", [Tag, Node]),
+	      spawn_link(Node, producer, route_constant_rate_source, [Tag, InputStream, Rate, Configuration])
      end, InputStreams).
 
 %%
@@ -63,10 +68,8 @@ constant_rate_source_slow([Msg|Rest], Period, SendTo) ->
     constant_rate_source_slow(Rest, Period, SendTo).
 
 
--spec route_constant_rate_source([gen_message_or_heartbeat()], integer(), configuration()) -> ok.
-route_constant_rate_source(Messages, Period, Configuration) ->
-    %% WARNING: This assumes that every producer handles exactly one tag
-    [{Tag, _, _}|_] = Messages,
+-spec route_constant_rate_source(tag(), [gen_message_or_heartbeat()], integer(), configuration()) -> ok.
+route_constant_rate_source(Tag, Messages, Period, Configuration) ->
     %% Find where to route the message in the configuration tree
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
     constant_rate_source(Messages, Period, SendTo).

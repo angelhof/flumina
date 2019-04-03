@@ -1,5 +1,9 @@
 ** Work TODO
 
+*** TODO Implement a tracing mechanism that gathers the statistics that we want
+
+Latency and throughput
+
 *** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement dynamic reconfiguration
 

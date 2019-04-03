@@ -54,8 +54,8 @@ seq_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -66,6 +66,12 @@ distr_big() ->
     util:sink().
 
 distr_big_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), b, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
@@ -76,8 +82,8 @@ distr_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
-    producer:make_producers(InputStreams, ConfTree),   
+    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),   
 
     SinkPid ! finished.
 
@@ -112,8 +118,8 @@ greedy_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -149,8 +155,8 @@ greedy_complex_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, A3, A4, Bs} = complex_input_distr_example(),
-    InputStreams = [{A1, 10}, {A2, 10}, {A3, 10}, {A4, 10}, {Bs, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {A3, {a,3}, 10}, {A4, {a,4}, 10}, {Bs, b, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -162,6 +168,12 @@ distributed() ->
     util:sink().
 
 distributed_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), b, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
@@ -171,9 +183,9 @@ distributed_conf(SinkPid) ->
     ConfTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    Input = input_example2(),
-    InputStreams = [{Input, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    {A1, A2, Bs} = input_example2(),
+    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     io:format("Tree: ~p~n", [ConfTree]),
     SinkPid ! finished,
@@ -186,6 +198,12 @@ distributed_1() ->
     util:sink().
 
 distributed_conf_1(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), b, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
@@ -195,9 +213,9 @@ distributed_conf_1(SinkPid) ->
     ConfTree = configuration:create(NodeB, dependencies(), SinkPid),
 
     %% Set up where will the input arrive
-    Input = input_example(),
-    InputStreams = [{Input, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    {A1, A2, Bs} = input_example(),
+    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
     SinkPid ! finished,
@@ -239,10 +257,9 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     BsInput = bs_input_example(),
     {A1input, A2input} = as_input_example(),
-    InputStreams = [{BsInput, 10}, {A1input, 10}, {A2input, 10}],
-    producer:make_producers(InputStreams, ConfTree),
+    InputStreams = [{BsInput, b, 10}, {A1input, {a,1}, 10}, {A2input, {a,2}, 10}],
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
-    io:format("Tree: ~p~n", [ConfTree]),
     SinkPid ! finished,
     ok.
     
@@ -293,9 +310,11 @@ true_pred(_) -> true.
 
 %% Some input examples
 input_example() ->
-    [gen_a(V) || V <- lists:seq(1, 1000)] ++ [{b, 1001, empty}]
-	++ [gen_a(V) || V <- lists:seq(1002, 2000)] ++ [{b, 2001, empty}]
-	++ [{heartbeat, {{a,1},2005}}, {heartbeat, {{a,2},2005}}, {heartbeat, {b,2005}}].
+    AllInputs = [gen_a(V) || V <- lists:seq(1, 1000)] ++ [gen_a(V) || V <- lists:seq(1002, 2000)],
+    A1 = [Msg || Msg <- AllInputs, isA1(Msg)] ++ [{heartbeat, {{a,1},2005}}],
+    A2 = [Msg || Msg <- AllInputs, isA2(Msg)] ++ [{heartbeat, {{a,2},2005}}],
+    B = [{b, 1001, empty}, {b, 2001, empty}, {heartbeat, {b,2005}}],
+    {A1, A2, B}.
 
 %% big_input_example() ->
 %%     lists:flatten(
@@ -355,31 +374,32 @@ gen_a(V) ->
     {{a, Id}, V, V}.
 
 input_example2() ->
-    [{{a,1}, 1, 1},
-     {b, 2, empty},
-     {{a,1}, 3, 5},
-     {{a,1}, 4, 3},
-     {b, 5, empty},
-     {heartbeat, {{a,1}, 5}},
-     {heartbeat, {{a,2}, 5}},
-     {{a,2}, 6, 6},
-     {{a,1}, 7, 7},
-     {{a,2}, 8, 5},
-     {heartbeat, {b, 7}},
-     {b, 9, empty},
-     {{a,2}, 10, 6},
-     {heartbeat, {b, 9}},
-     {heartbeat, {{a,2}, 10}},
-     {heartbeat, {{a,1}, 10}},
-     {{a,2}, 11, 5},
-     {{a,2}, 12, 1},
-     {{a,2}, 13, 0},
-     {{a,2}, 14, 9},
-     {{a,1}, 15, 3},
-     {b, 16, empty},
-     {heartbeat, {{a,1}, 20}},
-     {heartbeat, {{a,2}, 20}},
-     {heartbeat, {b, 20}}].
+    A1 = [{{a,1}, 1, 1},
+	  {{a,1}, 3, 5},
+	  {{a,1}, 4, 3},
+	  {heartbeat, {{a,1}, 5}},
+	  {{a,1}, 7, 7},
+	  {heartbeat, {{a,1}, 10}},
+	  {{a,1}, 15, 3},
+	  {heartbeat, {{a,1}, 20}}],
+    A2 = [{heartbeat, {{a,2}, 5}},
+	  {{a,2}, 6, 6},
+	  {{a,2}, 8, 5},	  
+	  {{a,2}, 10, 6},	  
+	  {heartbeat, {{a,2}, 10}},
+	  {{a,2}, 11, 5},
+	  {{a,2}, 12, 1},
+	  {{a,2}, 13, 0},
+	  {{a,2}, 14, 9},
+	  {heartbeat, {{a,2}, 20}}],
+    B = [{b, 2, empty},
+	  {b, 5, empty},
+	  {heartbeat, {b, 7}},
+	  {b, 9, empty},
+	  {heartbeat, {b, 9}},
+	  {b, 16, empty},
+	  {heartbeat, {b, 20}}],
+    {A1, A2, B}.
 
 %% -------- TESTS -------- %%
 
