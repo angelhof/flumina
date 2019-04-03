@@ -211,15 +211,31 @@ real_distributed(NodeNames) ->
     util:sink().
 
 real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
+    %% Architecture
+    Rates = [{BNodeName, b, 10},
+	     {A1NodeName, {a,1}, 1000},
+	     {A2NodeName, {a,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
 
-    %% Configuration Tree
-    Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, A1NodeName, fun isA1/1, Funs, []},
-    NodeA2 = {0, A2NodeName, fun isA2/1, Funs, []},
-    NodeB  = {0, BNodeName, fun true_pred/1, Funs, [NodeA1, NodeA2]},
-    ConfTree = configuration:create(NodeB, dependencies(), SinkPid),
+    %% Computation
+    Tags = [b, {a,1}, {a,2}],
+    StateTypesMap = 
+	#{'state0' => {sets:from_list(Tags), fun update/3},
+	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+    Dependencies = dependencies(),
+    InitState = {'state0', 0},
+    Specification = 
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    
+    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
 
     %% Set up where will the input arrive
+
+    %% Big Inputs
+    %% {A1, A2, Bs} = big_input_distr_example(),
+    %% InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
 
     BsInput = bs_input_example(),
     {A1input, A2input} = as_input_example(),

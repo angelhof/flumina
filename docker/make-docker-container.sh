@@ -13,19 +13,21 @@ cp ../Makefile "read-only/$1/Makefile"
 
 rm -f "read-only/$1/ebin/*"
 
-set -x
 
+## Arguments
+## The first argument of the script is the hostname and erlang node name
+## The second argument is whether detached is true or false
+## The third argument is what whill be executed with erlang
+
+# set -x
 ## Notes:
 ## We need to use fully qualified names for hostname, so names with a dot, e.g. node1.local
-##
-## Call this script with a name for the node as a first argument
 docker run -e ERL_TOP='/usr/local/'\
        -v "${PWD}/read-only/$1/":/stream-processing-prototype -it --rm\
        --network temp\
        --name "$1.local"\
        --hostname "$1.local"\
+       -d=$2\
        erlang:21.0 bash -c \
-       "cd stream-processing-prototype && make all && erl -name $1@$1.local -setcookie docker -pa ebin"
+       "cd stream-processing-prototype && make all && erl -name $1@$1.local -setcookie docker -pa ebin $3"
 
-
-## abexample:real_distributed(['a1node@a1node.local', 'a2node@a2node.local', 'main@main.local']).
