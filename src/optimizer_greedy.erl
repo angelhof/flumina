@@ -84,22 +84,10 @@ root_tree_physical_mapping(TagRootTree, Topology) ->
     %%          handled by the root node.
     NodesRates = conf_gen:get_nodes_rates(Topology),
     opt_lib:map_physical_node_root_tree_max_rate(NodesRates, TagRootTree).
-    
 
 
-%% Map over the tree, having (a set of options at each stage)
-%% 1. How to find one option (greedy) for each time.
-%%    - Choose one child tag, and see if it fits in the left (or right)
-%%      child state of some split pair. 
-%%    - Map the father and the chosen child and iterate on the other child.
-%%    - This way we make a binary tree with a hole, and we iterate on the hole.
-%%      The hole is also tagged, with a state type, and all the remaining tags.
-%% 
-%% 2. Is this easily generalizable to hold a set of binary trees with a hole?
-%%    We would certainly want this procedure to not be greedy, so that it
-%%    always finds a possible split sequence if it does exist.
-%% 3. For now we assume that one split is enough, and that there are no
-%%    type conversions or splits needed to reach the option to do the split.
+%% Note: For now we assume that one split is enough, and that there are no
+%%       type conversions or splits needed to reach the option to do the split.
 -spec root_tree_to_setup_tree(root_tree(), specification()) -> temp_setup_tree().
 root_tree_to_setup_tree(RootTree, Specification) ->    
     InitState = conf_gen:get_init_state(Specification),
@@ -109,11 +97,15 @@ root_tree_to_setup_tree(RootTree, Specification) ->
     %% the ones at the top node.
     UnionRootTree = union_root_tree(RootTree),
     
-    %% TODO: Return the shortest tree maybe
-    [OneTree|_] = complete_root_tree_to_setup_tree({InitState, UnionRootTree, fun(X) -> X end}, Specification),
-    %% greedy_root_tree_to_setup_tree({InitState, UnionRootTree}, Specification)
-    OneTree.
-		
+    %% Find all the possible setup trees
+    PossibleSetupTrees = 
+	complete_root_tree_to_setup_tree({InitState, UnionRootTree, fun(X) -> X end}, Specification),
+
+    %% Return the shortest one
+    {_Height, ShortestSetupTree} =
+	lists:min([{opt_lib:temp_setup_tree_height(T), T} || T <- PossibleSetupTrees]),
+    ShortestSetupTree.
+
 
 %% Complete root_tree_to_setup_tree
 %% 
@@ -121,6 +113,8 @@ root_tree_to_setup_tree(RootTree, Specification) ->
 %% and might be re-searching the same trees) root_tree_to_setup_tree.
 %% Also it seems that the trees shold be exponential in the number of splits
 %% so we should be careful. However it is complete.
+%%
+%% WARNING: The number of trees is huge if we recount, so there might be a problem.
 -spec complete_root_tree_to_setup_tree(hole_setup_tree(), specification()) 
 				      -> [temp_setup_tree()].    
 complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, []}, HoleTree}, Specification) ->

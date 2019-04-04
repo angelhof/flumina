@@ -5,7 +5,8 @@
 	 max_rate_node/1,
 	 map_physical_node_root_tree_constant/2,
 	 map_physical_node_root_tree_max_rate/2,
-	 filter_tags_in_nodes_rates/2]).
+	 filter_tags_in_nodes_rates/2,
+	 temp_setup_tree_height/1]).
 
 -include("type_definitions.hrl").
 
@@ -72,3 +73,10 @@ map_physical_node_root_tree_max_rate(NodesRates, {Tags, Children}) ->
 filter_tags_in_nodes_rates(Tags, NodesRates) ->
     TagsSet = sets:from_list(Tags),
     [{Node, Tag, Rate} || {Node, Tag, Rate} <- NodesRates, sets:is_element(Tag, TagsSet)].
+
+%% Returns the height of a temp_setup_tree
+-spec temp_setup_tree_height(temp_setup_tree()) -> integer().
+temp_setup_tree_height({_State, _Node, _Predicate, _Funs, []}) ->
+    0;
+temp_setup_tree_height({_State, _Node, _Predicate, _Funs, Children}) ->
+    1 + lists:max([temp_setup_tree_height(C) || C <- Children]).
