@@ -97,6 +97,18 @@ Instead of failing when not having found a temp_setup_tree, implement the "most 
 That is, if some phase of the algorithm (for some subtree) returns no tree, then approximate 
 it by returning the sequential setup tree for this tree.
 
+*** TODO Improve the complete root_tree_to_setup_tree
+
+There are two main improvements that can be done.
+  - [ ] Do not recompute trees. Even in the greedy complex case (with 10 tags)
+        this algorithm finds tens of trees, so it seems that it wouldn't really scale
+        for more complex root trees.
+  - [ ] Instead of trying to match a specific node of the root tree with one side of
+        a split, try to match any subset of nodes with one side of a split. This way
+        the algorithm will generate all binary configuration trees (even the balanced
+        ones), as now it only returns the longest ones it can find (especially in cases
+        where in the root tree, one parent has many children).
+
 *** TODO Implement the DP algorithm that maps a root tree to physical nodes
 *** TODO Improve the greedy dependency graph separation algorithm
 
