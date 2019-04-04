@@ -34,23 +34,20 @@ distributed_conf(SinkPid) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
-    %% The functions of each node
-    Funs = {fun update0/3, fun split1/2, fun merge1/2},
-    FunsA = {fun update_a/3, fun split_a/2, fun merge_a/2},
-    FunsB = {fun update_b/3, fun util:crash/2, fun util:crash/2},
+    %% Computation
+    Tags = [minute, {a,1}, {a,2}, b],
+    StateTypesMap = 
+	#{'state0' => {sets:from_list(Tags), fun update0/3},
+	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update_a/3},
+	  'state_b' => {sets:from_list([b]), fun update_b/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_b'}, {fun split1/2, fun merge1/2}},
+		    {{'state_a', 'state_a', 'state_a'}, {fun split_a/2, fun merge_a/2}}],
+    Dependencies = dependencies(),
+    InitState = {'state0', init_state()},
+    Specification = 
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    %% The initial states of each node
-    Init = init_state(),
-    {InitA, InitB} = split1({fun true_pred/1, fun true_pred/1}, Init),
-    {InitA1, InitA2} = split_a({fun isA1/1, fun isA2/1}, InitA),
-
-    %% Initializing the nodes
-    NodeA1 = {InitA1, node(), fun isA1/1, FunsA, []},
-    NodeA2 = {InitA2, node(), fun isA2/1, FunsA, []},
-    NodeA = {InitA, node(), fun isA/1, FunsA, [NodeA1, NodeA2]},
-    NodeB = {InitB, node(), fun isB/1, FunsB, []},
-    Node  = {Init, node(), fun true_pred/1, Funs, [NodeA, NodeB]},
-    ConfTree = configuration:create(Node, dependencies(), SinkPid),
+    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
 
     %% Set up where will the input arrive
     create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
@@ -233,18 +230,18 @@ init_state() ->
     {0, 0, #{{a,1} => 0, {a,2} => 0}}.
 
 %% The predicates
-isA1({{a,1}, _, _}) -> true;
-isA1(_) -> false.
+%% isA1({{a,1}, _, _}) -> true;
+%% isA1(_) -> false.
 
-isA2({{a,2}, _, _}) -> true;
-isA2(_) -> false.    
+%% isA2({{a,2}, _, _}) -> true;
+%% isA2(_) -> false.    
 
-isB({b, _, _}) -> true;
-isB(_) -> false.
+%% isB({b, _, _}) -> true;
+%% isB(_) -> false.
 
-isA(Msg) -> isA1(Msg) orelse isA2(Msg).
+%% isA(Msg) -> isA1(Msg) orelse isA2(Msg).
 
-true_pred(_) -> true.
+%% true_pred(_) -> true.
 
 
 

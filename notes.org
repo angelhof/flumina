@@ -1,8 +1,31 @@
 ** Work TODO
 
+*** TODO (Maybe) We might need to tune low level network parameters
+
+As seen in Naiad, we might have to tune low level network parameters (or ERTS parameters)
+in order to tune the system to run well with very small tcp messages between the different erlang nodes.
+
 *** TODO Implement a tracing mechanism that gathers the statistics that we want
 
-Latency and throughput
+Latency:
+
+Every output message is triggered by an input message. Latency can be defined as the difference between
+the output time of the output message and the input time of the input message. Is this reasonable?
+
+It can be measured if we get a timestamp before a message is routed to the processing node,
+and just before its output is sent out by the sink. For this to make sense, the two timestamps
+should probably be taken on the same machine (so that there is no clock drift) and there has to
+be a way to associate the two messages, so probably the output should contain the tag and timestamp
+of the input message that triggered the event.
+
+We have to make sure that any latency measurement that we do is done on a system with a high enough throughput 
+because otherwise we could just process everything sequentially and thus reduce latency. That is why,
+we have to vary the load, or fix it to a high enough value when measuring latency, so that we have
+to actually parallelize in order for the system to not choke.
+
+Throughput:
+
+This can be measured by measuring how many messages have been processed every some seconds/milliseconds.
 
 *** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement dynamic reconfiguration
@@ -68,25 +91,11 @@ The above can be split up in the following tasks:
     + [ ] The master node merges the mailbox and processing nodes state (or receives them merged from the
           root node), and then reinitializes the configuration tree with the new splitted states.
 
-*** TODO Implement a complete root tree to setup tree function
+*** TODO Warn if no setup_tree found and return a sequential approximation instead of failing
 
-At the moment the root tree to setup tree function greedily tries to
-find splits that can handle any child of the root tree. 
-
-This can obviously lead the procedure into a stuck state that
-no split can be chosen, but in case of backtracking a split could have been chosen 
-previously to allow us to make this setup tree.
-
-   - [ ] Make the root to setup tree complete, in the sense that it should
-         return all possible splits. This way if there *IS* a way to split
-         as much as the root tree requires it will find it.
-   - [ ] Implement some warning message mechanism that warns the user if
-         a split is missing and it is not possible to completely split
-         a root tree. If it is not possible, just end up with a sequential 
-	 (approximation) subtree.
-
-Maybe implement it by passing a continuation or sth for each possible tree.
-Then return a set of possible trees instead of one tree.
+Instead of failing when not having found a temp_setup_tree, implement the "most parallel one".
+That is, if some phase of the algorithm (for some subtree) returns no tree, then approximate 
+it by returning the sequential setup tree for this tree.
 
 *** TODO Implement the DP algorithm that maps a root tree to physical nodes
 *** TODO Improve the greedy dependency graph separation algorithm
@@ -212,6 +221,26 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Implement a complete root tree to setup tree function
+
+At the moment the root tree to setup tree function greedily tries to
+find splits that can handle any child of the root tree. 
+
+This can obviously lead the procedure into a stuck state that
+no split can be chosen, but in case of backtracking a split could have been chosen 
+previously to allow us to make this setup tree.
+
+   - [X] Make the root to setup tree complete, in the sense that it should
+         return all possible splits. This way if there *IS* a way to split
+         as much as the root tree requires it will find it.
+   - [ ] Implement some warning message mechanism that warns the user if
+         a split is missing and it is not possible to completely split
+         a root tree. If it is not possible, just end up with a sequential 
+	 (approximation) subtree.
+
+Maybe implement it by passing a continuation or sth for each possible tree.
+Then return a set of possible trees instead of one tree.
+
 *** DONE Implement rates to be connected to nodes instead of processes
 
 At the moment, rates are given for processes in nodes, rather than for nodes.

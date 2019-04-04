@@ -78,6 +78,7 @@ take_at_most(N, [Msg|Rest], Acc) ->
 map_focus(Fun, [_|_] = List) ->
     map_focus(Fun, [], List, []).
 
+-spec map_focus(fun((X, [X]) -> Y), [X], [X], [Y]) -> [Y].
 map_focus(Fun, Prev, [X], Acc) ->
     lists:reverse([Fun(X, Prev)|Acc]);
 map_focus(Fun, Prev, [X|Rest], Acc) ->

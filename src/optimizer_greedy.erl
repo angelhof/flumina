@@ -44,6 +44,7 @@ generate_setup_tree(Specification, Topology) ->
     SortedTags = sort_tags_by_rate_ascending(NodesRates),
     io:format("Sorted Tags: ~p~n", [SortedTags]),
     
+    %% TODO: Rename to iterative greedy disconnect
     TagsRootTree = iterative_greedy_split(SortedTags, NodesRates, TagsVertices, DepGraph),
     io:format("Tags root tree: ~n~p~n", [TagsRootTree]),
     
@@ -107,81 +108,193 @@ root_tree_to_setup_tree(RootTree, Specification) ->
     %% all tags handled in each subtree, instead of only
     %% the ones at the top node.
     UnionRootTree = union_root_tree(RootTree),
-    greedy_root_tree_to_setup_tree({InitState, UnionRootTree}, Specification).
-				
-%% TODO: Combine the common part when there exist children or not		
-%%
-%% TODO: Find a way to recurse without bringing up everything, but rather by 
-%%       returning some continuation function or something.		   
--spec greedy_root_tree_to_setup_tree({state_type_pair(), set_root_tree()}, specification()) 
-				    -> temp_setup_tree().    
-greedy_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, []}}, Specification) ->
+    
+    %% TODO: Return the shortest tree maybe
+    [OneTree|_] = complete_root_tree_to_setup_tree({InitState, UnionRootTree, fun(X) -> X end}, Specification),
+    %% greedy_root_tree_to_setup_tree({InitState, UnionRootTree}, Specification)
+    OneTree.
+		
+
+%% Complete root_tree_to_setup_tree
+%% 
+%% This is a naive algorithm (in the sense that it doesn't compress at all
+%% and might be re-searching the same trees) root_tree_to_setup_tree.
+%% Also it seems that the trees shold be exponential in the number of splits
+%% so we should be careful. However it is complete.
+-spec complete_root_tree_to_setup_tree(hole_setup_tree(), specification()) 
+				      -> [temp_setup_tree()].    
+complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, []}, HoleTree}, Specification) ->
     {StateType, State} = StateTypePair,
     {_Ts, UpdateFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
     Predicate = opt_lib:tags_to_predicate(sets:to_list(HTags)),
     Funs = {UpdateFun, fun util:crash/2, fun util:crash/2},
-    {State, Node, Predicate, Funs, []};
-%% Having one child in the root tree left is a special case because it
-%% means that it was left behind from a split. In this case, HTags,
-%% should be equal to the Child's HTag's.
-%% TODO: Add this as an assertion.
-%% 
-%% WARNING: We either have to handle the two children case specially, 
-%%          or the one child case. I don't know which one is better though.
-%%
-%% TODO: Probably it is better to handle two children together, as then,
-%%       if they can't be handled, then we can just return the whole tree,
-%%       instead of being stuck with a child that we cannot do anything about.
-greedy_root_tree_to_setup_tree({StateTypePair, {{HTags, _Node}, [Child]}}, Specification) ->
+    NewTree = {State, Node, Predicate, Funs, []},
+    [HoleTree(NewTree)];
+complete_root_tree_to_setup_tree({StateTypePair, {{HTags, _Node}, [Child]}, HoleTree}, Specification) ->
     {StateType, _State} = StateTypePair,
     case opt_lib:can_state_type_handle_tags(StateType, HTags, Specification) of
 	true ->
-	    greedy_root_tree_to_setup_tree({StateTypePair, Child}, Specification);
+	    complete_root_tree_to_setup_tree({StateTypePair, Child, HoleTree}, Specification);
 	false ->
-	    util:err("Got stuck into an invalid split :(~n", []),
-	    util:crash(0,0)
+	    %% We got stuck and this child can not be handled by the specific
+	    %% state type.
+	    []
     end;
-greedy_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}}, Specification) ->
+complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}, HoleTree}, Specification) ->
     %% Is there any split state type triple that starts from the state that we are
     %% now (which is supposed to be able to handle HTags) that goes to any state that
     %% can handle any child's subtree tags.
     SplitMergeFuns = conf_gen:get_split_merge_funs(Specification),
-    {StateType, State} = StateTypePair,    
+    HoledSetupTrees = 
+        filter_splits_satisfy_any_child(StateTypePair, {HTags, Node}, SplitMergeFuns, 
+					    Children, Specification),
+    lists:flatmap(
+      fun({HoleStateTypePair, HoleRootTree, HoleHoleTree}) ->
+	      HoleSetupTrees = 
+		  complete_root_tree_to_setup_tree({HoleStateTypePair, HoleRootTree, HoleHoleTree}, 
+						   Specification),
+	      [HoleTree(HoleSetupTree) || HoleSetupTree <- HoleSetupTrees]
+      end, HoledSetupTrees).
 
-    %% WARNING: For now just keep one setup tree and ignore the rest
-    %%          Here is where we should normally return that a split
-    %%          is missing.
-    [HoledSetupTree|_] = 
-	filter_splits_satisfy_any_child(StateTypePair, SplitMergeFuns, Children, Specification),
-    {LeftRight, SplitMergeFun, TempSetupTree, RestStateTypePair, RestTags, RestSetRootTrees} =
-	HoledSetupTree,
-    %% io:format("~p: ~p~n", [LeftRight, TempSetupTree]),
-    %% WARNING: We assume that StateType must be the same as our current type.
-    %%          That means that there are no chains of splits merges without
-    %%          letting behind any tag.
-    {{StateType, _LStateType, _RStateType}, {SplitFun, MergeFun}} = SplitMergeFun,
+%% This function returns all possible pairs of split-merge and set root trees
+%% that can be handled as their children. In essence, what it returns is a 
+%% list of temp setup trees with a hole, that will be filled with the rest
+%% of the tags and root trees by the recursive procedure.
+%%
+%% WARNING: It assumes that each tag appears in exactly one root tree.
+-spec filter_splits_satisfy_any_child(state_type_pair(), {sets:set(tag()), node()}, split_merge_funs(), 
+				      [set_root_tree()], specification()) 
+				     -> [hole_setup_tree()].
+filter_splits_satisfy_any_child(StateTypePair, TagsNode, SplitMergeFuns, SetRootTrees, Specification) ->
+    DeepHoledSetupTrees =
+	util:map_focus(
+	  fun(Curr, Rest) ->
+		  filter_splits_satisfy_child(StateTypePair, TagsNode, 
+					      SplitMergeFuns, Curr, Rest, Specification)
+	  end, SetRootTrees),
+    lists:flatten(DeepHoledSetupTrees).
 
-    {_Ts, UpdateFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
-    Predicate = opt_lib:tags_to_predicate(sets:to_list(HTags)),
-    Funs = {UpdateFun, SplitFun, MergeFun},
-    %% Here we ideally have to iterate either left or right, depending
-    %% on whether the child matches on the left or on the right
-    %% side of the split. However, as we are searching for any child,
-    %% we can always iterate right. (The greedy search for splits
-    %% is incomplete anyway.
 
-    %% Recurse on the rest of the root tree that is not already turned into 
-    %% a setup tree. The new node is a fake node, as it will just be used to make the 
-    %% tree binary, so it will have the same node as the parent.
-    Recurse =
-	greedy_root_tree_to_setup_tree({RestStateTypePair, {{RestTags, Node}, RestSetRootTrees}}, 
-				       Specification),
+%% This function, is given a list of splits-merges-and their state triples,
+%% and a root tree, and checks whether any of those splits merges, can handle
+%% this root tree as one of their childs. It filters and returns those that
+%% can handle it, together with whether they handled it as their left or right child.
+-spec filter_splits_satisfy_child(state_type_pair(), {sets:set(tag()), node()}, 
+				  split_merge_funs(), set_root_tree(), 
+				  [set_root_tree()], specification()) 
+				 -> [hole_setup_tree()].
+filter_splits_satisfy_child({StateType, State}, {HTags, Node}, SplitMergeFuns, 
+				{{TagSet, _}, _} = SetRootTree, 
+				RestRootTrees, Specification) ->
+    RestTags = 
+        sets:union([Tags || {{Tags, _N}, _} <- RestRootTrees]),
+    %% Filter only to triples where the parent state type is
+    %% the same as the current state type
+    FilteredSplitMergeFuns =
+	[SMF || {{PStateType, _LST, _RST}, _SM} = SMF <- SplitMergeFuns, PStateType =:= StateType],
+    lists:flatmap(
+      fun({Triple, SplitMerge}) ->
+	      LeftRightMatches = split_satisfies_requirements(Triple, TagSet, Specification),	      
+	      %% For each possible match (left | right) return all the possible
+	      %% setup trees for the matches sub root tree.
+	      lists:flatmap(
+		fun(LeftRight) ->
+			%% First we have to finalize the side of the setup
+			%% tree that matched the split, and then we can 
+			%% create the hole on the other side.
+			{NewStateTypePair, RestStateTypePair} =
+			    split_left_or_right(LeftRight, {Triple, SplitMerge}, TagSet, RestTags, State),
+		
+			%% Make all possible setup trees for the matched size.
+			%% Give an empty hole tree, as we can locally make this search.
+			MatchedSideTempSetupTrees = 
+			    complete_root_tree_to_setup_tree({NewStateTypePair, SetRootTree, fun(X) -> X end}, 
+							     Specification),
+			
+			%% Now that we have the matched trees from one side, we can create the hole on
+			%% the other side
+			finalize_split_hole_setup_trees(LeftRight, {StateType, State}, 
+							{HTags, Node}, SplitMerge, RestTags,
+							RestStateTypePair, RestRootTrees,
+							MatchedSideTempSetupTrees, Specification)
+		end, LeftRightMatches)
+      end, FilteredSplitMergeFuns).
+
+-spec split_left_or_right('left' | 'right', split_merge_fun(), sets:set(tag()), 
+			  sets:set(tag()), State::any()) 
+			 -> {state_type_pair(), state_type_pair()}.	 
+split_left_or_right(LeftRight, {Triple, SplitMerge}, CurrTags, RestTags, State) ->
+    {SplitFun, MergeFun} = SplitMerge,
+    {_PST, LStateType, RStateType} = Triple,
+    CurrTagsPred = opt_lib:tags_to_predicate(sets:to_list(CurrTags)),
+    RestTagsPred = opt_lib:tags_to_predicate(sets:to_list(RestTags)),
     case LeftRight of
 	left ->
-	    {State, Node, Predicate, Funs, [TempSetupTree, Recurse]};
+	    {New, Rest} = SplitFun({CurrTagsPred, RestTagsPred}, State),
+	    {{LStateType, New}, {RStateType, Rest}};
 	right ->
-	    {State, Node, Predicate, Funs, [Recurse, TempSetupTree]}
+	    {Rest, New} = SplitFun({RestTagsPred, CurrTagsPred}, State),
+	    {{RStateType, New}, {LStateType, Rest}}
     end.
+
+-spec finalize_split_hole_setup_trees('left' | 'right', state_type_pair(), {sets:set(tag()), node()},
+				      split_merge(), sets:set(tag()), 
+				      state_type_pair(), [set_root_tree()], 
+				      [temp_setup_tree()], specification()) 
+				     -> [hole_setup_tree()].
+finalize_split_hole_setup_trees(LeftRight, {StateType, State}, {HTags, Node}, 
+				SplitMerge, RestTags,
+				RestStateTypePair, RestRootTrees, 
+				MatchedSideTempSetupTrees, Specification) ->
+    {_Ts, UpdateFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
+    {SplitFun, MergeFun} = SplitMerge,
+    Funs = {UpdateFun, SplitFun, MergeFun},
+    HTagsPred = opt_lib:tags_to_predicate(sets:to_list(HTags)),
+    lists:map(
+      fun(MatchedSideTempSetupTree) ->
+	      FinalHoleTree = 
+		  fun(HoleSetupTree) ->
+			  FinalChildren =
+			      case LeftRight of
+				  left ->
+				      %% This means that the left child
+				      %% was matched with split, and therefore
+				      %% the hole goes right.
+				      [MatchedSideTempSetupTree, HoleSetupTree];
+				  right ->
+				      [HoleSetupTree, MatchedSideTempSetupTree]
+			      end,
+			  {State, Node, HTagsPred, Funs, FinalChildren}
+		  end,
+	      %% The root tree now has an empty parent node, as it is really
+	      %% a forest of root trees. So just assign it to the current Node.
+	      {RestStateTypePair, {{RestTags, Node}, RestRootTrees}, FinalHoleTree}
+      end, MatchedSideTempSetupTrees).
+	
+%% TODO: In search of a better name
+%% -spec create_hole_setup_trees('left' | 'right', state_type_pair(), node(),
+%% 				  set_root_tree(), sets:set(tag()), specification()) 
+%% 				 -> [[new_hole_setup_tree()]].)
+%% create_hole_setup_trees()
+
+
+%% This function, given a split state type triple, returns whether a set of tags
+%% can be handled by the left or the right child of the split state type triple.
+-spec split_satisfies_requirements(state_type_triple(), sets:set(tag()), specification()) 
+				  -> ['left' | 'right'].
+split_satisfies_requirements({_Parent, Left, Right}, TagSet, Specification) -> 
+    L1 = 
+	case opt_lib:can_state_type_handle_tags(Left, TagSet, Specification) of
+	    true -> [left];
+	    false -> []
+	end,
+    L2 = 
+	case opt_lib:can_state_type_handle_tags(Right, TagSet, Specification) of
+	    true -> [right];
+	    false -> []
+	end,		
+    L1 ++ L2.
+
 
 -spec union_root_tree(root_tree()) -> set_root_tree().
 union_root_tree({{HTags, Node}, Children}) ->
@@ -193,100 +306,6 @@ union_root_tree({{HTags, Node}, Children}) ->
 
 
 
-%% This function returns all possible pairs of split-merge and set root trees
-%% that can be handled as their children. In essence, what it returns is a 
-%% list of temp setup trees with a hole, that will be filled with the rest
-%% of the tags and root trees by the recursive procedure.
-%%
-%% WARNING: It assumes that each tag appears in exactly one root tree.
--spec filter_splits_satisfy_any_child(state_type_pair(), split_merge_funs(), 
-				      [set_root_tree()], specification()) 
-				     -> [holed_setup_tree()].
-filter_splits_satisfy_any_child(StateTypePair, SplitMergeFuns, SetRootTrees, Specification) ->
-    DeepHoledSetupTrees =
-	util:map_focus(
-	 fun(Curr, Rest) ->
-		 filter_splits_satisfy_any_child_focus(StateTypePair, SplitMergeFuns, Curr, Rest, Specification)
-	 end, SetRootTrees),
-    lists:flatten(DeepHoledSetupTrees).
-    
-
-
-%% This function focuses on one of the root trees and filters all the splits
-%% that can handle it. It also returns the rest of the root trees, and tags
-%% so that the caller knows how to recurse further down the root tree.
--spec filter_splits_satisfy_any_child_focus(state_type_pair(), split_merge_funs(), set_root_tree(), 
-					    [set_root_tree()], specification()) 
-					   -> [holed_setup_tree()].
-filter_splits_satisfy_any_child_focus(StateTypePair, SplitMergeFuns, CurrRootTree, 
-				      RestRootTrees, Specification) ->    
-    RestTags = 
-        sets:union([Tags || {{Tags, _N}, _} <- RestRootTrees]),
-    FilteredSplitMergeFuns = 
-	filter_splits_satisfy_child(StateTypePair, SplitMergeFuns, CurrRootTree, RestTags, Specification),
-    [{LeftRight, SplitMergeFun, TempSetupTree, RestStateTypePair, RestTags, RestRootTrees} 
-     || {LeftRight, SplitMergeFun, TempSetupTree, RestStateTypePair} <- FilteredSplitMergeFuns].
-    
-
-%% This function, is given a list of splits-merges-and their state triples,
-%% and a root tree, and checks whether any of those splits merges, can handle
-%% this root tree as one of their childs. It filters and returns those that
-%% can handle it, together with whether they handled it as their left or right child.
--spec filter_splits_satisfy_child(state_type_pair(), split_merge_funs(), 
-				  set_root_tree(), sets:set(tag()), specification()) 
-				 -> [{'left' | 'right', split_merge_fun(), 
-				      temp_setup_tree(), state_type_pair()}].
-filter_splits_satisfy_child({StateType, State}, SplitMergeFuns, {{TagSet, _}, _} = SetRootTree, 
-			    RestTags, Specification) ->
-    lists:filtermap(
-      fun({Triple, SplitMerge}) ->
-	      {PStateType, LStateType, RStateType} = Triple,
-	      case split_satisfies_requirements(Triple, TagSet, Specification) of
-		  false -> 
-		      false;
-		  LeftRight when PStateType =:= StateType -> 
-		      %% Now we know whether this tag set can be handled.
-		      %% Because of that, we can split the current state,
-		      %% and recurse.
-		      {SplitFun, _MergeFun} = SplitMerge,
-		      TagSetPred = opt_lib:tags_to_predicate(sets:to_list(TagSet)),
-		      RestTagsPred = opt_lib:tags_to_predicate(sets:to_list(RestTags)),
-		      {NewStateTypePair, RestStateTypePair} =
-			  case LeftRight of
-			      left ->
-				  {New, Rest} = SplitFun({TagSetPred, RestTagsPred}, State),
-				  {{LStateType, New}, {RStateType, Rest}};
-			      right ->
-				  {Rest, New} = SplitFun({RestTagsPred, TagSetPred}, State),
-				  {{RStateType, New}, {LStateType, Rest}}
-			  end,
-		      %% Now that we know that this tagset can be handled by one
-		      %% of the children states of this split triple, we recurse
-		      %% to find how would its children be handled
-		      TempSetupTree = 
-			  greedy_root_tree_to_setup_tree({NewStateTypePair, SetRootTree}, Specification),
-		      {true, {LeftRight, {Triple, SplitMerge}, TempSetupTree, RestStateTypePair}};
-		  _ ->
-		      false
-	      end
-      end, SplitMergeFuns).
-
-%% This function, given a split state type triple, returns whether a set of tags
-%% can be handled by the left or the right child of the split state type triple.
--spec split_satisfies_requirements(state_type_triple(), sets:set(tag()), specification()) 
-				   -> 'left' | 'right' | 'false'.
-split_satisfies_requirements({_Parent, Left, Right}, TagSet, Specification) -> 
-    case opt_lib:can_state_type_handle_tags(Left, TagSet, Specification) of
-	true ->
-	    left;
-	false ->
-	    case opt_lib:can_state_type_handle_tags(Right, TagSet, Specification) of
-		true ->
-		    right;
-		false ->
-		    false
-	    end
-    end.
 
 %%
 %% This greedy algorithm, greedily chooses the tags with the lowest rates
