@@ -5,7 +5,6 @@
 As seen in Naiad, we might have to tune low level network parameters (or ERTS parameters)
 in order to tune the system to run well with very small tcp messages between the different erlang nodes.
 
-
 *** TODO Implement a producer that produces events in a rate that is similar to their timestamps
 
 This producer should produce events in times that are relative with the event timestamps.
@@ -13,61 +12,7 @@ This way, latency (and probably throughput) measurements will be closer to reali
 as latency for a message (b,1000) will start counting on 1000 and not whenever it arrives on the node
 with a steady rate producer (which might be much earlier, therefore increasing the latency for b)
 
-*** TODO Implement a tracing mechanism that gathers the statistics that we want
-
-Latency:
-
-Every output message is triggered by an input message. Latency can be defined as the difference between
-the output time of the output message and the input time of the input message. Is this reasonable?
-
-It can be measured if we get a timestamp before a message is routed to the processing node,
-and just before its output is sent out by the sink. For this to make sense, the two timestamps
-should probably be taken on the same machine (so that there is no clock drift) and there has to
-be a way to associate the two messages, so probably the output should contain the tag and timestamp
-of the input message that triggered the event.
-
-We have to make sure that any latency measurement that we do is done on a system with a high enough throughput 
-because otherwise we could just process everything sequentially and thus reduce latency. That is why,
-we have to vary the load, or fix it to a high enough value when measuring latency, so that we have
-to actually parallelize in order for the system to not choke.
-
-*WARNING:*
-In order to measure latency and throughput adequately, producers have to 
-produce events in a rate that is similar to the event timestamps. Otherwise
-a (b,1000) might arrive together with an (a,10) and so its latency will start counting from there.
-
-Implementation:
-  - [X] Implement a router that can be initialized to log some(/their) messages (in the abexample only bs)
-  - [X] Implement a sink that can be initialized to log some output messages (in the example only sum)
-  - [X] There are two ways to do logging:
-    + [X] (NO) Logging could be sending log messages to some logger process.
-          The logger process should be similar to the sink process (and reside in the master node)
-	  and in the end of the application do some external interaction to produce the logs in a file
-	  on the host.
-    + [X] (Preferable) Logging could be creating a file in each container. After that, containers die, 
-          but their folders are shared with the host. Then a script could gather all the log files 
-	  on a log folder, and then we can analyze them,
-
-Throughput:
-
-This can be measured by measuring how many messages have been processed every some seconds/milliseconds.
-
-Implementation:
-  - [ ] Every worker node (if initialized with log number of messages) keeps at its state how many messages
-        it has processed.
-  - [ ] Extend workers/mailboxes to accept a get_number_messages message. When a mailbox receives this message
-        it immediately sends it to the worker node.
-  - [ ] When a worker receives it, it sends its number of messages to the pid that asked it (and zeroes
-        out its number of messages).
-  - [ ] A specific throughput logger process asks every mailbox in the configuration for its number of messages
-        until now every some time. Then it sums them all and logs them on a file. This file can be 
-        processed to find the throughput of the system.
-
-*WARNING:* My only concern is that with these loggers, the implementation gets dirty with logging,
-           messing up the logic. Is there any way to disentangle it from the worker/mailbox logic?
-
-
-
+*** TODO Implement a plot script that plots from latency logs
 *** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement dynamic reconfiguration
 
@@ -274,6 +219,59 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Implement a tracing mechanism that gathers the statistics that we want
+
+Latency:
+
+Every output message is triggered by an input message. Latency can be defined as the difference between
+the output time of the output message and the input time of the input message. Is this reasonable?
+
+It can be measured if we get a timestamp before a message is routed to the processing node,
+and just before its output is sent out by the sink. For this to make sense, the two timestamps
+should probably be taken on the same machine (so that there is no clock drift) and there has to
+be a way to associate the two messages, so probably the output should contain the tag and timestamp
+of the input message that triggered the event.
+
+We have to make sure that any latency measurement that we do is done on a system with a high enough throughput 
+because otherwise we could just process everything sequentially and thus reduce latency. That is why,
+we have to vary the load, or fix it to a high enough value when measuring latency, so that we have
+to actually parallelize in order for the system to not choke.
+
+*WARNING:*
+In order to measure latency and throughput adequately, producers have to 
+produce events in a rate that is similar to the event timestamps. Otherwise
+a (b,1000) might arrive together with an (a,10) and so its latency will start counting from there.
+
+Implementation:
+  - [X] Implement a router that can be initialized to log some(/their) messages (in the abexample only bs)
+  - [X] Implement a sink that can be initialized to log some output messages (in the example only sum)
+  - [X] There are two ways to do logging:
+    + [X] (NO) Logging could be sending log messages to some logger process.
+          The logger process should be similar to the sink process (and reside in the master node)
+	  and in the end of the application do some external interaction to produce the logs in a file
+	  on the host.
+    + [X] (Preferable) Logging could be creating a file in each container. After that, containers die, 
+          but their folders are shared with the host. Then a script could gather all the log files 
+	  on a log folder, and then we can analyze them,
+
+Throughput:
+
+This can be measured by measuring how many messages have been processed every some seconds/milliseconds.
+
+Implementation:
+  - [X] Every worker node (if initialized with log number of messages) keeps at its state how many messages
+        it has processed.
+  - [X] Extend workers/mailboxes to accept a get_number_messages message. When a mailbox receives this message
+        it immediately sends it to the worker node.
+  - [X] When a worker receives it, it sends its number of messages to the pid that asked it (and zeroes
+        out its number of messages).
+  - [X] A specific throughput logger process asks every mailbox in the configuration for its number of messages
+        until now every some time. Then it sums them all and logs them on a file. This file can be 
+        processed to find the throughput of the system.
+
+*WARNING:* My only concern is that with these loggers, the implementation gets dirty with logging,
+           messing up the logic. Is there any way to disentangle it from the worker/mailbox logic?
+
 *** DONE Implement a complete root tree to setup tree function
 
 At the moment the root tree to setup tree function greedily tries to

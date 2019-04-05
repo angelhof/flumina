@@ -1,6 +1,7 @@
 -module(configuration).
 
 -export([create/3,
+	 create/4,
 	 find_node/2,
 	 find_children/2,
 	 find_children_mbox_pids/2,
@@ -19,13 +20,17 @@
 %% - It spawns and creates the nodes
 %% - It initializes the router
 %%
-
 -spec create(temp_setup_tree(), dependencies(), mailbox()) -> configuration().
 create(Tree, Dependencies, OutputPid) ->
+    LogTriple = log_mod:no_log_triple(),
+    create(Tree, Dependencies, LogTriple, OutputPid).
+
+-spec create(temp_setup_tree(), dependencies(), num_log_triple(), mailbox()) -> configuration().
+create(Tree, Dependencies, LogTriple, OutputPid) ->
 
     %% Spawns the nodes
     NameSeed = make_name_seed(),
-    {PidsTree, _NewNameSeed} = spawn_nodes(Tree, NameSeed, Dependencies, OutputPid),
+    {PidsTree, _NewNameSeed} = spawn_nodes(Tree, NameSeed, LogTriple, Dependencies, OutputPid),
 
     %% Create the configuration tree
     ConfTree = prepare_configuration_tree(PidsTree, Tree),
@@ -37,18 +42,19 @@ create(Tree, Dependencies, OutputPid) ->
     ConfTree.
 
 %% Spawns the nodes based on the tree configuration
--spec spawn_nodes(temp_setup_tree(), name_seed(), dependencies(), mailbox()) -> {pid_tree(), name_seed()}.
-spawn_nodes({State, Node, Pred, Funs, Children}, NameSeed, Dependencies, OutputPid) ->
+-spec spawn_nodes(temp_setup_tree(), name_seed(), num_log_triple(), 
+		  dependencies(), mailbox()) -> {pid_tree(), name_seed()}.
+spawn_nodes({State, Node, Pred, Funs, Children}, NameSeed, LogTriple, Dependencies, OutputPid) ->
     {ChildrenPidTrees, NewNameSeed} = 
 	lists:foldr(
 	 fun(C, {AccTrees, NameSeed0}) ->
 		 {CTree, NameSeed1} =
-		     spawn_nodes(C, NameSeed0, Dependencies, OutputPid),
+		     spawn_nodes(C, NameSeed0, LogTriple, Dependencies, OutputPid),
 		 {[CTree|AccTrees], NameSeed1}
 	 end, {[], NameSeed}, Children),
     ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
     {Name, FinalNameSeed} = gen_proc_name(NewNameSeed),
-    {NodePid, NameNode} = node:node(State, {Name, Node}, Pred, Funs, Dependencies, OutputPid),
+    {NodePid, NameNode} = node:node(State, {Name, Node}, Pred, Funs, LogTriple, Dependencies, OutputPid),
     {{{NodePid, NameNode}, ChildrenPidTrees}, FinalNameSeed}.
 
 -spec make_name_seed() -> name_seed().

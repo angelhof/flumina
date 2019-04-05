@@ -118,11 +118,15 @@ greedy_big_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
-    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+    LogTriple = log_mod:make_num_log_triple(),
+    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
+
+    %% Setup logging
+    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
     LoggerInitFun = 
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
@@ -258,20 +262,22 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     InitState = {'state0', 0},
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-    
-    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+
+    LogTriple = log_mod:make_num_log_triple(),    
+    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
 
     %% Set up where will the input arrive
 
     %% Big Inputs
-    %% {A1, A2, Bs} = big_input_distr_example(),
-    %% InputStreams = [{A1, 10}, {A2, 10}, {Bs, 10}],
+    {A1input, A2input, BsInput} = big_input_distr_example(),
+    InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
 
-    BsInput = bs_input_example(),
-    {A1input, A2input} = as_input_example(),
-    InputStreams = [{BsInput, b, 10}, {A1input, {a,1}, 10}, {A2input, {a,2}, 10}],
+    %% BsInput = bs_input_example(),
+    %% {A1input, A2input} = as_input_example(),
+    %% InputStreams = [{BsInput, b, 10}, {A1input, {a,1}, 10}, {A2input, {a,2}, 10}],
 
     %% Log the input times of b messages
+    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
     LoggerInitFun = 
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
@@ -422,8 +428,8 @@ input_example2() ->
 %% -------- TESTS -------- %%
 
 input_example_output() ->
-    [{sum,500500,1001},
-     {sum,1999999,2001}].
+    [{sum,{b,1001,empty},500500},
+     {sum,{b,2001,empty},1999999}].
 
 input_example_test_() ->
     Rounds = lists:seq(1,100),
@@ -436,10 +442,10 @@ input_example_test_() ->
       end} || _ <- Rounds]}.
 
 input_example2_output() ->
-    [{sum,1,2},
-     {sum,9,5},
-     {sum,27,9},
-     {sum,51,16}].
+    [{sum,{b,2,empty},1},
+     {sum,{b,5,empty},9},
+     {sum,{b,9,empty},27},
+     {sum,{b,16,empty},51}].
 
 input_example2_test_() ->
     Rounds = lists:seq(1,100),

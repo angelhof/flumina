@@ -1,6 +1,7 @@
 -module(conf_gen).
 
 -export([generate/3,
+	 generate/4,
 	 make_specification/4,
 	 make_topology/2,
 	 get_state_type_tags_upd/2,
@@ -20,13 +21,16 @@
 %% and contains the functions related to the data structures
 %% specifying the computation and the topology of the network.
 %%
-
 -spec generate(specification(), topology(), atom()) -> configuration().
 generate(Specification, Topology, OptimizerModule) ->
+    generate(Specification, Topology, log_mod:no_log_triple(), OptimizerModule).
+
+-spec generate(specification(), topology(), num_log_triple(), atom()) -> configuration().
+generate(Specification, Topology, LogTriple, OptimizerModule) ->
     SetupTree = gen_setup_tree(Specification, Topology, OptimizerModule),
     Dependencies = get_dependencies(Specification),
     SinkPid = get_sink_pid(Topology),
-    configuration:create(SetupTree, Dependencies, SinkPid).
+    configuration:create(SetupTree, Dependencies, LogTriple, SinkPid).
 
 
 -spec gen_setup_tree(specification(), topology(), atom()) -> temp_setup_tree().

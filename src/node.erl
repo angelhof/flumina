@@ -1,10 +1,10 @@
 -module(node).
 
--export([node/6,
+-export([node/7,
 	 init_mailbox/4,
 	 mailbox/5,
-	 init_node/3,
-	 loop/4]).
+	 init_node/4,
+	 loop/5]).
 
 -include("type_definitions.hrl").
 
@@ -13,11 +13,12 @@
 	       mrg = undefined :: merge_fun()}).
 
 %% Initializes and spawns a node and its mailbox
--spec node(State::any(), mailbox(), message_predicate(), spec_functions(), dependencies(), mailbox()) 
+-spec node(State::any(), mailbox(), message_predicate(), spec_functions(), 
+	   num_log_triple(), dependencies(), mailbox()) 
 	  -> {pid(), mailbox()}.
-node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, Dependencies, Output) ->
+node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, LogTriple, Dependencies, Output) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
-    NodePid = spawn_link(Node, ?MODULE, init_node, [State, Funs, Output]),
+    NodePid = spawn_link(Node, ?MODULE, init_node, [State, Funs, LogTriple, Output]),
     _MailboxPid = spawn_link(Node, ?MODULE, init_mailbox, [Name, Dependencies, Pred, NodePid]),
     %% We return the mailbox pid because every message should first arrive to the mailbox
     {NodePid, {Name, Node}}.
@@ -191,7 +192,10 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 	    NewBuffersTimers = 
 		update_timers_clear_buffers(TagTs, BuffersTimers, Dependencies, Attachee),
 	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewBuffersTimers]),
-	    mailbox(NewBuffersTimers, Dependencies, Pred, Attachee, ConfTree)
+	    mailbox(NewBuffersTimers, Dependencies, Pred, Attachee, ConfTree);
+	{get_message_log, ReplyTo} ->
+	    Attachee ! {get_message_log, ReplyTo},
+	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree)
     end.
 
 
@@ -353,73 +357,123 @@ broadcast_heartbeat({Tag, Ts}, ConfTree) ->
 %%
 %% Main Processing Node
 %%
--spec init_node(State::any(), #funs{}, mailbox()) -> no_return().
-init_node(State, Funs, Output) ->
+-spec init_node(State::any(), #funs{}, num_log_triple(), mailbox()) -> no_return().
+init_node(State, Funs, LogTriple, Output) ->
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
     %% after all the nodes have already been spawned
     receive
 	{configuration, ConfTree} ->
-	    loop(State, Funs, Output, ConfTree)
+	    loop(State, Funs, LogTriple, Output, ConfTree)
     end.
 	
 
 %% This is the main loop that each node executes.
--spec loop(State::any(), #funs{}, mailbox(), configuration()) -> no_return().
-loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, Output, ConfTree) ->
+-spec loop(State::any(), #funs{}, num_log_triple(), mailbox(), configuration()) -> no_return().
+loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, 
+     {LogFun, ResetFun, LogState} = LogTriple, Output, ConfTree) ->
     receive
         {MsgOrMerge, _} = MessageMerge when MsgOrMerge =:= msg orelse MsgOrMerge =:= merge ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
-	    case configuration:find_children_mbox_pids(self(), ConfTree) of
-		[] ->
-		    NewState = handle_message(MessageMerge, State, Output, UFun, ConfTree),
-		    loop(NewState, Funs, Output, ConfTree);
-		Children ->
-		    %% TODO: There are things missing
-		    {_IsMsgMerge, {Tag, Ts, _Payload}} = MessageMerge,
-		    [State1, State2] = receive_states({Tag, Ts}, Children),
-		    MergedState = MFun(State1, State2),
-		    NewState = handle_message(MessageMerge, MergedState, Output, UFun, ConfTree),
-		    [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
-		    {NewState1, NewState2} = SFun({Pred1, Pred2}, NewState),
-		    [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
-		    loop(NewState, Funs, Output, ConfTree)
-	    end
+	    {NewLogState, NewState} = 
+		case configuration:find_children_mbox_pids(self(), ConfTree) of
+		    [] ->
+			handle_message(MessageMerge, State, Output, UFun, LogTriple, ConfTree);
+		    Children ->
+			%% TODO: There are things missing
+			{_IsMsgMerge, {Tag, Ts, _Payload}} = MessageMerge,
+			{LogState1, [State1, State2]} = 
+			    receive_states({Tag, Ts}, Children, LogTriple),
+			MergedState = MFun(State1, State2),
+			{LogState2, NewState0} = 
+			    handle_message(MessageMerge, MergedState, Output, UFun, 
+					   {LogFun, ResetFun, LogState1}, ConfTree),
+			[Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
+			{NewState1, NewState2} = SFun({Pred1, Pred2}, NewState0),
+			[C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
+			{LogState2, NewState0}
+		end,
+	    %% Maybe log some information about the message
+	    FinalLogState = LogFun(MsgOrMerge, NewLogState),
+	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, Output, ConfTree);
+	{get_message_log, ReplyTo} = GetLogMsg ->
+	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
+	    loop(State, Funs, {LogFun, ResetFun, NewLogState}, Output, ConfTree)
     end.
 
 -spec handle_message(gen_message() | gen_merge_request(), State::any(), mailbox(), 
-		     update_fun(), configuration()) 
-		    -> State::any().
-handle_message({msg, Msg}, State, Output, UFun, _Conf) ->
-    update_on_msg(Msg, State, Output, UFun);
-handle_message({merge, {_Tag, _Ts, Father}}, State, _Output, _UFun, Conf) ->
-    respond_to_merge(Father, State, Conf).
+		     update_fun(), num_log_triple(), configuration()) 
+		    -> {num_log_state(), State::any()}.
+handle_message({msg, Msg}, State, Output, UFun, {_, _, LogState}, _Conf) ->
+    {LogState, update_on_msg(Msg, State, Output, UFun)};
+handle_message({merge, {_Tag, _Ts, Father}}, State, _Output, _UFun, LogTriple, Conf) ->
+    respond_to_merge(Father, State, LogTriple, Conf).
 
 -spec update_on_msg(gen_message(), State::any(), mailbox(), update_fun()) -> State::any().
 update_on_msg(Msg, State, Output, UFun) ->
     NewState = UFun(Msg, State, Output),    
     NewState.
 
--spec respond_to_merge(pid(), State::any(), configuration()) -> State::any().
-respond_to_merge(Father, State, ConfTree) ->
+-spec respond_to_merge(pid(), State::any(), num_log_triple(), configuration())
+		      -> {num_log_state(), State::any()}.
+respond_to_merge(Father, State, LogTriple, ConfTree) ->
     %% We have to send our mailbox's pid to our parent
     %% so that they can recognize where does this state message come from
     Self = self(),
     {node, Self, MboxNameNode, _P, _Children} = 
 	configuration:find_node(Self, ConfTree),
     Father ! {state, {MboxNameNode, State}},
+    receive_new_state_or_get_message_log(LogTriple).
+
+
+%%
+%% The following functions have become dirty because of logging.
+%% TODO: Clean up, and disentangle
+%%
+
+%% This function waits for the new state, but can also handle
+%% get_message_log messages so that they are not stuck in the
+%% mailbox
+-spec receive_new_state_or_get_message_log(num_log_triple()) -> {num_log_state(), State::any()}.
+receive_new_state_or_get_message_log({LogFun, ResetFun, LogState}) ->
+    %% WARNING: There is an issue with that here.
+    %%          It searches through the whole mailbox for a state
+    %%          message. If the load is unhandleable, then it might
+    %%          create overheads.
     receive
 	{state, NewState} ->
-	    NewState
+	    {LogState, NewState};
+	{get_message_log, ReplyTo} = GetLogMsg ->
+	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
+	    receive_new_state_or_get_message_log({LogFun, ResetFun, NewLogState})
     end.
 
--spec receive_state(mailbox()) -> State::any().
-receive_state(C) ->
+-spec handle_get_message_log({'get_message_log', mailbox()}, num_log_triple()) -> num_log_state().
+handle_get_message_log({get_message_log, ReplyTo}, {_LogFun, ResetFun, LogState}) ->
+    %% Reply to ReplyTo with the number of processed messages
+    ReplyTo ! {message_log, {self(), node()}, LogState},
+    %% Reset the num_state
+    ResetFun(LogState).
+
+-spec receive_state_or_get_message_log(mailbox(), {[State::any()], num_log_triple()}) 
+				      -> {[State::any()], num_log_triple()}.
+receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, LogState}}) ->
+    %% WARNING: There is an issue with that here.
+    %%          It searches through the whole mailbox for a state
+    %%          message. If the load is unhandleable, then it might
+    %%          create overheads.
     receive
 	{state, {C, State}} ->
-	    State
+	    {[State|States], {LogFun, ResetFun, LogState}};
+	{get_message_log, ReplyTo} = GetLogMsg ->
+	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
+	    receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, NewLogState}})
     end.
 
--spec receive_states({tag(), integer()}, [mailbox()]) -> [State::any()].
-receive_states({_Tag, _Ts}, Children) ->
-    [receive_state(C) || C <- Children].
+-spec receive_states({tag(), integer()}, [mailbox()], num_log_triple()) 
+		    -> {num_log_state(), [State::any()]}.
+receive_states({_Tag, _Ts}, Children, LogTriple) ->
+    {States, {_, _, NewLogState}} =
+	lists:foldr(fun receive_state_or_get_message_log/2, {[], LogTriple}, Children),
+    %% [receive_state(C) || C <- Children].
+    {NewLogState, States}.

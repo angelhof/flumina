@@ -2,7 +2,15 @@
 
 -export([initialize_message_logger_state/2,
 	 maybe_log_message/2,
-	 no_message_logger/0]).
+	 no_message_logger/0,
+	
+	 init_num_log_state/0,
+	 reset_num_log_state/1,
+	 incr_num_log_state/2,
+	 make_num_log_triple/0,
+	 no_log_triple/0,
+	
+	 num_logger_process/2]).
 
 -include("type_definitions.hrl").
 
@@ -46,3 +54,77 @@ log_message(Msg, {_Tags, File}) ->
 no_message_logger() ->
     fun(_Msg) -> ok end.
 
+%%
+%% Number of messages loggers
+%%
+
+-spec init_num_log_state() -> integer().
+init_num_log_state() -> 
+    0.
+
+-spec reset_num_log_state(num_log_state()) -> integer().
+reset_num_log_state(_) -> 
+    0.
+
+-spec incr_num_log_state(gen_message() | gen_merge_request(), num_log_state()) -> num_log_state().
+incr_num_log_state(_Msg, Num) ->
+    Num + 1.
+
+-spec make_num_log_triple() -> num_log_triple().
+make_num_log_triple() ->
+    {fun log_mod:incr_num_log_state/2, fun log_mod:reset_num_log_state/1, init_num_log_state()}. 
+
+-spec no_log_triple() -> num_log_triple().
+no_log_triple() ->
+    {fun(_,_) -> 0 end, fun(_) -> 0 end, 0}.
+
+-spec num_logger_process(string(), configuration()) -> ok.
+num_logger_process(Prefix, Configuration) ->
+    register('num_messages_logger_process', self()),
+    Filename =
+        io_lib:format("logs/~s_~s_~s_num_messages.log", 
+		      [Prefix, pid_to_list(self()), atom_to_list(node())]),
+    {ok, IoDevice} = file:open(Filename, [append]),
+    ok = file:truncate(IoDevice),
+    num_logger_process_loop(IoDevice, Configuration).
+
+
+-spec num_logger_process_loop(file:io_device(), configuration()) -> ok.
+num_logger_process_loop(IoDevice, Configuration) ->
+    timer:sleep(500),
+
+    %% Send the get_log_message to all mailboxes in the configuration
+    PidMboxPairs = configuration:find_node_mailbox_pid_pairs(Configuration),
+    {registered_name, MyName} = erlang:process_info(self(), registered_name),
+    RequestMessage = {get_message_log, {MyName, node()}},
+    [Mbox ! RequestMessage || {_Node, Mbox} <- PidMboxPairs],
+
+    %% Receive the answer from all mailboxes in the configuration
+    ReceivedLogs = receive_message_logs(PidMboxPairs, []),
+
+    %% Log all the answers in the file (with a current timestamp)
+    CurrentTimestamp = erlang:monotonic_time(),
+    append_logs_in_file(ReceivedLogs, CurrentTimestamp, IoDevice),
+    num_logger_process_loop(IoDevice, Configuration).
+
+-spec receive_message_logs([{pid(), mailbox()}], [{mailbox(), num_log_state()}])
+			  -> [{mailbox(), num_log_state()}].
+receive_message_logs([], Received) ->
+    Received;
+receive_message_logs([{NodePid, {MboxName, Node}}|Rest], Received) ->
+    receive
+	{message_log, {NodePid, Node}, LogState} ->
+	    receive_message_logs(Rest, [{{MboxName, Node}, LogState}|Received])
+    end.
+
+-spec append_logs_in_file([{mailbox(), num_log_state()}], integer(), file:io_device()) -> ok.
+append_logs_in_file(ReceivedLogs, CurrentTimestamp, IoDevice) ->
+    lists:foreach(
+      fun(MboxLog) ->
+	      append_log_in_file(MboxLog, CurrentTimestamp, IoDevice)
+      end, ReceivedLogs).
+
+-spec append_log_in_file({mailbox(), num_log_state()}, integer(), file:io_device()) -> ok.
+append_log_in_file({Mbox, Log}, CurrentTimestamp, IoDevice) ->
+    Data = io_lib:format("~w~n", [{Mbox, CurrentTimestamp, Log}]),
+    ok = file:write(IoDevice, Data).

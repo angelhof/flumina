@@ -109,3 +109,10 @@
 
 -type message_logger_init_fun() :: fun(() -> message_logger_log_fun()).
 -type message_logger_log_fun() :: fun((gen_message()) -> 'ok').
+
+-type num_log_state() :: integer().
+-type num_log_fun() :: fun((gen_message() | gen_merge_request(), num_log_state()) -> num_log_state()).
+-type reset_num_log_fun() :: fun((num_log_state()) -> num_log_state()).
+%% TODO: Make a general log triple type
+-type num_log_triple() :: {num_log_fun(), reset_num_log_fun(), num_log_state()}.
+
