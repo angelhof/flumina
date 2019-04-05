@@ -1,21 +1,23 @@
 -module(log_mod).
 
--export([initialize_message_logger_state/1,
+-export([initialize_message_logger_state/2,
 	 maybe_log_message/2,
 	 no_message_logger/0]).
 
 -include("type_definitions.hrl").
 
--spec initialize_message_logger_state(sets:set(tag())) -> message_logger_log_fun().
-initialize_message_logger_state(Tags) ->
+-spec initialize_message_logger_state(string(), sets:set(tag())) -> message_logger_log_fun().
+initialize_message_logger_state(Prefix, Tags) ->
     Filename =
-        io_lib:format("logs/~s_~s_messages.log", [pid_to_list(self()), atom_to_list(node())]), 
+        io_lib:format("logs/~s_~s_~s_messages.log", 
+		      [Prefix, pid_to_list(self()), atom_to_list(node())]), 
     {ok, IoDevice} = file:open(Filename, [append]),
     ok = file:truncate(IoDevice),
     fun(Msg) ->
 	    maybe_log_message(Msg, {Tags, IoDevice})
     end.
     
+%% Generalize the predicate to be anything instead of just a tag set
 %% WARNING: At the moment this only logs messages, not heartbeats
 -spec maybe_log_message(gen_message(), message_logger_state()) -> 'ok'.
 maybe_log_message({Tag, _, _} = Msg, {Tags, _} = LoggerState) ->
@@ -24,7 +26,9 @@ maybe_log_message({Tag, _, _} = Msg, {Tags, _} = LoggerState) ->
 	    log_message(Msg, LoggerState);
 	false ->
 	    ok
-    end.
+    end;
+maybe_log_message(Msg, LoggerState) ->
+    ok.
 
 -spec log_message(gen_message(), message_logger_state()) -> 'ok'.
 log_message(Msg, {_Tags, File}) ->

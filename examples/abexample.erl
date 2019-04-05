@@ -93,7 +93,11 @@ greedy_big() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, greedy_big_conf, [SinkName]),
-    util:sink().
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
+	end,
+    util:sink(LoggerInitFun).
 
 greedy_big_conf(SinkPid) ->
     %% Architecture
@@ -121,7 +125,7 @@ greedy_big_conf(SinkPid) ->
     InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
     LoggerInitFun = 
 	fun() ->
-	        log_mod:initialize_message_logger_state(sets:from_list([b]))
+	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
     producer:make_producers(InputStreams, ConfTree, Topology, LoggerInitFun),
 
@@ -230,7 +234,11 @@ real_distributed(NodeNames) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     ExecPid = spawn_link(?MODULE, real_distributed_conf, [SinkName, NodeNames]),
-    util:sink().
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
+	end,
+    util:sink(LoggerInitFun).
 
 real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Architecture
@@ -266,7 +274,7 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Log the input times of b messages
     LoggerInitFun = 
 	fun() ->
-	        log_mod:initialize_message_logger_state(sets:from_list([b]))
+	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
     producer:make_producers(InputStreams, ConfTree, Topology, LoggerInitFun),
 
@@ -281,7 +289,7 @@ update({{a,_}, Ts, Value}, Sum, SendTo) ->
     %% SendTo ! {self(), a, Value, Ts},
     Sum + Value;
 update({b, Ts, empty}, Sum, SendTo) ->
-    SendTo ! {sum, Sum, Ts},
+    SendTo ! {sum, {b, Ts, empty}, Sum},
     Sum.
 
 merge(Sum1, Sum2) ->

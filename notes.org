@@ -38,7 +38,7 @@ a (b,1000) might arrive together with an (a,10) and so its latency will start co
 
 Implementation:
   - [X] Implement a router that can be initialized to log some(/their) messages (in the abexample only bs)
-  - [ ] Implement a sink that can be initialized to log some output messages (in the example only sum)
+  - [X] Implement a sink that can be initialized to log some output messages (in the example only sum)
   - [X] There are two ways to do logging:
     + [X] (NO) Logging could be sending log messages to some logger process.
           The logger process should be similar to the sink process (and reside in the master node)

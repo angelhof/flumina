@@ -18,3 +18,5 @@ docker container kill "${B}.local"
 ./make-docker-container.sh "${A2}" true
 ./make-docker-container.sh "${B}" false "${EXEC}"
 
+## After the end of the script gather the logs in a folder with name and date
+python3 gather_logs.py "abexample_scenario" "${A1} ${A2} ${B}"

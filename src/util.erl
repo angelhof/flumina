@@ -4,6 +4,7 @@
 	 crash/2,
 	 exec/1,
 	 sink/0,
+	 sink/1,
 	 merge_with/3,
 	 take_at_most/2,
 	 map_focus/2,
@@ -33,10 +34,18 @@ parse(Str) ->
     Value.
 
 sink() ->
+    sink(fun log_mod:no_message_logger/0).
+
+sink(MsgLoggerInitFun) ->
+    LoggerFun = MsgLoggerInitFun(),
+    sink_loop(LoggerFun).
+
+sink_loop(LoggerFun) ->
     receive
 	Msg ->
+	    LoggerFun(Msg),
 	    io:format("~p~n", [Msg]),
-	    sink()
+	    sink_loop(LoggerFun)
     after 
 	5000 ->
 	    ok
