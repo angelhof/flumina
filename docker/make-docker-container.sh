@@ -10,6 +10,7 @@ cp -r ../include "read-only/$1"
 cp -r ../scenarios "read-only/$1"
 cp -r ../src "read-only/$1"
 cp ../Makefile "read-only/$1/Makefile"
+mkdir -p "read-only/$1/logs"
 
 rm -f "read-only/$1/ebin/*"
 

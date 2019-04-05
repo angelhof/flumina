@@ -119,7 +119,11 @@ greedy_big_conf(SinkPid) ->
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
     InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
-    producer:make_producers(InputStreams, ConfTree, Topology),
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state(sets:from_list([b]))
+	end,
+    producer:make_producers(InputStreams, ConfTree, Topology, LoggerInitFun),
 
     SinkPid ! finished.
 
@@ -258,7 +262,13 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     BsInput = bs_input_example(),
     {A1input, A2input} = as_input_example(),
     InputStreams = [{BsInput, b, 10}, {A1input, {a,1}, 10}, {A2input, {a,2}, 10}],
-    producer:make_producers(InputStreams, ConfTree, Topology),
+
+    %% Log the input times of b messages
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state(sets:from_list([b]))
+	end,
+    producer:make_producers(InputStreams, ConfTree, Topology, LoggerInitFun),
 
     SinkPid ! finished,
     ok.

@@ -98,3 +98,14 @@
 			    fun((temp_setup_tree()) -> temp_setup_tree())}.
 
 -type name_seed() :: integer().
+
+%%
+%% Logger
+%%
+
+-type message_logger_state() :: { sets:set(tag()), %% The set of tags to log
+				  file:io_device() %% The file at which the event will be logged
+				}.
+
+-type message_logger_init_fun() :: fun(() -> message_logger_log_fun()).
+-type message_logger_log_fun() :: fun((gen_message()) -> 'ok').

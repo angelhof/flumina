@@ -8,6 +8,7 @@
 	 take_at_most/2,
 	 map_focus/2,
 	 nothing/0,
+	 always_ok/1,
 	 unregister_names/1]).
 
 -include("type_definitions.hrl").
@@ -86,6 +87,10 @@ map_focus(Fun, Prev, [X|Rest], Acc) ->
 
 %% Eunit setup
 nothing() -> ok.
+
+-spec always_ok(any()) -> 'ok'.
+always_ok(_) ->
+    ok.
 
 unregister_names(Names) ->
     lists:foreach(

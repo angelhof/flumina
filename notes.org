@@ -37,14 +37,14 @@ produce events in a rate that is similar to the event timestamps. Otherwise
 a (b,1000) might arrive together with an (a,10) and so its latency will start counting from there.
 
 Implementation:
-  - [ ] Implement a router that can be initialized to log some(/their) messages (in the abexample only bs)
+  - [X] Implement a router that can be initialized to log some(/their) messages (in the abexample only bs)
   - [ ] Implement a sink that can be initialized to log some output messages (in the example only sum)
-  - [ ] There are two ways to do logging:
-    + [ ] Logging could be sending log messages to some logger process.
+  - [X] There are two ways to do logging:
+    + [X] (NO) Logging could be sending log messages to some logger process.
           The logger process should be similar to the sink process (and reside in the master node)
 	  and in the end of the application do some external interaction to produce the logs in a file
 	  on the host.
-    + [ ] (Preferable) Logging could be creating a file in each container. After that, containers die, 
+    + [X] (Preferable) Logging could be creating a file in each container. After that, containers die, 
           but their folders are shared with the host. Then a script could gather all the log files 
 	  on a log folder, and then we can analyze them,
 

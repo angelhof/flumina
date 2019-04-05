@@ -1,8 +1,11 @@
 -module(producer).
 
 -export([make_producers/3,
+	 make_producers/4,
 	 constant_rate_source/3,
+	 constant_rate_source/4,
 	 route_constant_rate_source/4,
+	 route_constant_rate_source/5,
 	 dumper/2,
 	 interleave_heartbeats/3
 	]).
@@ -15,6 +18,11 @@
 
 -spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), topology()) -> ok.
 make_producers(InputStreams, Configuration, Topology) ->
+    make_producers(InputStreams, Configuration, Topology, fun log_mod:no_message_logger/0).
+
+-spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), 
+		     topology(), message_logger_init_fun()) -> ok.
+make_producers(InputStreams, Configuration, Topology, MessageLoggerInitFun) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
     lists:foreach(
       fun({InputStream, Tag, Rate}) ->
@@ -22,7 +30,9 @@ make_producers(InputStreams, Configuration, Topology) ->
 	      {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
 	      %% Log producer creation
 	      io:format("Spawning producer for tag: ~p in node: ~p~n", [Tag, Node]),
-	      spawn_link(Node, producer, route_constant_rate_source, [Tag, InputStream, Rate, Configuration])
+	      %% WARNING: Maybe I should spawn link?
+	      spawn_link(Node, producer, route_constant_rate_source, 
+			 [Tag, InputStream, Rate, Configuration, MessageLoggerInitFun])
      end, InputStreams).
 
 %%
@@ -41,38 +51,51 @@ make_producers(InputStreams, Configuration, Topology) ->
 %%
 -spec constant_rate_source([gen_message_or_heartbeat()], integer(), mailbox()) -> ok.
 constant_rate_source(Messages, Period, SendTo) ->
+    constant_rate_source(Messages, Period, SendTo, fun log_mod:no_message_logger/0).
+
+-spec constant_rate_source([gen_message_or_heartbeat()], integer(), mailbox(), 
+			   message_logger_init_fun()) -> ok.
+constant_rate_source(Messages, Period, SendTo, MsgLoggerInitFun) ->
+    %% Initialize the logger, to get the message logger fun
+    LoggerFun = MsgLoggerInitFun(),
     case Period =< 10000 of
 	true ->
-	    constant_rate_source_fast(Messages, 10000 div Period, SendTo);
+	    constant_rate_source_fast(Messages, 10000 div Period, SendTo, LoggerFun);
 	false ->
-	    constant_rate_source_slow(Messages, Period div 1000, SendTo)
+	    constant_rate_source_slow(Messages, Period div 1000, SendTo, LoggerFun)
     end.
 
 %% This sends a batch of BatchSize and then waits 10 ms
--spec constant_rate_source_fast([gen_message_or_heartbeat()], 1..10000, mailbox()) -> ok.
-constant_rate_source_fast([], _BatchSize, _SendTo) ->
+-spec constant_rate_source_fast([gen_message_or_heartbeat()], 1..10000, mailbox(), 
+				message_logger_log_fun()) -> ok.
+constant_rate_source_fast([], _BatchSize, _SendTo, _MsgLoggerLogFun) ->
     ok;
-constant_rate_source_fast(Messages, BatchSize, SendTo) ->
+constant_rate_source_fast(Messages, BatchSize, SendTo, MsgLoggerLogFun) ->
     {MsgsToSend, Rest} = util:take_at_most(BatchSize, Messages),
-    [send_message_or_heartbeat(Msg, SendTo) || Msg <- MsgsToSend],
+    [send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun) || Msg <- MsgsToSend],
     timer:sleep(10),
-    constant_rate_source_fast(Rest, BatchSize, SendTo).
+    constant_rate_source_fast(Rest, BatchSize, SendTo, MsgLoggerLogFun).
 
 %% This only works with periods larger than 10 ms
--spec constant_rate_source_slow([gen_message_or_heartbeat()], integer(), mailbox()) -> ok.
-constant_rate_source_slow([], _Period, _SendTo) ->
+-spec constant_rate_source_slow([gen_message_or_heartbeat()], integer(), mailbox(),
+				message_logger_log_fun()) -> ok.
+constant_rate_source_slow([], _Period, _SendTo,  _MsgLoggerLogFun) ->
     ok;
-constant_rate_source_slow([Msg|Rest], Period, SendTo) ->
-    send_message_or_heartbeat(Msg, SendTo),
+constant_rate_source_slow([Msg|Rest], Period, SendTo, MsgLoggerLogFun) ->
+    send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun),
     timer:sleep(Period),
-    constant_rate_source_slow(Rest, Period, SendTo).
-
+    constant_rate_source_slow(Rest, Period, SendTo, MsgLoggerLogFun).
 
 -spec route_constant_rate_source(tag(), [gen_message_or_heartbeat()], integer(), configuration()) -> ok.
 route_constant_rate_source(Tag, Messages, Period, Configuration) ->
+    route_constant_rate_source(Tag, Messages, Period, Configuration, fun log_mod:no_message_logger/0).
+
+-spec route_constant_rate_source(tag(), [gen_message_or_heartbeat()], integer(), 
+				 configuration(), message_logger_init_fun()) -> ok.
+route_constant_rate_source(Tag, Messages, Period, Configuration, MessageLoggerInitFun) ->
     %% Find where to route the message in the configuration tree
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
-    constant_rate_source(Messages, Period, SendTo).
+    constant_rate_source(Messages, Period, SendTo, MessageLoggerInitFun).
 
 %%
 %% This is the simplest producer, that takes as input a list of 
@@ -83,7 +106,7 @@ route_constant_rate_source(Tag, Messages, Period, Configuration) ->
 dumper([], _SendTo) ->
     ok;
 dumper([Msg|Rest], SendTo) ->
-    send_message_or_heartbeat(Msg, SendTo),
+    send_message_or_heartbeat(Msg, SendTo, fun util:always_ok/1),
     dumper(Rest, SendTo).
 
 
@@ -138,8 +161,10 @@ generate_heartbeat(HTag, From, To, Period) ->
     Heartbeat = {heartbeat, {HTag, HTs}},
     {Heartbeat, HTs + Period}.
     
--spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox()) -> gen_imessage_or_iheartbeat().
-send_message_or_heartbeat({heartbeat, Hearbeat}, SendTo) ->
+-spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
+			        message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
+send_message_or_heartbeat({heartbeat, Hearbeat}, SendTo, MessageLoggerInitFun) ->
     SendTo ! {iheartbeat, Hearbeat};
-send_message_or_heartbeat(Msg, SendTo) ->
+send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
+    ok = MessageLoggerInitFun(Msg),
     SendTo ! {imsg, Msg}.
