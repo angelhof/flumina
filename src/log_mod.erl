@@ -91,6 +91,7 @@ num_logger_process(Prefix, Configuration) ->
 
 -spec num_logger_process_loop(file:io_device(), configuration()) -> ok.
 num_logger_process_loop(IoDevice, Configuration) ->
+    %% It should be messages every 500 ms
     timer:sleep(500),
 
     %% Send the get_log_message to all mailboxes in the configuration

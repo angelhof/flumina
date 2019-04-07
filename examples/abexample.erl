@@ -272,7 +272,7 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Big Inputs
     {A1, A2, Bs} = big_input_distr_example(),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 50}],
+    InputStreams = [{A1, {a,1}, 100}, {A2, {a,2}, 100}, {Bs, b, 100}],
 
     %% BsInput = bs_input_example(),
     %% {A1input, A2input} = as_input_example(),
