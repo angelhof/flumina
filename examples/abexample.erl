@@ -123,7 +123,8 @@ greedy_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
+    %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
+    InputStreams = [{A1, {a,1}, 100}, {A2, {a,2}, 100}, {Bs, b, 100}],
 
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
@@ -131,7 +132,7 @@ greedy_big_conf(SinkPid) ->
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, LoggerInitFun),
+    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
 
     SinkPid ! finished.
 
@@ -269,8 +270,9 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Set up where will the input arrive
 
     %% Big Inputs
-    {A1input, A2input, BsInput} = big_input_distr_example(),
-    InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
+    {A1, A2, Bs} = big_input_distr_example(),
+    %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
+    InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 50}],
 
     %% BsInput = bs_input_example(),
     %% {A1input, A2input} = as_input_example(),
@@ -282,7 +284,7 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, LoggerInitFun),
+    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
 
     SinkPid ! finished,
     ok.
@@ -352,17 +354,18 @@ big_input_distr_example() ->
     A1 = lists:flatten(
 	   [[{{a,1}, T + (1000 * BT), T + (1000 * BT)} 
 	     || T <- lists:seq(1, 999, 2)]
-	    || BT <- lists:seq(1,1000)])
-	++ [{heartbeat, {{a,1},10000000}}], 
+	    || BT <- lists:seq(0,1000)])
+	++ [{heartbeat, {{a,1},1000000}}], 
 
     A2 = lists:flatten(
 	   [[{{a,2}, T + (1000 * BT), T + (1000 * BT)} 
 	     || T <- lists:seq(2, 998, 2)]
-	    || BT <- lists:seq(1,1000)])
-	++ [{heartbeat, {{a,2},10000000}}],
+	    || BT <- lists:seq(0,1000)])
+	++ [{heartbeat, {{a,2},1000000}}],
 
-    Bs = [{b, 1000 + (1000 * BT), empty} || BT <- lists:seq(1,1000)]
-	++ [{heartbeat, {b,10000000}}],
+    Bs = [{b, 1000 + (1000 * BT), empty} 
+	  || BT <- lists:seq(0,1000)]
+	++ [{heartbeat, {b,1000000}}],
     {A1, A2, Bs}.
 
 complex_input_distr_example() ->
@@ -380,18 +383,18 @@ complex_input_distr_example() ->
 	++ [{heartbeat, {{a,4},10000000}}],
     {A1, A2, A3, A4, Bs}.
 
-bs_input_example() ->
-    [{b, 1001, empty},
-     {b, 2001, empty},
-     {heartbeat, {b,2005}}].
+%% bs_input_example() ->
+%%     [{b, 1001, empty},
+%%      {b, 2001, empty},
+%%      {heartbeat, {b,2005}}].
 
-as_input_example() ->
-    AllAs = 
-	[gen_a(V) || V <- lists:seq(1, 1000, 2)] ++ 
-	[gen_a(V) || V <- lists:seq(1002, 2000, 2)],
-    {A1s, A2s} = lists:partition(fun({{a,Id},_,_}) -> Id =:= 1 end, AllAs),
-    {A1s ++ [{heartbeat, {{a,1},2005}}], 
-     A2s ++ [{heartbeat, {{a,2},2005}}]}. 
+%% as_input_example() ->
+%%     AllAs = 
+%% 	[gen_a(V) || V <- lists:seq(1, 1000, 2)] ++ 
+%% 	[gen_a(V) || V <- lists:seq(1002, 2000, 2)],
+%%     {A1s, A2s} = lists:partition(fun({{a,Id},_,_}) -> Id =:= 1 end, AllAs),
+%%     {A1s ++ [{heartbeat, {{a,1},2005}}], 
+%%      A2s ++ [{heartbeat, {{a,2},2005}}]}. 
 
 gen_a(V) ->
     Id = random:uniform(2),

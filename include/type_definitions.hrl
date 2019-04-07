@@ -116,3 +116,8 @@
 %% TODO: Make a general log triple type
 -type num_log_triple() :: {num_log_fun(), reset_num_log_fun(), num_log_state()}.
 
+%%
+%% Producer
+%%
+
+-type msg_generator() :: fun(() -> 'done' | {gen_message_or_heartbeat(),  msg_generator()}).

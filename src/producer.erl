@@ -2,6 +2,10 @@
 
 -export([make_producers/3,
 	 make_producers/4,
+	 make_producers/5,
+	 route_timestamp_rate_source/4,
+	 route_timestamp_rate_source/5,
+	 timestamp_rate_source/4,
 	 constant_rate_source/3,
 	 constant_rate_source/4,
 	 route_constant_rate_source/4,
@@ -15,25 +19,140 @@
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%% 
-
 -spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), topology()) -> ok.
 make_producers(InputStreams, Configuration, Topology) ->
-    make_producers(InputStreams, Configuration, Topology, fun log_mod:no_message_logger/0).
+    make_producers(InputStreams, Configuration, Topology, constant).
 
 -spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), 
-		     topology(), message_logger_init_fun()) -> ok.
-make_producers(InputStreams, Configuration, Topology, MessageLoggerInitFun) ->
+		     topology(), 'constant' | 'timestamp_based') -> ok.
+make_producers(InputStreams, Configuration, Topology, ProducerType) ->
+    make_producers(InputStreams, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
+
+-spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), 
+		     topology(), 'constant' | 'timestamp_based', message_logger_init_fun()) -> ok.
+make_producers(InputStreams, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
     lists:foreach(
       fun({InputStream, Tag, Rate}) ->
 	      %% TODO: Maybe at some point I will use the real given rate
 	      {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
 	      %% Log producer creation
-	      io:format("Spawning producer for tag: ~p in node: ~p~n", [Tag, Node]),
-	      %% WARNING: Maybe I should spawn link?
-	      spawn_link(Node, producer, route_constant_rate_source, 
-			 [Tag, InputStream, Rate, Configuration, MessageLoggerInitFun])
+	      case ProducerType of
+		  constant ->
+		      Pid = spawn_link(Node, producer, route_constant_rate_source, 
+				       [Tag, InputStream, Rate, Configuration, MessageLoggerInitFun]),
+		      io:format("Spawning constant rate producer for tag: ~p with pid: ~p in node: ~p~n", 
+				[Tag, Pid, Node]);
+		  timestamp_based ->
+		      Pid = spawn_link(Node, producer, route_timestamp_rate_source, 
+				       [Tag, list_generator(InputStream), Rate, 
+					Configuration, MessageLoggerInitFun]),
+		      io:format("Spawning timestamp based rate producer for tag: ~p with pid: ~p in node: ~p~n", 
+				[Tag, Pid, Node])
+	      end
      end, InputStreams).
+
+%%
+%% This producer sends a stream of messages with a rate that depends
+%% on the given rate multiplier and the message timestamps.
+%% It is given a message generator, which is a function that returns
+%% the next message, and the next generator. This can be implemented
+%% as a file reader, or a list, or anything.
+%% 
+%% NOTE: The producer is assumed to return instantly. So it should
+%%       be non-blocking.
+%% WARNING: This producer doesn't really provide hard real time 
+%%          guarantees, and messages could be delayed more or less
+%%          than what their timestamps say. 
+%% TODO: Unify the route_constant and route_timestamp, as they do the same thing
+-spec route_timestamp_rate_source(tag(), msg_generator(), integer(), configuration()) -> ok.
+route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration) ->
+    route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
+
+-spec route_timestamp_rate_source(tag(), msg_generator(), integer(), 
+				  configuration(), message_logger_init_fun()) -> ok.
+route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
+    %% Find where to route the message in the configuration tree
+    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    timestamp_rate_source(MsgGen, Rate, SendTo, MessageLoggerInitFun).
+
+-spec timestamp_rate_source(msg_generator(), Rate::integer(), 
+			    mailbox(), message_logger_init_fun()) -> ok.
+timestamp_rate_source(MsgGen, Rate, SendTo, MsgLoggerInitFun) ->
+    LoggerFun = MsgLoggerInitFun(),
+    timestamp_rate_source(MsgGen, Rate, 0, SendTo, LoggerFun).
+
+-spec timestamp_rate_source(msg_generator(), Rate::integer(), PrevTs::integer(), 
+			    mailbox(), message_logger_log_fun()) -> ok.
+timestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
+    %% First compute how much time the process has to wait
+    %% to send the next message.
+    case messages_to_send(MsgGen, Rate, PrevTs) of
+	done ->
+	    %% io:format("Done~n", []),
+	    ok;
+	{NewMsgGen, MsgsToSend, NewTs} ->
+	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),
+	    [send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun) || Msg <- MsgsToSend],
+	    timestamp_rate_source(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
+    end.
+
+%% This function gathers the messages to send in the next batch, 
+%% and waits the correct amount of time before collecting them.
+%% It returns a new message generator, the new PrevTs, and the
+%% messages to be sent.
+-spec messages_to_send(msg_generator(), Rate::integer(), PrevTs::integer())
+		      -> 'done' | {msg_generator(), [gen_message_or_heartbeat()], NewPrevTs::integer()}.
+messages_to_send(MsgGen, Rate, PrevTs) ->
+    messages_to_send(MsgGen, Rate, PrevTs, 0.0, []).
+
+-spec messages_to_send(msg_generator(), Rate::integer(), PrevTs::integer(), 
+		       Wait::float(), [gen_message_or_heartbeat()])
+		      -> 'done' | {msg_generator(), [gen_message_or_heartbeat()], NewPrevTs::integer()}.
+messages_to_send(MsgGen, Rate, PrevTs, Wait, Acc) ->
+    %% We have to compute the time to wait before sending the next message,
+    %% but since we can only wait for more than 10ms, we have to make sure
+    %% that we send more messages in one batch if the rate * diff is too small.
+    
+    %% So this function gathers enough messages so that we have to wait at least 10ms
+    %% before sending them. 
+    %%
+    %% WARNING: The problem with that is that if there are a lot of messages
+    %% that are to be sent without any waiting, and then there is a message
+    %% to be sent after a long wait, all the first messages will be delayed
+    %% until the timestamp of the last message.
+    case MsgGen() of
+	done ->
+	    case Acc of
+		[] ->
+		    done;
+		[_|_] ->
+		    {fun() -> done end, lists:reverse(Acc), PrevTs}
+	    end;
+	{Msg, NewMsgGen} ->
+	    %% io:format("Checking message: ~p~n", [Msg]),
+	    Ts =
+		case Msg of
+		    {heartbeat, {_Tag, Ts0}} ->
+			Ts0;
+		    {_Tag, Ts0, _V} ->
+			Ts0
+		end,
+	    NewWait = Wait + ((Ts - PrevTs) / Rate),
+	    %% Is the new total wait above 10ms
+	    case NewWait > 10 of
+		true ->
+		    %% Wait
+		    %% io:format("~p will wait for ~p ms~n", [self(), round(NewWait)]),
+		    timer:sleep(round(NewWait)),
+		    %% Return the messages to send
+		    {NewMsgGen, lists:reverse([Msg|Acc]), Ts};
+		false ->
+		    messages_to_send(NewMsgGen, Rate, Ts, NewWait, [Msg|Acc])
+	    end
+    end.
+	    
+	    
 
 %%
 %% This producer, sends a sequence of messages one by one
@@ -96,6 +215,8 @@ route_constant_rate_source(Tag, Messages, Period, Configuration, MessageLoggerIn
     %% Find where to route the message in the configuration tree
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
     constant_rate_source(Messages, Period, SendTo, MessageLoggerInitFun).
+
+
 
 %%
 %% This is the simplest producer, that takes as input a list of 
@@ -168,3 +289,19 @@ send_message_or_heartbeat({heartbeat, Hearbeat}, SendTo, MessageLoggerInitFun) -
 send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
     ok = MessageLoggerInitFun(Msg),
     SendTo ! {imsg, Msg}.
+
+%%
+%% Message Generator
+%% Those can either be file implementations, or lists that 
+%% return the next element each time.
+%%
+-spec list_generator([gen_message_or_heartbeat()]) -> msg_generator().
+list_generator(List) ->
+    fun() ->
+	    case List of
+		[] ->
+		    done;
+		[Msg|Rest] ->
+		    {Msg, list_generator(Rest)}
+	    end
+    end.
