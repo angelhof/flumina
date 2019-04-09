@@ -15,4 +15,7 @@ COPY . /proto
 WORKDIR /proto
 RUN make clean && make all
 
-ENTRYPOINT [ "./wrapper.sh" ]
+COPY docker/erlnode/wrapper.sh /proto/wrapper.sh
+RUN chmod +x /proto/wrapper.sh
+
+ENTRYPOINT [ "/proto/wrapper.sh" ]
