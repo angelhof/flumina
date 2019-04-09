@@ -56,8 +56,10 @@ done
 
 cd ${NS3_HOME}
 ./waf --run "scratch/tap-vm --TotalTime=${totalTime} ${nodes[*]}" &
-echo -e $! > var/run/ns3.pid
-sleep 5
+echo $! > ${workdir}/var/run/ns3.pid
+cd ${workdir}
+sleep 25
+
 
 # Set up the device containers -- this unblocks the nodes
 
@@ -65,3 +67,4 @@ for i in ${!nodes[*]}
 do
   ./docker/container.sh ${nodes[${i}]} ${i}
 done
+

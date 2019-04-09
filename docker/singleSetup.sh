@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # This file creates a bridge with the tool brctl (ethernet bridge administration)
 # and a TAP interface with the tool tunctl (create and manage persistent TUN/TAP interfaces)
@@ -19,8 +19,8 @@ fi
 
 NAME=$1
 
-brctl addbr br-$NAME
-tunctl -t tap-$NAME
-ifconfig tap-$NAME 0.0.0.0 promisc up
-brctl addif br-$NAME tap-$NAME
-ifconfig br-$NAME up
+sudo brctl addbr br-$NAME
+sudo tunctl -t tap-$NAME
+sudo ifconfig tap-$NAME 0.0.0.0 promisc up
+sudo brctl addif br-$NAME tap-$NAME
+sudo ifconfig br-$NAME up
