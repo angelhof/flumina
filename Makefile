@@ -20,7 +20,10 @@ HALT = -s erlang halt
 $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 
 
-.PHONY: all
+.PHONY: all clean
+
+clean:
+	rm -f $(EBIN_DIR)/*
 
 dialyzer: all
 	@echo ""
