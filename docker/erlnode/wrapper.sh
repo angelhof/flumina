@@ -22,6 +22,8 @@ EXEC=$(cat /conf/exec)
 
 echo -e "Starting the node\n\tNODE=${NODE}\n\tEXEC=${EXEC}" >> ${LOG}
 
+export ERL_CRASH_DUMP="/proto/logs/erl_crash.dump"
+
 /usr/local/bin/erl \
   -name ${NODE}@${NODE}.local \
   -setcookie docker \
