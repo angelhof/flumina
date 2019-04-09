@@ -23,7 +23,7 @@ rm -f "read-only/$1/ebin/*"
 # set -x
 ## Notes:
 ## We need to use fully qualified names for hostname, so names with a dot, e.g. node1.local
-docker run -e ERL_TOP='/usr/local/'\
+docker run -e ERL_TOP='/usr/local'\
        -v "${PWD}/read-only/$1/":/stream-processing-prototype -it --rm\
        --network temp\
        --name "$1.local"\
