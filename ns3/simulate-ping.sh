@@ -1,16 +1,9 @@
 #!/bin/bash
 
-A1="a1node"
-A2="a2node"
-B="main"
-
-nodes=(${A1} ${A2} ${B})
-execs=(
-  ""
-  ""
-  "-noshell -run util exec abexample. real_distributed. [['${A1}@${A1}.local','${A2}@${A2}.local','${B}@${B}.local']]. -s erlang halt"
-)
-totalTime=60 # seconds
+nodes=(a1 a2)
+peers=("10.12.0.2" "10.12.0.1")
+totalNodes=${#nodes[*]}
+totalTime=15 # seconds
 
 workdir=${PWD}
 
@@ -25,8 +18,8 @@ do
   # TODO: figure out a better way to do this.
   seg3=$(( (i + 1) / 250 ))
   seg4=$(( (i + 1) % 250 ))
-
-  echo -e "10.12.${seg3}.${seg4}\t${nodes[${i}]}.local" >> ${hosts}
+  
+  echo -e "10.12.${seg3}.${seg4}\t${nodes[${i}]}" >> ${hosts}
 done
 
 # Create configuration, logging, taps, and bridges
@@ -34,13 +27,13 @@ done
 for i in ${!nodes[*]}
 do
   node=${nodes[${i}]}
-  exec=${execs[${i}]}
+  peer=${nodes[$(( totalNodes - i - 1 ))]}
+  #peer=${peers[${i}]}
 
   mkdir -p var/log/${node}
   mkdir -p var/conf/${node}
 
-  echo -n ${node} > var/conf/${node}/node
-  echo -n ${exec} > var/conf/${node}/exec
+  echo -n ${peer} > var/conf/${node}/peer
   cp ${hosts} var/conf/${node}/hosts
 
   ./docker/singleSetup.sh ${node}
@@ -60,9 +53,10 @@ do
     --privileged \
     --net=none \
     --name ${node} \
+    --hostname ${node} \
     -v "${workdir}/var/conf/${node}":/conf \
-    -v "${workdir}/var/log/${node}":/proto/logs \
-    erlnode
+    -v "${workdir}/var/log/${node}":/log \
+    ping 
 
   docker inspect --format '{{ .State.Pid }}' ${node} > var/run/${node}.pid
 done
@@ -74,6 +68,7 @@ cd ${NS3_HOME}
 echo $! > ${workdir}/var/run/ns3.pid
 cd ${workdir}
 sleep 25
+
 
 # Set up the device containers -- this unblocks the nodes
 

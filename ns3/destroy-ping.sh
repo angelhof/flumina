@@ -1,14 +1,10 @@
 #!/bin/bash
 
-A1="a1node"
-A2="a2node"
-B="main"
-
-nodes=(${A1} ${A2} ${B})
+nodes=(a1 a2)
 
 # Stop the containers
 
-docker kill $(docker ps -a -q)
+docker stop $(docker ps -a -q)
 #docker rm $(docker ps -a -q)
 
 for node in ${nodes[*]}

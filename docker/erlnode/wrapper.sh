@@ -20,6 +20,8 @@ done
 NODE=$(cat /conf/node)
 EXEC=$(cat /conf/exec)
 
+cat /conf/hosts >> /etc/hosts
+
 echo -e "Starting the node\n\tNODE=${NODE}\n\tEXEC=${EXEC}" >> ${LOG}
 
 export ERL_CRASH_DUMP="/proto/logs/erl_crash.dump"
@@ -31,3 +33,4 @@ export ERL_CRASH_DUMP="/proto/logs/erl_crash.dump"
   ${EXEC} >> ${LOG} 2>&1
 
 echo "Exiting" >> ${LOG}
+
