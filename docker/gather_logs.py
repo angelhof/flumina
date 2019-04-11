@@ -9,11 +9,14 @@ dir_prefix = sys.argv[1]
 ## The second argument contains the names of the nodes
 ## that were executed in the scenario
 nodes = sys.argv[2].split()
+
+## The third argument is the suffix of the folder
+dir_suffix = str(len(nodes)) + "_" + sys.argv[3]
 # print(dir_prefix, nodes)
 
 ## Make the directory to save the current logs
 timestamp = datetime.now().replace(microsecond=0).isoformat()
-dir_name = dir_prefix + '_' + timestamp
+dir_name = dir_prefix + '_' + timestamp + '_' + dir_suffix
 dir_path = os.path.join('docker_logs', dir_name)
 # print("Saving logs at:", dir_path)
 os.mkdir(dir_path)

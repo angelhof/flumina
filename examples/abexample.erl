@@ -6,8 +6,8 @@
 	 distributed_conf_1/1,
 	 real_distributed/1,
 	 real_distributed_conf/2,
-	 distributed_experiment/3,
-	 distributed_experiment_conf/4,
+	 distributed_experiment/4,
+	 distributed_experiment_conf/5,
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
@@ -15,7 +15,9 @@
 	 greedy_big/0,
 	 greedy_big_conf/1,
 	 greedy_complex/0,
-	 greedy_complex_conf/1
+	 greedy_complex_conf/1,
+	 greedy_local/0,
+	 greedy_local_conf/1
 	]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -175,6 +177,80 @@ greedy_complex_conf(SinkPid) ->
 
     SinkPid ! finished.
 
+
+
+greedy_local() ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    ExecPid = spawn_link(?MODULE, greedy_local_conf, [SinkName]),
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
+	end,
+    util:sink(LoggerInitFun).
+
+greedy_local_conf(SinkPid) ->
+    %% io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB]]),
+    NodeNames = [node() || _ <- lists:seq(1,3)],
+    RateMultiplier = 20,
+    RatioAB = 1000,
+    HeartbeatBRatio = 100,
+
+    %% We assume that there is one node for each a and one for b
+    NumberAs = length(NodeNames) - 1,
+    %% For the rates we only care about ratios
+    ARate = 1000000,
+    BRate = ARate div RatioAB,
+
+    %% Tags
+    ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
+    Tags = [b] ++ ATags,
+
+    %% We assume that the first node name is the B node
+    [BNodeName|ANodeNames] = NodeNames,
+
+    %% Architecture
+    ARatesTopo = [{ANN, AT, ARate} || {ANN, AT} <- lists:zip(ANodeNames, ATags)],
+    BRateTopo = {BNodeName, b, BRate},
+    Rates = [BRateTopo|ARatesTopo],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+
+    StateTypesMap = 
+	#{'state0' => {sets:from_list(Tags), fun update/3},
+	  'state_a' => {sets:from_list(ATags), fun update/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
+		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+    Dependencies = parametrized_dependencies(ATags),
+    InitState = {'state0', 0},
+    Specification = 
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+
+    LogTriple = log_mod:make_num_log_triple(),    
+    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
+
+    %% Set up where will the input arrive
+
+    %% Input Streams
+    {As, Bs} = parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio),
+    %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
+    AInputStreams = [{AIn, ATag, RateMultiplier} || {AIn, ATag} <- lists:zip(As, ATags)],
+    BInputStream = {Bs, b, RateMultiplier},
+    InputStreams = [BInputStream|AInputStreams],
+
+    %% Log the input times of b messages
+    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
+	end,
+    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
+
+    SinkPid ! finished,
+    ok.
+
 %% This is what our compiler would come up with
 distributed() ->
     true = register('sink', self()),
@@ -293,19 +369,61 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
 
 %% TODO: Maybe also parametrize the b heartbeat ratio
-distributed_experiment(NodeNames, RateMultiplier, RatioAB) ->
+distributed_experiment(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     ExecPid = spawn_link(?MODULE, distributed_experiment_conf, 
-			 [SinkName, NodeNames, RateMultiplier, RatioAB]),
+			 [SinkName, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio]),
     LoggerInitFun = 
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
     util:sink(LoggerInitFun).
 
-distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB) ->
+distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio) ->
     io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB]]),
+
+    %% We assume that the first node name is the B node
+    [BNodeName|ANodeNames] = NodeNames,
+    true = net_kernel:connect_node(hd(ANodeNames)),
+    ok = net_kernel:setopts(hd(ANodeNames), [{delay_send, false}]),
+    %% ok = net_kernel:setopts(hd(ANodeNames), [{sndbuf,87040},
+    %% 					     {rcvbuf,87040}]),
+    %% Options = [active ,
+    %% 	       buffer ,
+    %% 	       delay_send ,
+    %% 	       deliver ,
+    %% 	       dontroute ,
+    %% 	       exit_on_close ,
+    %% 	       header ,
+    %% 	       high_msgq_watermark ,
+    %% 	       high_watermark ,
+    %% 	       keepalive ,
+    %% 	       linger ,
+    %% 	       low_msgq_watermark ,
+    %% 	       low_watermark ,
+    %% 	       mode ,
+    %% 	       nodelay ,
+    %% 	       packet ,
+    %% 	       packet_size ,
+    %% 	       pktoptions ,
+    %% 	       priority ,
+    %% 	       recbuf ,
+    %% 	       reuseaddr ,
+    %% 	       send_timeout ,
+    %% 	       send_timeout_close ,
+    %% 	       show_econnreset ,
+    %% 	       sndbuf ,
+    %% 	       tos ,
+    %% 	       tclass ,
+    %% 	       ttl ,
+    %% 	       recvtos ,
+    %% 	       recvtclass ,
+    %% 	       recvttl ,
+    %% 	       pktoptions ,
+    %% 	       ipv6_v6only],
+    %% io:format("Opts:~n~p~n", [net_kernel:getopts(hd(ANodeNames), Options)]),
+
     %% We assume that there is one node for each a and one for b
     NumberAs = length(NodeNames) - 1,
     %% For the rates we only care about ratios
@@ -316,8 +434,7 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB) ->
     ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
     Tags = [b] ++ ATags,
 
-    %% We assume that the first node name is the B node
-    [BNodeName|ANodeNames] = NodeNames,
+
 
     %% Architecture
     ARatesTopo = [{ANN, AT, ARate} || {ANN, AT} <- lists:zip(ANodeNames, ATags)],
@@ -344,7 +461,7 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB) ->
     %% Set up where will the input arrive
 
     %% Input Streams
-    {As, Bs} = parametrized_input_distr_example(NumberAs, RatioAB),
+    {As, Bs} = parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
     AInputStreams = [{AIn, ATag, RateMultiplier} || {AIn, ATag} <- lists:zip(As, ATags)],
     BInputStream = {Bs, b, RateMultiplier},
@@ -423,13 +540,20 @@ make_as(Id, N, Step) ->
     [{{a,Id}, T, T} || T <- lists:seq(1, N, Step)]
 	++ [{heartbeat, {{a,Id}, N + 1}}].
 
-parametrized_input_distr_example(NumberAs, RatioAB) ->
+%% WARNING: The hearbeat ratio needs to be a divisor of RatioAB (Maybe not necessarily)
+parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio) ->
     LengthAStream = 1000000,
     As = [make_as(Id, LengthAStream, 1) || Id <- lists:seq(1, NumberAs)],
 
     LengthBStream = LengthAStream div RatioAB,
-    Bs = [{b, RatioAB + (RatioAB * BT), empty} 
-	  || BT <- lists:seq(0,LengthBStream)]
+    %% Bs = [{b, RatioAB + (RatioAB * BT), empty} 
+    %% 	  || BT <- lists:seq(0,LengthBStream)]
+    %% 	++ [{heartbeat, {b,LengthAStream + 1}}],
+    Bs = lists:flatten(
+	   [[{heartbeat, {b, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}} 
+	    || T <- lists:seq(0, HeartbeatBRatio - 1)] 
+	   ++ [{b, RatioAB + (RatioAB * BT), empty}]
+	   || BT <- lists:seq(0,LengthBStream)])
 	++ [{heartbeat, {b,LengthAStream + 1}}],
     {As, Bs}.
 
