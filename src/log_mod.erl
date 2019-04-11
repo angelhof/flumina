@@ -44,6 +44,7 @@ log_message(Msg, {_Tags, File}) ->
     %%          compare timestamps taken on the same machine
     %% TODO: Maybe we should change this to os:timestamp
     CurrentTimestamp = erlang:monotonic_time(),
+    %% CurrentTimestamp = erlang:system_time(nanosecond),
     PidNode = {self(), node()},
     Data = io_lib:format("~w~n", [{Msg, PidNode, CurrentTimestamp}]),
     ok = file:write(File, Data),

@@ -1,10 +1,14 @@
 ** Work TODO
 
+*** TODO Implement a checkpoint mechanism
+
+The top node (and possibly other nodes) should log the state of the system 
+every time it merges (as then we have a consistent system snapshot).
+
 *** TODO (Maybe) We might need to tune low level network parameters
 
 As seen in Naiad, we might have to tune low level network parameters (or ERTS parameters)
 in order to tune the system to run well with very small tcp messages between the different erlang nodes.
-
 
 *** TODO Timestamp based producers might drift behind one another 
 
