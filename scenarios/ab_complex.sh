@@ -7,7 +7,8 @@ B="main"
 
 RATE_MULTI=40
 RATIO_AB=1000
-EXEC="-noshell -run util exec abexample. distributed_experiment. [['${B}@${B}.local','${A1}@${A1}.local','${A2}@${A2}.local','${A3}@${A3}.local'],${RATE_MULTI},${RATIO_AB}]. -s erlang halt"
+HEARTBEAT_RATIO=100
+EXEC="-noshell -run util exec abexample. distributed_experiment. [['${B}@${B}.local','${A1}@${A1}.local','${A2}@${A2}.local','${A3}@${A3}.local'],${RATE_MULTI},${RATIO_AB},${HEARTBEAT_RATIO}]. -s erlang halt"
 
 simulTime=60 # seconds
 
