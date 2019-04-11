@@ -82,6 +82,7 @@ do
     --privileged \
     --net=none \
     --name ${node} \
+    --user $(id -u):$(id -g) \
     -v "${workdir}/var/conf/${node}":/conf \
     -v "${workdir}/var/log/${node}":/proto/logs \
     erlnode
