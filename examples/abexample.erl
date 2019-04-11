@@ -6,6 +6,8 @@
 	 distributed_conf_1/1,
 	 real_distributed/1,
 	 real_distributed_conf/2,
+	 distributed_experiment/3,
+	 distributed_experiment_conf/4,
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
@@ -288,7 +290,76 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     SinkPid ! finished,
     ok.
-    
+
+
+%% TODO: Maybe also parametrize the b heartbeat ratio
+distributed_experiment(NodeNames, RateMultiplier, RatioAB) ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    ExecPid = spawn_link(?MODULE, distributed_experiment_conf, 
+			 [SinkName, NodeNames, RateMultiplier, RatioAB]),
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
+	end,
+    util:sink(LoggerInitFun).
+
+distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB) ->
+    io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB]]),
+    %% We assume that there is one node for each a and one for b
+    NumberAs = length(NodeNames) - 1,
+    %% For the rates we only care about ratios
+    ARate = 1000000,
+    BRate = ARate div RatioAB,
+
+    %% Tags
+    ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
+    Tags = [b] ++ ATags,
+
+    %% We assume that the first node name is the B node
+    [BNodeName|ANodeNames] = NodeNames,
+
+    %% Architecture
+    ARatesTopo = [{ANN, AT, ARate} || {ANN, AT} <- lists:zip(ANodeNames, ATags)],
+    BRateTopo = {BNodeName, b, BRate},
+    Rates = [BRateTopo|ARatesTopo],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+
+    StateTypesMap = 
+	#{'state0' => {sets:from_list(Tags), fun update/3},
+	  'state_a' => {sets:from_list(ATags), fun update/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
+		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+    Dependencies = parametrized_dependencies(ATags),
+    InitState = {'state0', 0},
+    Specification = 
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+
+    LogTriple = log_mod:make_num_log_triple(),    
+    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
+
+    %% Set up where will the input arrive
+
+    %% Input Streams
+    {As, Bs} = parametrized_input_distr_example(NumberAs, RatioAB),
+    %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
+    AInputStreams = [{AIn, ATag, RateMultiplier} || {AIn, ATag} <- lists:zip(As, ATags)],
+    BInputStream = {Bs, b, RateMultiplier},
+    InputStreams = [BInputStream|AInputStreams],
+
+    %% Log the input times of b messages
+    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+    LoggerInitFun = 
+	fun() ->
+	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
+	end,
+    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
+
+    SinkPid ! finished,
+    ok.
 
 %% The specification of the computation
 update({{a,_}, Ts, Value}, Sum, SendTo) ->
@@ -321,6 +392,12 @@ complex_dependencies() ->
       b => [{a,1}, {a,2}, {a,3}, {a,4}, b]
      }.
 
+parametrized_dependencies(ATags) ->
+    ADeps = [{ATag, [b]} || ATag <- ATags],
+    BDeps = {b, ATags},
+    maps:from_list([BDeps|ADeps]).
+    
+
 %% The predicates
 isA1({{a,1}, _, _}) -> true;
 isA1(_) -> false.
@@ -342,13 +419,20 @@ input_example() ->
     B = [{b, 1001, empty}, {b, 2001, empty}, {heartbeat, {b,2005}}],
     {A1, A2, B}.
 
-%% big_input_example() ->
-%%     lists:flatten(
-%%       [[gen_a(T + (1000 * BT)) || T <- lists:seq(1, 999) ] ++ [{b, 1000 + (1000 * BT), empty}]
-%% 		  || BT <- lists:seq(1,1000)]) 
-%% 	++ [{heartbeat, {{a,1},10000000}}, 
-%% 	    {heartbeat, {{a,2},10000000}}, 
-%% 	    {heartbeat, {b,10000000}}].
+make_as(Id, N, Step) ->
+    [{{a,Id}, T, T} || T <- lists:seq(1, N, Step)]
+	++ [{heartbeat, {{a,Id}, N + 1}}].
+
+parametrized_input_distr_example(NumberAs, RatioAB) ->
+    LengthAStream = 1000000,
+    As = [make_as(Id, LengthAStream, 1) || Id <- lists:seq(1, NumberAs)],
+
+    LengthBStream = LengthAStream div RatioAB,
+    Bs = [{b, RatioAB + (RatioAB * BT), empty} 
+	  || BT <- lists:seq(0,LengthBStream)]
+	++ [{heartbeat, {b,LengthAStream + 1}}],
+    {As, Bs}.
+
 
 big_input_distr_example() ->
     A1 = lists:flatten(

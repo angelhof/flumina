@@ -47,7 +47,7 @@ sink_loop(LoggerFun) ->
 	    io:format("~p~n", [Msg]),
 	    sink_loop(LoggerFun)
     after 
-	5000 ->
+	15000 ->
 	    ok
     end.
 

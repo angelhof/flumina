@@ -22,9 +22,6 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 
 .PHONY: all clean
 
-clean:
-	rm -f $(EBIN_DIR)/*
-
 dialyzer: all
 	@echo ""
 	@echo " --- --- --- --- DIALYZER --- --- --- --- "
@@ -64,3 +61,6 @@ tests:
 
 prepare_dialyzer:
 	dialyzer --build_plt --apps erts stdlib kernel
+
+clean:
+	rm -f $(EBIN_DIR)/*
