@@ -1,18 +1,33 @@
 #!/bin/bash
 
-A1="a1node"
-A2="a2node"
-B="main"
+nodes=()
 
-nodes=(${A1} ${A2} ${B})
-execs=(
-  ""
-  ""
-  "-noshell -run util exec abexample. real_distributed. [['${A1}@${A1}.local','${A2}@${A2}.local','${B}@${B}.local']]. -s erlang halt"
-)
-totalTime=60 # seconds
+while (( "$#" ))
+do
+  case "$1" in
+    -m|--main)
+      main="$2"
+      shift 2
+      ;;
+    -e|--exec)
+      mainExec="$2"
+      shift 2
+      ;;
+    -t|--time)
+      simulTime="$2"
+      shift 2
+      ;;
+    *)
+      nodes+=("$1")
+      shift
+      ;;
+  esac
+done
 
+nodes=("${main}" "${nodes[@]}")
 workdir=${PWD}
+
+echo "Setting up the simulation context..."
 
 # Generate a hosts file for the nodes
 
@@ -34,7 +49,12 @@ done
 for i in ${!nodes[*]}
 do
   node=${nodes[${i}]}
-  exec=${execs[${i}]}
+  if [ "${i}" -eq "0" ]
+  then
+    exec="${mainExec}"
+  else
+    exec=""
+  fi
 
   mkdir -p var/log/${node}
   mkdir -p var/conf/${node}
@@ -43,12 +63,14 @@ do
   echo -n ${exec} > var/conf/${node}/exec
   cp ${hosts} var/conf/${node}/hosts
 
-  sudo ./docker/singleSetup.sh ${node} ${USER}
+  sudo ./ns3/singleSetup.sh ${node} ${USER}
 done
 
-sudo ./docker/singleEndSetup.sh
+sudo ./ns3/singleEndSetup.sh
 
 # Run the docker containers. Assumes existence of an image called erlnode.
+
+echo "Starting the docker containers..."
 
 mkdir -p var/run
 
@@ -69,16 +91,55 @@ done
 
 # Run the ns3 process. Assumes it is compiled and located in $NS3_HOME/scratch.
 
+echo "Starting the ns3 process..."
+
 cd ${NS3_HOME}
-./waf --run "scratch/tap-vm --TotalTime=${totalTime} ${nodes[*]}" &
-echo $! > ${workdir}/var/run/ns3.pid
+./waf --run "scratch/tap-vm --TotalTime=${simulTime} ${nodes[*]}" &
+wafPid=$!
+echo ${wafPid} > ${workdir}/var/run/ns3.pid
 cd ${workdir}
+
 sleep 25
 
 # Set up the device containers -- this unblocks the nodes
 
+echo "Unblocking the containers and starting the simulation..."
+
 for i in ${!nodes[*]}
 do
-  ./docker/container.sh ${nodes[${i}]} ${i}
+  if [ "${i}" -gt "0" ]
+  then
+    ./docker/container.sh ${nodes[${i}]} ${i}
+  fi
 done
+
+# We set up and unblock the main node last
+
+sleep 1
+./docker/container.sh ${main} 0
+
+# Wait for Waf to finish
+
+echo "Waiting for the ns3 process to finish..."
+
+wait ${wafPid}
+rm ${workdir}/var/run/ns3.pid
+
+echo "Destroying the simulation context... "
+
+# Stop the containers
+
+docker kill $(docker ps -a -q)
+
+# Bring down the network interfaces and clean up
+
+for node in ${nodes[*]}
+do
+  sudo ./ns3/singleDestroy.sh ${node}
+  PID=$(cat var/run/${node}.pid)
+  sudo rm -rf /var/run/netns/${PID}
+  rm -rf var/run/${node}.pid
+done
+
+echo "DONE"
 
