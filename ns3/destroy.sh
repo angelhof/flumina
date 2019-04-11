@@ -13,9 +13,9 @@ docker kill $(docker ps -a -q)
 
 for node in ${nodes[*]}
 do
-  ./docker/singleDestroy.sh ${node}
+  sudo ./docker/singleDestroy.sh ${node}
   PID=$(cat var/run/${node}.pid)
-  rm -rf /var/run/netns/${PID}
+  sudo rm -rf /var/run/netns/${PID}
   rm -rf var/run/${node}.pid
 done
 

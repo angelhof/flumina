@@ -17,10 +17,17 @@ then
   exit 1
 fi
 
-NAME=$1
+if [ -z "$2" ]
+then
+  echo "No user supplied"
+  exit 1
+fi
 
-sudo brctl addbr br-$NAME
-sudo tunctl -t tap-$NAME
-sudo ifconfig tap-$NAME 0.0.0.0 promisc up
-sudo brctl addif br-$NAME tap-$NAME
-sudo ifconfig br-$NAME up
+NAME=$1
+TAPUSER=$2
+
+brctl addbr br-$NAME
+tunctl -u $TAPUSER -t tap-$NAME
+ifconfig tap-$NAME 0.0.0.0 promisc up
+brctl addif br-$NAME tap-$NAME
+ifconfig br-$NAME up

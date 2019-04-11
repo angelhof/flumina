@@ -43,10 +43,10 @@ do
   echo -n ${exec} > var/conf/${node}/exec
   cp ${hosts} var/conf/${node}/hosts
 
-  ./docker/singleSetup.sh ${node}
+  sudo ./docker/singleSetup.sh ${node} ${USER}
 done
 
-./docker/singleEndSetup.sh
+sudo ./docker/singleEndSetup.sh
 
 # Run the docker containers. Assumes existence of an image called erlnode.
 
