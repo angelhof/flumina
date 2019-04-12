@@ -12,7 +12,9 @@
 	 get_implementation_tags/1,
 	 get_sink_pid/1,
 	 default_options/0,
-	 no_checkpoint/1
+	 no_checkpoint/1,
+	 always_checkpoint/1,
+	 binary_always_checkpoint/1
 	]).
 
 -include("type_definitions.hrl").
@@ -121,4 +123,29 @@ default_options() ->
 no_checkpoint(_State) ->
     fun(State) ->
 	    no_checkpoint(State)
+    end.
+
+%% This function checkpoints the state to a file in a human readable form
+-spec always_checkpoint(State::any()) -> checkpoint_predicate().
+always_checkpoint(State) ->
+    Ts = erlang:system_time(),
+    Filename =
+        io_lib:format("logs/checkpoint_~s_~s_messages.log", 
+		      [pid_to_list(self()), atom_to_list(node())]),
+    ok = file:write_file(Filename, io_lib:format("~p.~n", [State])),
+    fun(State1) ->
+	    always_checkpoint(State1)
+    end.
+
+%% This function checkpoints the state to a file in a binary form.
+%% It is faster than the one above, but it is not readable.
+-spec binary_always_checkpoint(State::any()) -> checkpoint_predicate().
+binary_always_checkpoint(State) ->
+    Ts = erlang:system_time(),
+    Filename =
+        io_lib:format("logs/binary_checkpoint_~s_~s_messages.log", 
+		      [pid_to_list(self()), atom_to_list(node())]),
+    ok = file:write_file(Filename, term_to_binary(State)),
+    fun(State1) ->
+	    binary_always_checkpoint(State1)
     end.
