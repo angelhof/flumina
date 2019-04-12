@@ -8,9 +8,9 @@ B="main"
 # Old non parametric command
 # EXEC="-noshell -run util exec abexample. real_distributed. [[\'${A1}@${A1}.local\',\'${A2}@${A2}.local\',\'${B}@${B}.local\']]. -s erlang halt"
 
-RATE_MULTI=30
+RATE_MULTI=40
 RATIO_AB=1000
-HEARTBEAT_RATIO=100
+HEARTBEAT_RATIO=25
 EXEC="-noshell -run util exec abexample. distributed_experiment. [[\'${B}@${B}.local\',\'${A1}@${A1}.local\',\'${A2}@${A2}.local\',\'${A3}@${A3}.local\'],${RATE_MULTI},${RATIO_AB},${HEARTBEAT_RATIO}]. -s erlang halt"
 
 cd docker

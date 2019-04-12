@@ -1,5 +1,15 @@
 ** Work TODO
 
+*** TODO Synchronize producers when they start executing.
+
+Make the producers wait for a message so that they all start together.
+
+*** TODO Implement producers that can generate messages and timestamp them.
+
+The current timestamp based producers lag behind of one another. The a ones,
+lag behind the b one in the ab example. This leads to increasingly high latency, 
+as message timestamps dont correspond to real timestamps.
+
 *** TODO Implement a checkpoint mechanism
 
 The top node (and possibly other nodes) should log the state of the system 
@@ -12,7 +22,7 @@ in order to tune the system to run well with very small tcp messages between the
 
 *** TODO Timestamp based producers might drift behind one another 
 
-Find a way to solve this problem
+Find a way to solve this problem. This problem also leads to high latency.
 
 *** TODO Implement a plot script that plots from latency logs
 *** TODO Implement the possibility to have separate sink pid for each node
