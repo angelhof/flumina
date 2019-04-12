@@ -38,8 +38,8 @@ do
   # Generate an IP address based on the index. The address needs
   # to match the one generated in ../docker/container.sh.
   # TODO: figure out a better way to do this.
-  seg3=$(( (i + 1) / 250 ))
-  seg4=$(( (i + 1) % 250 ))
+  seg3=$(( i / 250 ))
+  seg4=$(( i % 250 + 1 ))
 
   echo -e "10.12.${seg3}.${seg4}\t${nodes[${i}]}.local" >> ${hosts}
 done

@@ -47,3 +47,6 @@ sudo ip netns exec $PID ip link set dev $SIDE_B name eth0
 sudo ip netns exec $PID ip link set eth0 address $MAC_ADDR
 sudo ip netns exec $PID ip addr add 10.12.$SEGMENT3.$SEGMENT4/16 dev eth0
 sudo ip netns exec $PID ip link set eth0 up
+
+echo "Node ${NAME}'s eth0 device is up with ip 10.12.${SEGMENT3}.${SEGMENT4}"
+
