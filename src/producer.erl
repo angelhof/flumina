@@ -32,25 +32,35 @@ make_producers(InputStreams, Configuration, Topology, ProducerType) ->
 		     topology(), 'constant' | 'timestamp_based', message_logger_init_fun()) -> ok.
 make_producers(InputStreams, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
+    ProducerPids = 
+	lists:map(
+	  fun({InputStream, Tag, Rate}) ->
+		  %% TODO: Maybe at some point I will use the real given rate
+		  {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
+		  %% Log producer creation
+		  case ProducerType of
+		      constant ->
+			  Pid = spawn_link(Node, producer, route_constant_rate_source, 
+					   [Tag, InputStream, Rate, Configuration, MessageLoggerInitFun]),
+			  io:format("Spawning constant rate producer for tag: ~p with pid: ~p in node: ~p~n", 
+				    [Tag, Pid, Node]),
+			  Pid;
+		      timestamp_based ->
+			  Pid = spawn_link(Node, producer, route_timestamp_rate_source, 
+					   [Tag, list_generator(InputStream), Rate, 
+					    Configuration, MessageLoggerInitFun]),
+			  io:format("Spawning timestamp based rate producer for" 
+				    "tag: ~p with pid: ~p in node: ~p~n", 
+				    [Tag, Pid, Node]),
+			  Pid
+		  end
+	  end, InputStreams),
+
+    %% Synchronize the producers by starting them all together
     lists:foreach(
-      fun({InputStream, Tag, Rate}) ->
-	      %% TODO: Maybe at some point I will use the real given rate
-	      {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
-	      %% Log producer creation
-	      case ProducerType of
-		  constant ->
-		      Pid = spawn_link(Node, producer, route_constant_rate_source, 
-				       [Tag, InputStream, Rate, Configuration, MessageLoggerInitFun]),
-		      io:format("Spawning constant rate producer for tag: ~p with pid: ~p in node: ~p~n", 
-				[Tag, Pid, Node]);
-		  timestamp_based ->
-		      Pid = spawn_link(Node, producer, route_timestamp_rate_source, 
-				       [Tag, list_generator(InputStream), Rate, 
-					Configuration, MessageLoggerInitFun]),
-		      io:format("Spawning timestamp based rate producer for tag: ~p with pid: ~p in node: ~p~n", 
-				[Tag, Pid, Node])
-	      end
-     end, InputStreams).
+      fun(ProducerPid) ->
+	      ProducerPid ! start
+      end, ProducerPids).
 
 %%
 %% This producer sends a stream of messages with a rate that depends
@@ -79,6 +89,13 @@ route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, MessageLoggerInitF
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
     log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
 		      [util:local_timestamp(), self(), SendTo]),
+    %% Every producer should synchronize, so that they 
+    %% produce messages in the same order
+    receive
+	start ->
+	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message~n", 
+			      [util:local_timestamp(), self()])
+    end,
     timestamp_rate_source(MsgGen, Rate, SendTo, MessageLoggerInitFun).
 
 -spec timestamp_rate_source(msg_generator(), Rate::integer(), 
@@ -220,6 +237,10 @@ route_constant_rate_source(Tag, Messages, Period, Configuration) ->
 route_constant_rate_source(Tag, Messages, Period, Configuration, MessageLoggerInitFun) ->
     %% Find where to route the message in the configuration tree
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    receive
+	start ->
+	    ok
+    end,
     constant_rate_source(Messages, Period, SendTo, MessageLoggerInitFun).
 
 
