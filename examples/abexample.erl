@@ -381,47 +381,10 @@ distributed_experiment(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio) ->
     util:sink(LoggerInitFun).
 
 distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio) ->
-    io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB]]),
+    io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio]]),
 
     %% We assume that the first node name is the B node
     [BNodeName|ANodeNames] = NodeNames,
-    %% true = net_kernel:connect_node(hd(ANodeNames)),
-    %% ok = net_kernel:setopts(hd(ANodeNames), [{delay_send, false}]),
-    %% ok = net_kernel:setopts(hd(ANodeNames), [{packet_size,128}]),
-    %% Options = [active ,
-    %% 	       buffer ,
-    %% 	       delay_send ,
-    %% 	       deliver ,
-    %% 	       dontroute ,
-    %% 	       exit_on_close ,
-    %% 	       header ,
-    %% 	       high_msgq_watermark ,
-    %% 	       high_watermark ,
-    %% 	       keepalive ,
-    %% 	       linger ,
-    %% 	       low_msgq_watermark ,
-    %% 	       low_watermark ,
-    %% 	       mode ,
-    %% 	       nodelay ,
-    %% 	       packet ,
-    %% 	       packet_size ,
-    %% 	       pktoptions ,
-    %% 	       priority ,
-    %% 	       recbuf ,
-    %% 	       reuseaddr ,
-    %% 	       send_timeout ,
-    %% 	       send_timeout_close ,
-    %% 	       show_econnreset ,
-    %% 	       sndbuf ,
-    %% 	       tos ,
-    %% 	       tclass ,
-    %% 	       ttl ,
-    %% 	       recvtos ,
-    %% 	       recvtclass ,
-    %% 	       recvttl ,
-    %% 	       pktoptions ,
-    %% 	       ipv6_v6only],
-    %% io:format("Opts:~n~p~n", [net_kernel:getopts(hd(ANodeNames), Options)]),
 
     %% We assume that there is one node for each a and one for b
     NumberAs = length(NodeNames) - 1,
@@ -472,7 +435,7 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
+    producer:make_producers(InputStreams, ConfTree, Topology, steady_timestamp, LoggerInitFun),
 
     SinkPid ! finished,
     ok.
@@ -483,8 +446,8 @@ update({{a,_}, Ts, Value}, Sum, SendTo) ->
     %% io:format("log: ~p~n", [{self(), a, Value, Ts}]),
     %% SendTo ! {self(), a, Value, Ts},
     Sum + Value;
-update({b, Ts, empty}, Sum, SendTo) ->
-    SendTo ! {sum, {b, Ts, empty}, Sum},
+update({b, Ts, V}, Sum, SendTo) ->
+    SendTo ! {sum, {b, Ts, V}, Sum},
     Sum.
 
 merge(Sum1, Sum2) ->
@@ -551,7 +514,7 @@ parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio) ->
     Bs = lists:flatten(
 	   [[{heartbeat, {b, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}} 
 	    || T <- lists:seq(0, HeartbeatBRatio - 1)] 
-	   ++ [{b, RatioAB + (RatioAB * BT), empty}]
+	   ++ [{b, RatioAB + (RatioAB * BT), RatioAB + (RatioAB * BT)}]
 	   || BT <- lists:seq(0,LengthBStream)])
 	++ [{heartbeat, {b,LengthAStream + 1}}],
     {As, Bs}.

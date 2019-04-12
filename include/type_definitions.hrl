@@ -121,3 +121,6 @@
 %%
 
 -type msg_generator() :: fun(() -> 'done' | {gen_message_or_heartbeat(),  msg_generator()}).
+-type producer_type() :: 'constant' 
+		       | 'timestamp_based' 
+		       | 'steady_timestamp'.

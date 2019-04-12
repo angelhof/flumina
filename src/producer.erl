@@ -3,6 +3,9 @@
 -export([make_producers/3,
 	 make_producers/4,
 	 make_producers/5,
+	 route_steady_timestamp_rate_source/4,
+	 route_steady_timestamp_rate_source/5,
+	 steady_timestamp_rate_source/4,
 	 route_timestamp_rate_source/4,
 	 route_timestamp_rate_source/5,
 	 timestamp_rate_source/4,
@@ -24,12 +27,12 @@ make_producers(InputStreams, Configuration, Topology) ->
     make_producers(InputStreams, Configuration, Topology, constant).
 
 -spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), 
-		     topology(), 'constant' | 'timestamp_based') -> ok.
+		     topology(), producer_type()) -> ok.
 make_producers(InputStreams, Configuration, Topology, ProducerType) ->
     make_producers(InputStreams, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
 
 -spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), 
-		     topology(), 'constant' | 'timestamp_based', message_logger_init_fun()) -> ok.
+		     topology(), producer_type(), message_logger_init_fun()) -> ok.
 make_producers(InputStreams, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
     ProducerPids = 
@@ -52,6 +55,14 @@ make_producers(InputStreams, Configuration, Topology, ProducerType, MessageLogge
 			  io:format("Spawning timestamp based rate producer for" 
 				    "tag: ~p with pid: ~p in node: ~p~n", 
 				    [Tag, Pid, Node]),
+			  Pid;
+		      steady_timestamp ->
+			  Pid = spawn_link(Node, producer, route_steady_timestamp_rate_source, 
+					   [Tag, list_generator(InputStream), Rate, 
+					    Configuration, MessageLoggerInitFun]),
+			  io:format("Spawning steady timestamp rate producer for" 
+				    "tag: ~p with pid: ~p in node: ~p~n", 
+				    [Tag, Pid, Node]),
 			  Pid
 		  end
 	  end, InputStreams),
@@ -61,6 +72,63 @@ make_producers(InputStreams, Configuration, Topology, ProducerType, MessageLogge
       fun(ProducerPid) ->
 	      ProducerPid ! start
       end, ProducerPids).
+
+%%
+%% This producer sends a stream of messages with a rate that depends
+%% on the message timestamps (like the one below). However, since
+%% it seems like producers like that could drift far from each
+%% other (based on some simple experiments that we did), this producer
+%% timestamps the messages on its own before sending them.
+%%
+%% WARNING: Because these producers timestamp the messages on their own
+%% the result of the computation will be different each time, so 
+%% it shouldn't be expected to return the same results every time.
+%%
+%% TODO: Find a better name
+-spec route_steady_timestamp_rate_source(tag(), msg_generator(), integer(), configuration()) -> ok.
+route_steady_timestamp_rate_source(Tag, MsgGen, Rate, Configuration) ->
+    route_steady_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
+
+-spec route_steady_timestamp_rate_source(tag(), msg_generator(), integer(), 
+				  configuration(), message_logger_init_fun()) -> ok.
+route_steady_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
+    log_mod:init_debug_log(),
+    log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
+		      [util:local_timestamp(),self(), Tag, node()]),
+    %% Find where to route the message in the configuration tree
+    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
+		      [util:local_timestamp(), self(), SendTo]),
+    %% Every producer should synchronize, so that they 
+    %% produce messages in the same order
+    receive
+	start ->
+	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message~n", 
+			      [util:local_timestamp(), self()])
+    end,
+    steady_timestamp_rate_source(MsgGen, Rate, SendTo, MessageLoggerInitFun).
+
+-spec steady_timestamp_rate_source(msg_generator(), Rate::integer(), 
+			    mailbox(), message_logger_init_fun()) -> ok.
+steady_timestamp_rate_source(MsgGen, Rate, SendTo, MsgLoggerInitFun) ->
+    LoggerFun = MsgLoggerInitFun(),
+    steady_timestamp_rate_source(MsgGen, Rate, 0, SendTo, LoggerFun).
+
+-spec steady_timestamp_rate_source(msg_generator(), Rate::integer(), PrevTs::integer(), 
+			    mailbox(), message_logger_log_fun()) -> ok.
+steady_timestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
+    %% First compute how much time the process has to wait
+    %% to send the next message.
+    case messages_to_send(MsgGen, Rate, PrevTs) of
+	done ->
+	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n", 
+			      [util:local_timestamp(), self()]),
+	    ok;
+	{NewMsgGen, MsgsToSend, NewTs} ->
+	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),
+	    [timestamp_send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun) || Msg <- MsgsToSend],
+	    steady_timestamp_rate_source(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
+    end.
 
 %%
 %% This producer sends a stream of messages with a rate that depends
@@ -314,6 +382,18 @@ generate_heartbeat(HTag, From, To, Period) ->
 send_message_or_heartbeat({heartbeat, Hearbeat}, SendTo, MessageLoggerInitFun) ->
     SendTo ! {iheartbeat, Hearbeat};
 send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
+    ok = MessageLoggerInitFun(Msg),
+    SendTo ! {imsg, Msg}.
+
+%% This function ignores the message timestamp and sends it with its own timestamp
+-spec timestamp_send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
+					  message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
+timestamp_send_message_or_heartbeat({heartbeat, {Tag, _}}, SendTo, MessageLoggerInitFun) ->
+    Ts = erlang:system_time(),
+    SendTo ! {iheartbeat, {Tag, Ts}};
+timestamp_send_message_or_heartbeat({Tag, _, Value}, SendTo, MessageLoggerInitFun) ->
+    Ts = erlang:system_time(),
+    Msg = {Tag, Ts, Value},
     ok = MessageLoggerInitFun(Msg),
     SendTo ! {imsg, Msg}.
 
