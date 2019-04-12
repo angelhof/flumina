@@ -11,7 +11,8 @@
 	 get_nodes_rates/1, 
 	 get_implementation_tags/1,
 	 get_sink_pid/1,
-	 default_options/0
+	 default_options/0,
+	 no_checkpoint/1
 	]).
 
 -include("type_definitions.hrl").

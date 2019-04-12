@@ -1,10 +1,10 @@
 -module(node).
 
--export([node/7,
+-export([node/8,
 	 init_mailbox/4,
 	 mailbox/5,
-	 init_node/4,
-	 loop/5]).
+	 init_node/5,
+	 loop/6]).
 
 -include("type_definitions.hrl").
 
@@ -14,11 +14,21 @@
 
 %% Initializes and spawns a node and its mailbox
 -spec node(State::any(), mailbox(), message_predicate(), spec_functions(), 
-	   num_log_triple(), dependencies(), mailbox()) 
+	   conf_gen_options_rec(), dependencies(), mailbox(), integer()) 
 	  -> {pid(), mailbox()}.
-node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, LogTriple, Dependencies, Output) ->
+node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, 
+     #options{log_triple = LogTriple, checkpoint = CheckFun}, Dependencies, Output, Depth) ->
     Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
-    NodePid = spawn_link(Node, ?MODULE, init_node, [State, Funs, LogTriple, Output]),
+
+    %% Only give the checkpoint function as argument if it is the
+    %% root node of the tree (with depth =:= 0).
+    NodeCheckpointFun =
+	case Depth of
+	    0 -> CheckFun;
+	    _ -> fun conf_gen:no_checkpoint/1
+	end,
+    NodePid = spawn_link(Node, ?MODULE, init_node, 
+			 [State, Funs, LogTriple, NodeCheckpointFun, Output]),
     _MailboxPid = spawn_link(Node, ?MODULE, init_mailbox, [Name, Dependencies, Pred, NodePid]),
     %% We return the mailbox pid because every message should first arrive to the mailbox
     {NodePid, {Name, Node}}.
@@ -357,21 +367,23 @@ broadcast_heartbeat({Tag, Ts}, ConfTree) ->
 %%
 %% Main Processing Node
 %%
--spec init_node(State::any(), #funs{}, num_log_triple(), mailbox()) -> no_return().
-init_node(State, Funs, LogTriple, Output) ->
+-spec init_node(State::any(), #funs{}, num_log_triple(), 
+		checkpoint_predicate(), mailbox()) -> no_return().
+init_node(State, Funs, LogTriple, CheckPred, Output) ->
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
     %% after all the nodes have already been spawned
     receive
 	{configuration, ConfTree} ->
-	    loop(State, Funs, LogTriple, Output, ConfTree)
+	    loop(State, Funs, LogTriple, CheckPred, Output, ConfTree)
     end.
 	
 
 %% This is the main loop that each node executes.
--spec loop(State::any(), #funs{}, num_log_triple(), mailbox(), configuration()) -> no_return().
+-spec loop(State::any(), #funs{}, num_log_triple(), checkpoint_predicate(), 
+	   mailbox(), configuration()) -> no_return().
 loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, 
-     {LogFun, ResetFun, LogState} = LogTriple, Output, ConfTree) ->
+     {LogFun, ResetFun, LogState} = LogTriple, CheckPred, Output, ConfTree) ->
     receive
         {MsgOrMerge, _} = MessageMerge when MsgOrMerge =:= msg orelse MsgOrMerge =:= merge ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
@@ -393,12 +405,14 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun},
 			[C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
 			{LogState2, NewState0}
 		end,
+	    %% Check whether to create a checkpoint 
+	    NewCheckPred = CheckPred(NewState),
 	    %% Maybe log some information about the message
 	    FinalLogState = LogFun(MsgOrMerge, NewLogState),
-	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, Output, ConfTree);
+	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, NewCheckPred, Output, ConfTree);
 	{get_message_log, ReplyTo} = GetLogMsg ->
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
-	    loop(State, Funs, {LogFun, ResetFun, NewLogState}, Output, ConfTree)
+	    loop(State, Funs, {LogFun, ResetFun, NewLogState}, CheckPred, Output, ConfTree)
     end.
 
 -spec handle_message(gen_message() | gen_merge_request(), State::any(), mailbox(), 

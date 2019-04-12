@@ -27,11 +27,11 @@ create(Tree, Dependencies, OutputPid) ->
 
 -spec create(temp_setup_tree(), dependencies(), conf_gen_options_rec(), mailbox()) 
 	    -> configuration().
-create(Tree, Dependencies, #options{log_triple = LogTriple} = _OptionsRec, OutputPid) ->
+create(Tree, Dependencies, OptionsRec, OutputPid) ->
 
     %% Spawns the nodes
     NameSeed = make_name_seed(),
-    {PidsTree, _NewNameSeed} = spawn_nodes(Tree, NameSeed, LogTriple, Dependencies, OutputPid),
+    {PidsTree, _NewNameSeed} = spawn_nodes(Tree, NameSeed, OptionsRec, Dependencies, OutputPid, 0),
 
     %% Create the configuration tree
     ConfTree = prepare_configuration_tree(PidsTree, Tree),
@@ -43,19 +43,21 @@ create(Tree, Dependencies, #options{log_triple = LogTriple} = _OptionsRec, Outpu
     ConfTree.
 
 %% Spawns the nodes based on the tree configuration
--spec spawn_nodes(temp_setup_tree(), name_seed(), num_log_triple(), 
-		  dependencies(), mailbox()) -> {pid_tree(), name_seed()}.
-spawn_nodes({State, Node, Pred, Funs, Children}, NameSeed, LogTriple, Dependencies, OutputPid) ->
+-spec spawn_nodes(temp_setup_tree(), name_seed(), conf_gen_options_rec(), 
+		  dependencies(), mailbox(), integer()) -> {pid_tree(), name_seed()}.
+spawn_nodes({State, Node, Pred, Funs, Children}, NameSeed, 
+	    OptionsRec, Dependencies, OutputPid, Depth) ->
     {ChildrenPidTrees, NewNameSeed} = 
 	lists:foldr(
 	 fun(C, {AccTrees, NameSeed0}) ->
 		 {CTree, NameSeed1} =
-		     spawn_nodes(C, NameSeed0, LogTriple, Dependencies, OutputPid),
+		     spawn_nodes(C, NameSeed0, OptionsRec, Dependencies, OutputPid, Depth + 1),
 		 {[CTree|AccTrees], NameSeed1}
 	 end, {[], NameSeed}, Children),
     ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
     {Name, FinalNameSeed} = gen_proc_name(NewNameSeed),
-    {NodePid, NameNode} = node:node(State, {Name, Node}, Pred, Funs, LogTriple, Dependencies, OutputPid),
+    {NodePid, NameNode} = 
+	node:node(State, {Name, Node}, Pred, Funs, OptionsRec, Dependencies, OutputPid, Depth),
     {{{NodePid, NameNode}, ChildrenPidTrees}, FinalNameSeed}.
 
 -spec make_name_seed() -> name_seed().

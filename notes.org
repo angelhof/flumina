@@ -8,9 +8,11 @@ every time it merges (as then we have a consistent system snapshot).
   - [X] Extend the configuration generator to accept the specification, the topology,
         and a list of options. The options will override the default values in 
         an option/configuration record for the configuration generator.
-  - [ ] Add an option {checkpoint, Fun}, that runs the function Fun on the top
+  - [X] Add an option {checkpoint, Fun}, that runs the function Fun on the top
         node every time it merges the whole tree. The reason of calling a function
         is that we can take the checkpoint given an arbitrary predicate on the state.
+  - [ ] Implement a checkpoint function that keeps a checkpoint every time a merge
+        happens by writting it to a file.
 
 
 *** TODO (Maybe) We might need to tune low level network parameters
