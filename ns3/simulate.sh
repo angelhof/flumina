@@ -76,13 +76,13 @@ mkdir -p var/run
 
 for node in ${nodes[*]}
 do
+  # --user $(id -u):$(id -g) \
   docker run \
     -dit \
     --rm \
     --privileged \
     --net=none \
     --name ${node} \
-    --user $(id -u):$(id -g) \
     -v "${workdir}/var/conf/${node}":/conf \
     -v "${workdir}/var/log/${node}":/proto/logs \
     erlnode
