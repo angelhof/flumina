@@ -72,8 +72,13 @@ route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration) ->
 -spec route_timestamp_rate_source(tag(), msg_generator(), integer(), 
 				  configuration(), message_logger_init_fun()) -> ok.
 route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
+    log_mod:init_debug_log(),
+    log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
+		      [util:local_timestamp(),self(), Tag, node()]),
     %% Find where to route the message in the configuration tree
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
+		      [util:local_timestamp(), self(), SendTo]),
     timestamp_rate_source(MsgGen, Rate, SendTo, MessageLoggerInitFun).
 
 -spec timestamp_rate_source(msg_generator(), Rate::integer(), 
@@ -89,7 +94,8 @@ timestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
     %% to send the next message.
     case messages_to_send(MsgGen, Rate, PrevTs) of
 	done ->
-	    %% io:format("Done~n", []),
+	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n", 
+			      [util:local_timestamp(), self()]),
 	    ok;
 	{NewMsgGen, MsgsToSend, NewTs} ->
 	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),

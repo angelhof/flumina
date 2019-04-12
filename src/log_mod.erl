@@ -10,7 +10,10 @@
 	 make_num_log_triple/0,
 	 no_log_triple/0,
 	
-	 num_logger_process/2]).
+	 num_logger_process/2,
+
+	 init_debug_log/0,
+	 debug_log/2]).
 
 -include("type_definitions.hrl").
 
@@ -130,3 +133,26 @@ append_logs_in_file(ReceivedLogs, CurrentTimestamp, IoDevice) ->
 append_log_in_file({Mbox, Log}, CurrentTimestamp, IoDevice) ->
     Data = io_lib:format("~w~n", [{Mbox, CurrentTimestamp, Log}]),
     ok = file:write(IoDevice, Data).
+
+%%
+%% These functions are for debug logging.
+%% The names of the files are generated from the pid and node
+%%
+
+%% This function creates and truncates the debug log file
+-spec init_debug_log() -> ok. 
+init_debug_log() ->
+    Filename =
+        io_lib:format("logs/debug_~s_~s.log", 
+		      [pid_to_list(self()), atom_to_list(node())]),
+    {ok, IoDevice} = file:open(Filename, [write]),
+    ok = file:truncate(IoDevice),
+    ok = file:close(IoDevice).
+
+-spec debug_log(string(), [any()]) -> ok.
+debug_log(Format, Args) ->
+    Filename =
+        io_lib:format("logs/debug_~s_~s.log", 
+		      [pid_to_list(self()), atom_to_list(node())]),    
+    Data = io_lib:format(Format, Args),
+    ok = file:write_file(Filename, Data, [append]).
