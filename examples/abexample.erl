@@ -385,10 +385,9 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 
     %% We assume that the first node name is the B node
     [BNodeName|ANodeNames] = NodeNames,
-    true = net_kernel:connect_node(hd(ANodeNames)),
-    ok = net_kernel:setopts(hd(ANodeNames), [{delay_send, false}]),
-    %% ok = net_kernel:setopts(hd(ANodeNames), [{sndbuf,87040},
-    %% 					     {rcvbuf,87040}]),
+    %% true = net_kernel:connect_node(hd(ANodeNames)),
+    %% ok = net_kernel:setopts(hd(ANodeNames), [{delay_send, false}]),
+    %% ok = net_kernel:setopts(hd(ANodeNames), [{packet_size,128}]),
     %% Options = [active ,
     %% 	       buffer ,
     %% 	       delay_send ,
