@@ -87,7 +87,7 @@ sequential_conf_2(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    ConfTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
     Input1 = id1_positions_with_heartbeats(),

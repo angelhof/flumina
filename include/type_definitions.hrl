@@ -53,6 +53,21 @@
 %% Configuration Generator
 %%
 
+-type optimizer_type() :: module().
+-type checkpoint_predicate() :: fun((State::any()) -> checkpoint_predicate()).
+
+%% This record contains all the configurable
+%% options of the configuration generator.
+-record(options, {optimizer  :: optimizer_type(),
+		  log_triple :: num_log_triple(),
+		  checkpoint :: checkpoint_predicate()}).
+
+-type conf_gen_option() :: {'optimizer', optimizer_type()}
+			 | {'log_triple', num_log_triple()}
+			 | {'checkpoint', checkpoint_predicate()}.
+-type conf_gen_options() :: [conf_gen_option()].
+-type conf_gen_options_rec() :: #options{}.
+
 -type state_type_name() :: atom().
 -type state_type_triple() :: {state_type_name(), 
 			      state_type_name(), 

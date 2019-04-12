@@ -1,21 +1,17 @@
 ** Work TODO
 
-*** TODO Implement producers that can generate messages and timestamp them.
-
-The current timestamp based producers lag behind of one another. The a ones,
-lag behind the b one in the ab example. This leads to increasingly high latency, 
-as message timestamps dont correspond to real timestamps.
-
-Implement generator routers, that timestamp messages before sending them. 
-This way (assuming that timestamp clocks are synchronized) producers wont 
-drift and messages will arrive with correct timestamps. Be careful though, these
-producers will lead to different results every time, as their timestamps depend on 
-scheduling. Therefore they should be only used for latency/throughput measurements.
-
 *** TODO Implement a checkpoint mechanism
 
 The top node (and possibly other nodes) should log the state of the system 
 every time it merges (as then we have a consistent system snapshot).
+
+  - [X] Extend the configuration generator to accept the specification, the topology,
+        and a list of options. The options will override the default values in 
+        an option/configuration record for the configuration generator.
+  - [ ] Add an option {checkpoint, Fun}, that runs the function Fun on the top
+        node every time it merges the whole tree. The reason of calling a function
+        is that we can take the checkpoint given an arbitrary predicate on the state.
+
 
 *** TODO (Maybe) We might need to tune low level network parameters
 
@@ -233,6 +229,18 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Implement producers that can generate messages and timestamp them.
+
+The current timestamp based producers lag behind of one another. The a ones,
+lag behind the b one in the ab example. This leads to increasingly high latency, 
+as message timestamps dont correspond to real timestamps.
+
+Implement generator routers, that timestamp messages before sending them. 
+This way (assuming that timestamp clocks are synchronized) producers wont 
+drift and messages will arrive with correct timestamps. Be careful though, these
+producers will lead to different results every time, as their timestamps depend on 
+scheduling. Therefore they should be only used for latency/throughput measurements.
+
 *** DONE Synchronize producers when they start executing.
 
 Make the producers wait for a message so that they all start together.

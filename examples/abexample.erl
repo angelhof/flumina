@@ -54,7 +54,7 @@ seq_big_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
-    ConfTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
@@ -123,7 +123,8 @@ greedy_big_conf(SinkPid) ->
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
     LogTriple = log_mod:make_num_log_triple(),
-    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, 
+				 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
@@ -168,7 +169,7 @@ greedy_complex_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
     
-    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
 
     %% Set up where will the input arrive
     {A1, A2, A3, A4, Bs} = complex_input_distr_example(),
@@ -229,7 +230,8 @@ greedy_local_conf(SinkPid) ->
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     LogTriple = log_mod:make_num_log_triple(),    
-    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, 
+				 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
 
     %% Set up where will the input arrive
 
@@ -343,7 +345,8 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     LogTriple = log_mod:make_num_log_triple(),    
-    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, 
+				 [{optimizer, optimizer_greedy}, {log_triple, LogTriple}]),
 
     %% Set up where will the input arrive
 
@@ -418,7 +421,8 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     LogTriple = log_mod:make_num_log_triple(),    
-    ConfTree = conf_gen:generate(Specification, Topology, LogTriple, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, 
+				 [{optimizer,optimizer_greedy}, {log_triple, LogTriple}]),
 
     %% Set up where will the input arrive
 

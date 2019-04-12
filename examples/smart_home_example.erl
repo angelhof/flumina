@@ -47,7 +47,7 @@ distributed_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    ConfTree = conf_gen:generate(Specification, Topology, optimizer_greedy),
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_greedy}]),
 
     %% Set up where will the input arrive
     create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
@@ -79,7 +79,7 @@ sequential_conf(SinkPid) ->
     Specification = 
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    ConfTree = conf_gen:generate(Specification, Topology, optimizer_sequential),
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
     create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),

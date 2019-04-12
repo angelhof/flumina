@@ -1,7 +1,6 @@
 -module(conf_gen).
 
 -export([generate/3,
-	 generate/4,
 	 make_specification/4,
 	 make_topology/2,
 	 get_state_type_tags_upd/2,
@@ -11,7 +10,8 @@
 	 get_init_state/1, 
 	 get_nodes_rates/1, 
 	 get_implementation_tags/1,
-	 get_sink_pid/1
+	 get_sink_pid/1,
+	 default_options/0
 	]).
 
 -include("type_definitions.hrl").
@@ -21,16 +21,17 @@
 %% and contains the functions related to the data structures
 %% specifying the computation and the topology of the network.
 %%
--spec generate(specification(), topology(), atom()) -> configuration().
-generate(Specification, Topology, OptimizerModule) ->
-    generate(Specification, Topology, log_mod:no_log_triple(), OptimizerModule).
+-spec generate(specification(), topology(), conf_gen_options()) -> configuration().
+generate(Specification, Topology, Options) ->
+    OptionsRecord = update_options(Options, default_options()),
+    generate0(Specification, Topology, OptionsRecord).
 
--spec generate(specification(), topology(), num_log_triple(), atom()) -> configuration().
-generate(Specification, Topology, LogTriple, OptimizerModule) ->
+-spec generate0(specification(), topology(), conf_gen_options_rec()) -> configuration().
+generate0(Specification, Topology, #options{optimizer = OptimizerModule} = OptionsRec) ->
     SetupTree = gen_setup_tree(Specification, Topology, OptimizerModule),
     Dependencies = get_dependencies(Specification),
     SinkPid = get_sink_pid(Topology),
-    configuration:create(SetupTree, Dependencies, LogTriple, SinkPid).
+    configuration:create(SetupTree, Dependencies, OptionsRec, SinkPid).
 
 
 -spec gen_setup_tree(specification(), topology(), atom()) -> temp_setup_tree().
@@ -89,3 +90,34 @@ get_implementation_tags(Topology) ->
 -spec get_sink_pid(topology()) -> mailbox().
 get_sink_pid({_Rates, SinkPid}) ->
     SinkPid.
+
+-spec update_options(conf_gen_options(), conf_gen_options_rec()) 
+		    -> conf_gen_options_rec().
+update_options(Options, OptionsRecord) ->
+    lists:foldl(fun update_option/2, OptionsRecord, Options).
+
+-spec update_option(conf_gen_option(), conf_gen_options_rec()) 
+		    -> conf_gen_options_rec().
+update_option({optimizer, Value}, OptionsRecord) ->
+    OptionsRecord#options{optimizer = Value};
+update_option({log_triple, Value}, OptionsRecord) ->
+    OptionsRecord#options{log_triple = Value};
+update_option({checkpoint, Value}, OptionsRecord) ->
+    OptionsRecord#options{checkpoint = Value};
+update_option(Option, OptionsRecord) ->
+    util:err("Unknown option ~p in module ~p~n", [Option, ?MODULE]),
+    util:crash(1,1).
+
+-spec default_options() -> conf_gen_options_rec().
+default_options() ->
+    #options{
+       optimizer = optimizer_greedy,
+       log_triple = log_mod:no_log_triple(),
+       checkpoint = fun no_checkpoint/1}.
+			     
+
+-spec no_checkpoint(State::any()) -> checkpoint_predicate().
+no_checkpoint(_State) ->
+    fun(State) ->
+	    no_checkpoint(State)
+    end.

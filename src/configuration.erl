@@ -22,11 +22,12 @@
 %%
 -spec create(temp_setup_tree(), dependencies(), mailbox()) -> configuration().
 create(Tree, Dependencies, OutputPid) ->
-    LogTriple = log_mod:no_log_triple(),
-    create(Tree, Dependencies, LogTriple, OutputPid).
+    Options = conf_gen:default_options(),
+    create(Tree, Dependencies, Options, OutputPid).
 
--spec create(temp_setup_tree(), dependencies(), num_log_triple(), mailbox()) -> configuration().
-create(Tree, Dependencies, LogTriple, OutputPid) ->
+-spec create(temp_setup_tree(), dependencies(), conf_gen_options_rec(), mailbox()) 
+	    -> configuration().
+create(Tree, Dependencies, #options{log_triple = LogTriple} = _OptionsRec, OutputPid) ->
 
     %% Spawns the nodes
     NameSeed = make_name_seed(),
