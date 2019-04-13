@@ -2,9 +2,9 @@
 
 # Stop the containers
 
-echo "Destroying docker containers..."
+echo "Stopping docker containers..."
 
-docker kill $(docker ps -a -q)
+docker stop $(docker ps -a -q)
 
 # Bring down the network interfaces and clean up
 

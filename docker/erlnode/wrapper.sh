@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 LOG=/proto/logs/wrapper.log
 
@@ -24,7 +24,8 @@ cat /conf/hosts >> /etc/hosts
 
 echo -e "Starting the node\n\tNODE=${NODE}\n\tEXEC=${EXEC}" >> ${LOG}
 
-export ERL_CRASH_DUMP="/proto/logs/erl_crash.dump"
+echo "PWD: ${PWD}" >> ${LOG}
+ls -R >> ${LOG}
 
 /usr/local/bin/erl \
   -name ${NODE}@${NODE}.local \

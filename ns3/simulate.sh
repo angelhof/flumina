@@ -130,7 +130,7 @@ echo "Destroying the simulation context... "
 
 # Stop the containers
 
-docker kill $(docker ps -a -q)
+docker stop $(docker ps -a -q)
 
 # Bring down the network interfaces and clean up
 
