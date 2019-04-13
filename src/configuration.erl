@@ -28,6 +28,9 @@ create(Tree, Dependencies, OutputPid) ->
 -spec create(temp_setup_tree(), dependencies(), conf_gen_options_rec(), mailbox()) 
 	    -> configuration().
 create(Tree, Dependencies, OptionsRec, OutputPid) ->
+    
+    %% Register this node as the master node
+    true = register(master, self()),
 
     %% Spawns the nodes
     NameSeed = make_name_seed(),

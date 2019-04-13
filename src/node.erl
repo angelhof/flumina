@@ -1,7 +1,7 @@
 -module(node).
 
 -export([node/8,
-	 init_mailbox/4,
+	 init_mailbox/5,
 	 mailbox/5,
 	 init_node/5,
 	 loop/6]).
@@ -29,9 +29,13 @@ node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
 	end,
     NodePid = spawn_link(Node, ?MODULE, init_node, 
 			 [State, Funs, LogTriple, NodeCheckpointFun, Output]),
-    _MailboxPid = spawn_link(Node, ?MODULE, init_mailbox, [Name, Dependencies, Pred, NodePid]),
-    %% We return the mailbox pid because every message should first arrive to the mailbox
-    {NodePid, {Name, Node}}.
+    _MailboxPid = spawn_link(Node, ?MODULE, init_mailbox, 
+			    [Name, Dependencies, Pred, NodePid, {master, node()}]),
+    %% Make sure that the mailbox has registered its name
+    receive
+	{registered, Name} ->
+	    {NodePid, {Name, Node}}
+    end.
 
 
 
@@ -39,12 +43,12 @@ node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
 %% Mailbox
 %%
 
--spec init_mailbox(atom(), dependencies(), message_predicate(), pid()) -> no_return().
-init_mailbox(Name, Dependencies, Pred, Attachee) ->
-
+-spec init_mailbox(atom(), dependencies(), message_predicate(), pid(), mailbox()) -> no_return().
+init_mailbox(Name, Dependencies, Pred, Attachee, Master) ->
+    log_mod:init_debug_log(),
     %% Register the mailbox to have a name
     true = register(Name, self()),
-
+    Master ! {registered, Name},
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
     %% after all the nodes have already been spawned
@@ -52,7 +56,8 @@ init_mailbox(Name, Dependencies, Pred, Attachee) ->
 	{configuration, ConfTree} ->
 	    Attachee ! {configuration, ConfTree},
 	    
-
+	    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p received configuration~n", 
+			      [util:local_timestamp(),self(), node()]),
 	    %% The dependencies are used to clear messages from the buffer,
 	    %% When we know that we have received all dependent messages to
 	    %% after a time t, then we can release all messages {m, t', v}
@@ -370,11 +375,14 @@ broadcast_heartbeat({Tag, Ts}, ConfTree) ->
 -spec init_node(State::any(), #funs{}, num_log_triple(), 
 		checkpoint_predicate(), mailbox()) -> no_return().
 init_node(State, Funs, LogTriple, CheckPred, Output) ->
+    log_mod:init_debug_log(),
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
     %% after all the nodes have already been spawned
     receive
 	{configuration, ConfTree} ->
+	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p received configuration~n", 
+			      [util:local_timestamp(),self(), node()]),
 	    loop(State, Funs, LogTriple, CheckPred, Output, ConfTree)
     end.
 	
