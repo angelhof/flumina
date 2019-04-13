@@ -25,7 +25,7 @@ node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
     NodeCheckpointFun =
 	case Depth of
 	    0 -> CheckFun;
-	    _ -> fun conf_gen:no_checkpoint/1
+	    _ -> fun conf_gen:no_checkpoint/2
 	end,
     NodePid = spawn_link(Node, ?MODULE, init_node, 
 			 [State, Funs, LogTriple, NodeCheckpointFun, Output]),
@@ -406,7 +406,7 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun},
 			{LogState2, NewState0}
 		end,
 	    %% Check whether to create a checkpoint 
-	    NewCheckPred = CheckPred(NewState),
+	    NewCheckPred = CheckPred(MessageMerge, NewState),
 	    %% Maybe log some information about the message
 	    FinalLogState = LogFun(MsgOrMerge, NewLogState),
 	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, NewCheckPred, Output, ConfTree);

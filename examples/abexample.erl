@@ -423,7 +423,7 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
     LogTriple = log_mod:make_num_log_triple(),    
     ConfTree = conf_gen:generate(Specification, Topology, 
 				 [{optimizer,optimizer_greedy}, 
-				  %% {checkpoint, fun conf_gen:binary_always_checkpoint/1},
+				  {checkpoint, fun conf_gen:always_checkpoint/2},
 				  {log_triple, LogTriple}]),
 
     %% Set up where will the input arrive

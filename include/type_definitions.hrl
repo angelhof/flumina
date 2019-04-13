@@ -54,7 +54,7 @@
 %%
 
 -type optimizer_type() :: module().
--type checkpoint_predicate() :: fun((State::any()) -> checkpoint_predicate()).
+-type checkpoint_predicate() :: fun((gen_message_or_merge(), State::any()) -> checkpoint_predicate()).
 
 %% This record contains all the configurable
 %% options of the configuration generator.
