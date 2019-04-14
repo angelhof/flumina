@@ -103,7 +103,6 @@ root_tree_to_setup_tree(RootTree, Specification) ->
 	complete_root_tree_to_setup_tree({InitState, UnionRootTree, fun(X) -> X end}, Specification),
 
     io:format("Possible setup trees: ~p~n", [length(PossibleSetupTrees)]),
-    io:format("Non duplicate Possible setup trees: ~p~n", [sets:size(sets:from_list(PossibleSetupTrees))]),
     %% io:format("Possible setup trees: ~n~p~n", [lists:sublist(PossibleSetupTrees, 10)]),
 
     %% Return the shortest one

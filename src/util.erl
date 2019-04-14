@@ -39,7 +39,11 @@ sink() ->
 
 sink(MsgLoggerInitFun) ->
     LoggerFun = MsgLoggerInitFun(),
-    sink_loop(LoggerFun).
+    receive
+	finished ->
+	    io:format("Configuration done~n", []),
+	    sink_loop(LoggerFun)
+    end.
 
 sink_loop(LoggerFun) ->
     receive
