@@ -6,8 +6,8 @@
 	 distributed_conf_1/1,
 	 real_distributed/1,
 	 real_distributed_conf/2,
-	 distributed_experiment/4,
-	 distributed_experiment_conf/5,
+	 distributed_experiment/5,
+	 distributed_experiment_conf/6,
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
@@ -372,19 +372,19 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
 
 %% TODO: Maybe also parametrize the b heartbeat ratio
-distributed_experiment(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio) ->
+distributed_experiment(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     ExecPid = spawn_link(?MODULE, distributed_experiment_conf, 
-			 [SinkName, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio]),
+			 [SinkName, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer]),
     LoggerInitFun = 
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
     util:sink(LoggerInitFun).
 
-distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio) ->
-    io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio]]),
+distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer) ->
+    io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer]]),
 
     %% We assume that the first node name is the B node
     [BNodeName|ANodeNames] = NodeNames,
@@ -422,7 +422,7 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 
     LogTriple = log_mod:make_num_log_triple(),    
     ConfTree = conf_gen:generate(Specification, Topology, 
-				 [{optimizer,optimizer_greedy}, 
+				 [{optimizer,Optimizer}, 
 				  {checkpoint, fun conf_gen:always_checkpoint/2},
 				  {log_triple, LogTriple}]),
 

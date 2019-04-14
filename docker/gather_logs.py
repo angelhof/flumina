@@ -3,6 +3,20 @@ import os
 from datetime import datetime
 import shutil
 
+def copy_logs_from_to(from_dirs, to_dir_path):
+    os.mkdir(to_dir_path)
+
+    ## Gather the log file names
+
+    log_file_names_deep = [(path, os.listdir(path)) for path in from_dirs]
+    log_file_names = [os.path.join(path, name) for (path, names) in log_file_names_deep for name in names]
+    # print(log_file_names)
+
+    for file_name in log_file_names:
+        shutil.copy(file_name, to_dir_path)
+
+    print("Copied logs in:", to_dir_path)
+
 ## 1st argument is the name of the folder to gather the logs
 dir_prefix = sys.argv[1]
 
@@ -18,16 +32,7 @@ dir_suffix = str(len(nodes)) + "_" + sys.argv[3]
 timestamp = datetime.now().replace(microsecond=0).isoformat()
 dir_name = dir_prefix + '_' + timestamp + '_' + dir_suffix
 dir_path = os.path.join('docker_logs', dir_name)
-# print("Saving logs at:", dir_path)
-os.mkdir(dir_path)
 
-## Gather the log file names
 log_folders = [os.path.join('read-only', node, 'logs') for node in nodes]
-log_file_names_deep = [(path, os.listdir(path)) for path in log_folders]
-log_file_names = [os.path.join(path, name) for (path, names) in log_file_names_deep for name in names]
-# print(log_file_names)
 
-for file_name in log_file_names:
-    shutil.copy(file_name, dir_path)
-
-print("Copied logs in:", dir_path)
+copy_logs_from_to(log_folders, dir_path)
