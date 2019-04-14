@@ -83,6 +83,7 @@ root_tree_physical_mapping(TagRootTree, Topology) ->
     %%          to the node with the highest rate for the tags
     %%          handled by the root node.
     NodesRates = conf_gen:get_nodes_rates(Topology),
+    
     opt_lib:map_physical_node_root_tree_max_rate(NodesRates, TagRootTree).
 
 
@@ -264,12 +265,6 @@ finalize_split_hole_setup_trees(LeftRight, {StateType, State}, {HTags, Node},
 	      %% a forest of root trees. So just assign it to the current Node.
 	      {RestStateTypePair, {{RestTags, Node}, RestRootTrees}, FinalHoleTree}
       end, MatchedSideTempSetupTrees).
-	
-%% TODO: In search of a better name
-%% -spec create_hole_setup_trees('left' | 'right', state_type_pair(), node(),
-%% 				  set_root_tree(), sets:set(tag()), specification()) 
-%% 				 -> [[new_hole_setup_tree()]].)
-%% create_hole_setup_trees()
 
 
 %% This function, given a split state type triple, returns whether a set of tags

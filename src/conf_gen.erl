@@ -12,9 +12,9 @@
 	 get_implementation_tags/1,
 	 get_sink_pid/1,
 	 default_options/0,
-	 no_checkpoint/1,
-	 always_checkpoint/1,
-	 binary_always_checkpoint/1
+	 no_checkpoint/2,
+	 always_checkpoint/2,
+	 binary_always_checkpoint/2
 	]).
 
 -include("type_definitions.hrl").
@@ -116,36 +116,34 @@ default_options() ->
     #options{
        optimizer = optimizer_greedy,
        log_triple = log_mod:no_log_triple(),
-       checkpoint = fun no_checkpoint/1}.
+       checkpoint = fun no_checkpoint/2}.
 			     
 
--spec no_checkpoint(State::any()) -> checkpoint_predicate().
-no_checkpoint(_State) ->
-    fun(State) ->
-	    no_checkpoint(State)
+-spec no_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
+no_checkpoint(_Msg, _State) ->
+    fun(Msg, State) ->
+	    no_checkpoint(Msg, State)
     end.
 
 %% This function checkpoints the state to a file in a human readable form
--spec always_checkpoint(State::any()) -> checkpoint_predicate().
-always_checkpoint(State) ->
-    Ts = erlang:system_time(),
+-spec always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
+always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
         io_lib:format("logs/checkpoint_~s_~s_messages.log", 
 		      [pid_to_list(self()), atom_to_list(node())]),
-    ok = file:write_file(Filename, io_lib:format("~p.~n", [State])),
-    fun(State1) ->
-	    always_checkpoint(State1)
+    ok = file:write_file(Filename, io_lib:format("~p.~n", [{Ts, State}])),
+    fun(Msg1, State1) ->
+	    always_checkpoint(Msg1, State1)
     end.
 
 %% This function checkpoints the state to a file in a binary form.
 %% It is faster than the one above, but it is not readable.
--spec binary_always_checkpoint(State::any()) -> checkpoint_predicate().
-binary_always_checkpoint(State) ->
-    Ts = erlang:system_time(),
+-spec binary_always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
+binary_always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
         io_lib:format("logs/binary_checkpoint_~s_~s_messages.log", 
 		      [pid_to_list(self()), atom_to_list(node())]),
-    ok = file:write_file(Filename, term_to_binary(State)),
-    fun(State1) ->
-	    binary_always_checkpoint(State1)
+    ok = file:write_file(Filename, term_to_binary({Ts, State})),
+    fun(Msg1, State1) ->
+	    binary_always_checkpoint(Msg1, State1)
     end.

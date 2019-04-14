@@ -1,19 +1,19 @@
 ** Work TODO
 
-*** TODO Implement a checkpoint mechanism
+*** TODO Improve the complete root_tree_to_setup_tree
+    
+I WORRY THAT THIS MIGHT LEAD TO BAD PERFORMANCE WHEN THE CONFIGURATION TREE
+IS TOO DEEP, BECAUSE OF MANY SUCCESSIVE USELESS MERGES AND SPLITS.
 
-The top node (and possibly other nodes) should log the state of the system 
-every time it merges (as then we have a consistent system snapshot).
-
-  - [X] Extend the configuration generator to accept the specification, the topology,
-        and a list of options. The options will override the default values in 
-        an option/configuration record for the configuration generator.
-  - [X] Add an option {checkpoint, Fun}, that runs the function Fun on the top
-        node every time it merges the whole tree. The reason of calling a function
-        is that we can take the checkpoint given an arbitrary predicate on the state.
-  - [ ] Implement a checkpoint function that keeps a checkpoint every time a merge
-        happens by writting it to a file.
-
+There are two main improvements that can be done.
+  - [ ] Do not recompute trees. Even in the greedy complex case (with 10 tags)
+        this algorithm finds tens of trees, so it seems that it wouldn't really scale
+        for more complex root trees.
+  - [ ] Instead of trying to match a specific node of the root tree with one side of
+        a split, try to match any subset of nodes with one side of a split. This way
+        the algorithm will generate all binary configuration trees (even the balanced
+        ones), as now it only returns the longest ones it can find (especially in cases
+        where in the root tree, one parent has many children).
 
 *** TODO (Maybe) We might need to tune low level network parameters
 
@@ -24,7 +24,6 @@ in order to tune the system to run well with very small tcp messages between the
 
 Find a way to solve this problem. This problem also leads to high latency.
 
-*** TODO Implement a plot script that plots from latency logs
 *** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement dynamic reconfiguration
 
@@ -94,18 +93,6 @@ The above can be split up in the following tasks:
 Instead of failing when not having found a temp_setup_tree, implement the "most parallel one".
 That is, if some phase of the algorithm (for some subtree) returns no tree, then approximate 
 it by returning the sequential setup tree for this tree.
-
-*** TODO Improve the complete root_tree_to_setup_tree
-
-There are two main improvements that can be done.
-  - [ ] Do not recompute trees. Even in the greedy complex case (with 10 tags)
-        this algorithm finds tens of trees, so it seems that it wouldn't really scale
-        for more complex root trees.
-  - [ ] Instead of trying to match a specific node of the root tree with one side of
-        a split, try to match any subset of nodes with one side of a split. This way
-        the algorithm will generate all binary configuration trees (even the balanced
-        ones), as now it only returns the longest ones it can find (especially in cases
-        where in the root tree, one parent has many children).
 
 *** TODO Implement the DP algorithm that maps a root tree to physical nodes
 *** TODO Improve the greedy dependency graph separation algorithm
@@ -231,6 +218,22 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Implement a checkpoint mechanism
+
+The top node (and possibly other nodes) should log the state of the system 
+every time it merges (as then we have a consistent system snapshot).
+
+  - [X] Extend the configuration generator to accept the specification, the topology,
+        and a list of options. The options will override the default values in 
+        an option/configuration record for the configuration generator.
+  - [X] Add an option {checkpoint, Fun}, that runs the function Fun on the top
+        node every time it merges the whole tree. The reason of calling a function
+        is that we can take the checkpoint given an arbitrary predicate on the state.
+  - [X] Implement a checkpoint function that keeps a checkpoint every time a merge
+        happens by writting it to a file. The checkpoint should also contain the
+        timestamp of the latest processed message.
+
+*** DONE Implement a plot script that plots from latency logs
 *** DONE Implement producers that can generate messages and timestamp them.
 
 The current timestamp based producers lag behind of one another. The a ones,
