@@ -128,7 +128,7 @@ echo "Destroying the simulation context... "
 
 # Stop the containers
 
-docker stop $(docker ps -a -q)
+docker stop ${nodes[*]}
 
 # Bring down the network interfaces and clean up
 

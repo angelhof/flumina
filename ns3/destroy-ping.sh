@@ -4,8 +4,7 @@ nodes=(a1 a2)
 
 # Stop the containers
 
-docker stop $(docker ps -a -q)
-#docker rm $(docker ps -a -q)
+docker stop ${nodes[*]}
 
 for node in ${nodes[*]}
 do

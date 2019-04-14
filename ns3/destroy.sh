@@ -1,18 +1,22 @@
 #!/bin/bash
 
+nodes=()
+while (( "$#" ))
+do
+  nodes+="${1}"
+  shift
+done
+
 # Stop the containers
 
 echo "Stopping docker containers..."
 
-docker stop $(docker ps -a -q)
+docker stop ${nodes[*]}
 
 # Bring down the network interfaces and clean up
 
-while (( "$#" ))
+for node in ${nodes[*]}
 do
-  node="${1}"
-  shift
-
   echo "Cleaning up the devices and PID files for ${node}..."
 
   ./ns3/singleDestroy.sh ${node}
