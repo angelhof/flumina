@@ -10,8 +10,8 @@ docker stop $(docker ps -a -q)
 for node in ${nodes[*]}
 do
   ./docker/singleDestroy.sh ${node}
-  PID=$(cat var/run/${node}.pid)
-  rm -rf /var/run/netns/${PID}
-  rm -rf var/run/${node}.pid
+  PID=$(cat ./var/run/${node}.pid)
+  rm /var/run/netns/${PID}
+  rm ./var/run/${node}.pid
 done
 

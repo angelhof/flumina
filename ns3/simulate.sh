@@ -56,23 +56,21 @@ do
     exec=""
   fi
 
-  mkdir -p var/log/${node}
-  mkdir -p var/conf/${node}
+  mkdir -p ${workdir}/var/log/${node}
+  mkdir -p ${workdir}/var/conf/${node}
 
-  echo -n ${node} > var/conf/${node}/node
-  echo -n ${exec} > var/conf/${node}/exec
-  cp ${hosts} var/conf/${node}/hosts
+  echo -n ${node} > ${workdir}/var/conf/${node}/node
+  echo -n ${exec} > ${workdir}/var/conf/${node}/exec
+  cp ${hosts} ${workdir}/var/conf/${node}/hosts
 
-  sudo ./ns3/singleSetup.sh ${node} ${USER}
+  ./ns3/singleSetup.sh ${node} ${USER}
 done
-
-sudo ./ns3/singleEndSetup.sh
 
 # Run the docker containers. Assumes existence of an image called erlnode.
 
 echo "Starting the docker containers..."
 
-mkdir -p var/run
+mkdir -p ${workdir}/var/run
 
 for node in ${nodes[*]}
 do
@@ -87,7 +85,7 @@ do
     -v "${workdir}/var/log/${node}":/proto/logs \
     erlnode
 
-  docker inspect --format '{{ .State.Pid }}' ${node} > var/run/${node}.pid
+  docker inspect --format '{{ .State.Pid }}' ${node} > ${workdir}/var/run/${node}.pid
 done
 
 # Run the ns3 process. Assumes it is compiled and located in $NS3_HOME/scratch.
@@ -136,10 +134,10 @@ docker stop $(docker ps -a -q)
 
 for node in ${nodes[*]}
 do
-  sudo ./ns3/singleDestroy.sh ${node}
-  PID=$(cat var/run/${node}.pid)
-  sudo rm -rf /var/run/netns/${PID}
-  rm -rf var/run/${node}.pid
+  ./ns3/singleDestroy.sh ${node}
+  PID=$(cat ${workdir}/var/run/${node}.pid)
+  rm /var/run/netns/${PID}
+  rm ${workdir}/var/run/${node}.pid
 done
 
 echo "DONE"

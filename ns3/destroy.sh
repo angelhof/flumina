@@ -15,10 +15,10 @@ do
 
   echo "Cleaning up the devices and PID files for ${node}..."
 
-  sudo ./ns3/singleDestroy.sh ${node}
-  PID=$(cat var/run/${node}.pid)
-  sudo rm -rf /var/run/netns/${PID}
-  rm -rf var/run/${node}.pid
+  ./ns3/singleDestroy.sh ${node}
+  PID=$(cat ./var/run/${node}.pid)
+  rm /var/run/netns/${PID}
+  rm ./var/run/${node}.pid
 done
 
 echo "DONE"

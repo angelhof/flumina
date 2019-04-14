@@ -26,8 +26,22 @@ fi
 NAME=$1
 TAPUSER=$2
 
-brctl addbr br-$NAME
-tunctl -u $TAPUSER -t tap-$NAME
-ifconfig tap-$NAME 0.0.0.0 promisc up
-brctl addif br-$NAME tap-$NAME
-ifconfig br-$NAME up
+# We assume the variable NET_UTILS is set to a directory that
+# contains tunctl, brctl, and ip with the CAP_NET_ADMIN capability.
+
+${NET_UTILS}/tunctl -u $TAPUSER -t tap-$NAME
+
+# The next call to ifconfig is replaced by three calls to ip
+# ifconfig tap-$NAME 0.0.0.0 promisc up
+
+${NET_UTILS}/ip addr add 0.0.0.0 dev tap-$NAME
+${NET_UTILS}/ip link set dev tap-$NAME promisc on
+${NET_UTILS}/ip link set dev tap-$NAME up
+
+${NET_UTILS}/brctl addbr br-$NAME
+${NET_UTILS}/brctl addif br-$NAME tap-$NAME
+
+# ifconfig br-$NAME up
+
+${NET_UTILS}/ip link set dev br-$NAME up
+
