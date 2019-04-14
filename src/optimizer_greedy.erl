@@ -102,6 +102,10 @@ root_tree_to_setup_tree(RootTree, Specification) ->
     PossibleSetupTrees = 
 	complete_root_tree_to_setup_tree({InitState, UnionRootTree, fun(X) -> X end}, Specification),
 
+    io:format("Possible setup trees: ~p~n", [length(PossibleSetupTrees)]),
+    io:format("Non duplicate Possible setup trees: ~p~n", [sets:size(sets:from_list(PossibleSetupTrees))]),
+    %% io:format("Possible setup trees: ~n~p~n", [lists:sublist(PossibleSetupTrees, 10)]),
+
     %% Return the shortest one
     {_Height, ShortestSetupTree} =
 	lists:min([{opt_lib:temp_setup_tree_height(T), T} || T <- PossibleSetupTrees]),
@@ -161,13 +165,126 @@ complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}, Hole
 				      [set_root_tree()], specification()) 
 				     -> [hole_setup_tree()].
 filter_splits_satisfy_any_child(StateTypePair, TagsNode, SplitMergeFuns, SetRootTrees, Specification) ->
+    UniqueRootTrees = unique_root_trees_focus(SetRootTrees),
     DeepHoledSetupTrees =
+        [filter_splits_satisfy_child(StateTypePair, TagsNode, SplitMergeFuns, Curr, Rest, Specification)
+	 || {Curr, Rest} <- UniqueRootTrees],
+    lists:flatten(DeepHoledSetupTrees).
+
+%% ==========================================================================
+%% 
+%% Setup Tree redundancy optimization
+%%
+%% ==========================================================================
+
+%% This function is given a list of root trees for which we have to check if they match
+%% or not as children of a split on the current state.
+%% However, it doesn't naively check whether any root tree can match as a child of 
+%% a split on the current state. 
+%% 
+%% Instead, it gathers all root trees in 
+%% similar sets (similarity is not yet well defined) and then checks for 
+%% only one member of each similar group.  
+%% 
+%% This is done, to reduce the number of generated setup trees when the children 
+%% root trees are the same (an example is when we have b -> (a1, a2, a3, a4),
+%% the previous algorithm was checking whether a1 matches, whether a2 matches, etc.
+%% However most of those are redundant because it doesnt matter whether a1 or a2 or...
+%% is the first child etc.
+%%
+%% It is clear that the more coarse grained this similarity is, the less redundant 
+%% setup trees we will have in the end. However we have to make sure that the similarity
+%% is fine grained enough so that the algorithm stays complete).
+%%
+%% For now, I will just define similarity as: Root trees r1 and r2 are similar, 
+%% if they are both leaves, and they have the same specification tag.
+%%
+%% ASSUMPTION:
+%% This assumes that the handled set of tags for each state type contains 
+%% all or none the implementation tags of a specification tag (so regarding
+%% the sets of tags that a state type can handle, implementation tags of
+%% the same specificaation tag are equivalent.
+%%
+%% WARNING: (Not sure) As the similarity doesn't take node into account,
+%% it might be the case that this returns a suboptimal configuration tree,
+%% that is one where there are some unnecessary message back and forths between nodes.
+-spec unique_root_trees_focus([set_root_tree()]) 
+			     -> [{set_root_tree(), [set_root_tree()]}].
+unique_root_trees_focus(RootTrees) ->
+    SetOfUniqueRootTrees =
+	sets:from_list(one_of_each_similar(RootTrees)),
+    CurrRestRootTreePairs =
 	util:map_focus(
 	  fun(Curr, Rest) ->
-		  filter_splits_satisfy_child(StateTypePair, TagsNode, 
-					      SplitMergeFuns, Curr, Rest, Specification)
-	  end, SetRootTrees),
-    lists:flatten(DeepHoledSetupTrees).
+		  case sets:is_element(Curr, SetOfUniqueRootTrees) of
+		      true ->
+			  %% Only keep the unique (one of each similarity class)
+			  %% root trees
+			  [{Curr, Rest}];
+		      false ->
+			  []
+		  end	  
+	  end, RootTrees),
+    lists:flatten(CurrRestRootTreePairs).
+
+
+%% This function returns one root tree of each similarity class
+-spec one_of_each_similar([set_root_tree()]) -> [set_root_tree()].
+one_of_each_similar(RootTrees) ->
+    lists:foldl(
+     fun(RootTree, RootTreesAcc) ->
+	     case any_similar_list(RootTree, RootTreesAcc) of
+		 true ->
+		     %% If it is similar with one in the list drop it
+		     RootTreesAcc;
+		 false ->
+		     %% Else keep it
+		     [RootTree|RootTreesAcc]
+	     end
+     end, [], RootTrees).
+
+
+-spec any_similar_list(set_root_tree(), [set_root_tree()]) -> boolean().
+any_similar_list(RootTree1, RootTrees) ->
+    lists:any(
+      fun(RootTree2) ->
+	      similar(RootTree1, RootTree2)
+      end, RootTrees).
+
+%% TODO: Think of the largest correct similarity relation
+%% For now it is heuristic based.
+-spec similar(set_root_tree(), set_root_tree()) -> boolean().
+similar({{TagSet1, _Node1}, []}, {{TagSet2, _}, []} ) ->
+    %% Only leaf nodes with implementation tags of the same specification tag 
+    %% in their tag sets are considered similar.
+    %% Clearly this is not complete, but for now this solves the case where
+    %% the algorithm doesn't scale. 
+    SpecTagSet1 = specification_tags(TagSet1),
+    SpecTagSet2 = specification_tags(TagSet2),
+    sets:is_subset(SpecTagSet1, SpecTagSet2) 
+	andalso sets:is_subset(SpecTagSet2, SpecTagSet1);
+similar(_RootTree1, _RootTree2) ->
+    false.
+
+%% This lifts the function from below to sets of implementation tags
+-spec specification_tags(sets:set(tag())) -> sets:set(tag()).
+specification_tags(TagSet) ->
+    sets:fold(
+      fun(ImplTag, SpecTagsAcc) ->
+	      sets:add_element(specification_tag(ImplTag), SpecTagsAcc)
+      end ,sets:new(),TagSet).
+
+%% TODO: Move this function in a more general library
+%% This assumes that the specification tag is the first element of the 
+%% implementation tag tuple, (if the implementation tag is a tuple)
+-spec specification_tag(tag()) -> tag().
+specification_tag(Tag) when is_atom(Tag) ->
+    Tag;
+specification_tag({Tag, Id}) when is_atom(Tag) ->
+    Tag.
+
+
+%% ==========================================================================
 
 
 %% This function, is given a list of splits-merges-and their state triples,
@@ -202,10 +319,16 @@ filter_splits_satisfy_child({StateType, State}, {HTags, Node}, SplitMergeFuns,
 		
 			%% Make all possible setup trees for the matched size.
 			%% Give an empty hole tree, as we can locally make this search.
-			MatchedSideTempSetupTrees = 
+			MatchedSideTempSetupTrees0 = 
 			    complete_root_tree_to_setup_tree({NewStateTypePair, SetRootTree, fun(X) -> X end}, 
 							     Specification),
+			%% WARNING:
+			%% Hack that might work, to not have duplicate setup trees
+			%% It doesn't seem to offer anything, but let's keep it here.
+			MatchedSideTempSetupTreesSet = sets:from_list(MatchedSideTempSetupTrees0),
+			MatchedSideTempSetupTrees = sets:to_list(MatchedSideTempSetupTreesSet),
 			
+
 			%% Now that we have the matched trees from one side, we can create the hole on
 			%% the other side
 			finalize_split_hole_setup_trees(LeftRight, {StateType, State}, 
@@ -271,6 +394,15 @@ finalize_split_hole_setup_trees(LeftRight, {StateType, State}, {HTags, Node},
 %% can be handled by the left or the right child of the split state type triple.
 -spec split_satisfies_requirements(state_type_triple(), sets:set(tag()), specification()) 
 				  -> ['left' | 'right'].
+split_satisfies_requirements({_Parent, Left, Right}, TagSet, Specification) 
+  when Left =:= Right -> 
+    %% Optimization: 
+    %% When the right and left states are the same, it doesn't make sense
+    %% to return both matches, as both will certainly match
+    case opt_lib:can_state_type_handle_tags(Left, TagSet, Specification) of
+	true -> [left];
+	false -> []
+    end;
 split_satisfies_requirements({_Parent, Left, Right}, TagSet, Specification) -> 
     L1 = 
 	case opt_lib:can_state_type_handle_tags(Left, TagSet, Specification) of

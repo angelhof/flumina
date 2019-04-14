@@ -1,5 +1,15 @@
 ** Work TODO
 
+*** TODO Don't return redundant setup trees (Completeness of similarity relation)
+
+This can be solved by finding the largest root tree similarity relation
+so that only one root tree in the similarity class is checked if it matches.
+
+This will let us scale in examples of the form b -> (a1, a2, a3, ...) where
+until now our algorithm considers all of a1, a2, a3, ... as possible root tree
+matches, when clearly if one matches, the other will match too, and there will 
+be no difference whichever we match.
+
 *** TODO Improve the complete root_tree_to_setup_tree
     
 I WORRY THAT THIS MIGHT LEAD TO BAD PERFORMANCE WHEN THE CONFIGURATION TREE
@@ -218,6 +228,13 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Optimization: Reduce the redundancy of the returned setup trees
+
+Implement a simple similarty relation as a starting point. This doesn't
+necessarily need to be as coarse as possible (it wont) but it should be sound in the sense
+that it doesnt group root trees as similar, when matching one of them could lead to 
+different configuration trees that when matching the other.
+
 *** DONE Implement a checkpoint mechanism
 
 The top node (and possibly other nodes) should log the state of the system 
