@@ -1,21 +1,11 @@
 import sys
 import os
 from datetime import datetime
+## TODO: Find a better way to import other python files
+sys.path.append(os.path.relpath("../scripts"))
+from lib import copy_logs_from_to
 import shutil
 
-def copy_logs_from_to(from_dirs, to_dir_path):
-    os.mkdir(to_dir_path)
-
-    ## Gather the log file names
-
-    log_file_names_deep = [(path, os.listdir(path)) for path in from_dirs]
-    log_file_names = [os.path.join(path, name) for (path, names) in log_file_names_deep for name in names]
-    # print(log_file_names)
-
-    for file_name in log_file_names:
-        shutil.copy(file_name, to_dir_path)
-
-    print("Copied logs in:", to_dir_path)
 
 ## 1st argument is the name of the folder to gather the logs
 dir_prefix = sys.argv[1]

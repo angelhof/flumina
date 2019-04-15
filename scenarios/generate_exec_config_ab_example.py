@@ -3,6 +3,10 @@ import sys
 import os
 from datetime import datetime
 import shutil
+## TODO: Find a better way to import other python files
+sys.path.append(os.path.relpath("./scripts"))
+from lib import copy_logs_from_to
+
 
 ## The purpose of this script is to generate different exec strings for the
 ## main erlang node to execute. They all call abexample:distributed_experiment
@@ -35,22 +39,22 @@ import shutil
 ## 1 corresponds to 1 message per millisecond.
 
 ## TODO: Find how to call this from the other python file
-def copy_logs_from_to(from_dirs, to_dir_path):
-    ## Delete the directory if it exists
-    if os.path.isdir(to_dir_path):
-        shutil.rmtree(to_dir_path)
-    os.mkdir(to_dir_path)
+# def copy_logs_from_to(from_dirs, to_dir_path):
+#     ## Delete the directory if it exists
+#     if os.path.isdir(to_dir_path):
+#         shutil.rmtree(to_dir_path)
+#     os.mkdir(to_dir_path)
 
-    ## Gather the log file names
+#     ## Gather the log file names
 
-    log_file_names_deep = [(path, os.listdir(path)) for path in from_dirs]
-    log_file_names = [os.path.join(path, name) for (path, names) in log_file_names_deep for name in names]
-    # print(log_file_names)
+#     log_file_names_deep = [(path, os.listdir(path)) for path in from_dirs]
+#     log_file_names = [os.path.join(path, name) for (path, names) in log_file_names_deep for name in names]
+#     # print(log_file_names)
 
-    for file_name in log_file_names:
-        shutil.copy(file_name, to_dir_path)
+#     for file_name in log_file_names:
+#         shutil.copy(file_name, to_dir_path)
 
-    print("Copied logs in:", to_dir_path)
+#     print "Copied logs in:", to_dir_path
 
 def format_node(node_name):
     return "\\'%s@%s.local\\'" % (node_name, node_name)
@@ -101,13 +105,26 @@ def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_num
 ## how does the system handle varying loads.
 ##
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
-rate_multipliers = [10, 20, 50, 100, 200]
+rate_multipliers = [5, 10, 20, 50, 100]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 a_nodes_numbers = [4]
 optimizers = ["optimizer_greedy"]
 
 run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+
+## Notes:
+## On my machine it chokes above 50 rate and never gives any response.
+## For some reason, on the server (after 40 nodes it chokes), which is actually pretty reasonable
+## because there are only 36 cores.
+##
+## I noticed that on my machine, some of the mailboxes wait to release bs and some
+## wait to release as.
+##
+## An issue is that producers take up scheduling time, and so for 5 nodes, we need
+## 5 "threads" for 'a' producers + 1 for b producer
+## 5 "threads" for 'a' mailboxes + 1 for b mailbox
+## 5 "threads" for 'a' nodes + 1 for b node  
 
 ## Experiment 2
 ## ===============
@@ -116,11 +133,22 @@ run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers
 ## how well our system scales with the number of processors/cores
 ##
 ## NOTE: The rate should be reasonably high. Maybe 20 - 50?
-rate_multipliers = [20]
+rate_multipliers = [10]
 ratios_ab = [1000]
 heartbeat_rates = [10]
-a_nodes_numbers = [1, 2, 5, 10, 20, 50]
+a_nodes_numbers = [1, 2, 5, 10, 20, 25, 50]
 optimizers = ["optimizer_greedy"]
 
 run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 
+## Claim showcased by the experiments:
+## A claim that we can make for the first two experiments is that the system scales well
+## both when increasing the rate, as well as when increasing the 
+
+rate_multipliers = [10]
+ratios_ab = [1000]
+heartbeat_rates = [10]
+a_nodes_numbers = [10]
+optimizers = ["optimizer_greedy"]
+
+# run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
