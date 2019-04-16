@@ -10,7 +10,7 @@
 %% that takes as a single argument the pid
 %% of a sink
 %% WARNING: The way testing is implemented now,
-%%          it suceeds if we get at least as many messages as
+%%          it succeeds if we get at least as many messages as
 %%          the expected output, if we get more it doesn't fail.
 -spec test_mfa({atom(), atom()}, Messages::[any()]) -> 'ok'.
 test_mfa({M, F}, ExpOutput) ->

@@ -99,10 +99,7 @@ create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
 %% The specification of the computation
 %%
 
-
-%% This computation the total distance that each driver has moved every hour.
-%% It finds the distance between each two consecutive points of each taxi driver
-%% and then adds them all for each hour
+%% TODO: Describe the computation in words
 
 -type thermo_id() :: {'a', integer()}.
 -type pressure_tag() :: 'b'.

@@ -11,7 +11,8 @@
 	 nothing/0,
 	 always_ok/1,
 	 unregister_names/1,
-	 local_timestamp/0]).
+	 local_timestamp/0,
+	 do_n_times/2]).
 
 -include("type_definitions.hrl").
 
@@ -120,3 +121,11 @@ local_timestamp() ->
 			  "Aug","Sep","Oct","Nov","Dec"}),
     io_lib:format("~2w ~s ~4w ~2w:~2..0w:~2..0w.~6..0w",
 		  [Day,Mstr,Year,Hour,Minute,Second,Micro]).
+
+do_n_times(N, Fun) ->
+	fun (X) -> do_n_times(0, X, Fun) end.
+
+do_n_times(0, Init, Fun) ->
+	Init;
+do_n_times(N, Init, Fun) when N > 0 ->
+	do_n_times(N - 1, Fun(Init), Fun).
