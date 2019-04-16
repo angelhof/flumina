@@ -5,7 +5,9 @@ from datetime import datetime
 import shutil
 ## TODO: Find a better way to import other python files
 sys.path.append(os.path.relpath("./scripts"))
+sys.path.append(os.path.relpath("./analysis"))
 from lib import copy_logs_from_to
+from plot_scaling_latency_throughput import plot_scaleup_rate
 
 
 ## The purpose of this script is to generate different exec strings for the
@@ -38,23 +40,6 @@ from lib import copy_logs_from_to
 ## a implementation tag, and that is 1000000 messages. The rate multiplier
 ## 1 corresponds to 1 message per millisecond.
 
-## TODO: Find how to call this from the other python file
-# def copy_logs_from_to(from_dirs, to_dir_path):
-#     ## Delete the directory if it exists
-#     if os.path.isdir(to_dir_path):
-#         shutil.rmtree(to_dir_path)
-#     os.mkdir(to_dir_path)
-
-#     ## Gather the log file names
-
-#     log_file_names_deep = [(path, os.listdir(path)) for path in from_dirs]
-#     log_file_names = [os.path.join(path, name) for (path, names) in log_file_names_deep for name in names]
-#     # print(log_file_names)
-
-#     for file_name in log_file_names:
-#         shutil.copy(file_name, to_dir_path)
-
-#     print "Copied logs in:", to_dir_path
 
 def format_node(node_name):
     return "\\'%s@%s.local\\'" % (node_name, node_name)
@@ -105,13 +90,19 @@ def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_num
 ## how does the system handle varying loads.
 ##
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
-rate_multipliers = [5, 10, 20, 50, 100]
+## NOTE: I have to fine tune these numbers to fit the server
+rate_multipliers = [10, 20, 50]
+# rate_multipliers = [5, 10, 20, 40, 50]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 a_nodes_numbers = [4]
 optimizers = ["optimizer_greedy"]
 
-run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+# run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+
+dirname = os.path.join('docker', 'docker_logs', 'server_node_scale_up', 'docker_logs')
+plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
+                  rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
 
 ## Notes:
 ## On my machine it chokes above 50 rate and never gives any response.
@@ -136,10 +127,14 @@ run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers
 rate_multipliers = [10]
 ratios_ab = [1000]
 heartbeat_rates = [10]
-a_nodes_numbers = [1, 2, 5, 10, 20, 25, 50]
+a_nodes_numbers = [1, 2, 5, 10, 20, 30, 40, 50]
 optimizers = ["optimizer_greedy"]
 
-run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+# run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+
+## An issue with the above experiment is that when setting up 50 nodes, and trying to run
+## them all, the nodes don't connect. It might be because they all try to make ? or it is
+## something that has to do with the docker network?
 
 ## Claim showcased by the experiments:
 ## A claim that we can make for the first two experiments is that the system scales well
