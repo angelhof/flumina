@@ -17,42 +17,16 @@
 
 *** TODO Make the abexample use a tags and not a1 a2 now that we have correct spec/impl
 
-*** TODO Separate timestamp and node id from the message, as it is never needed for the computation
-
-TODO: node.erl calls the preds of its children to call the split, 
-      however, split predicates are specification predicates, and so we should keep somewhere
-      in the tree, the spec predicate of each node.
-
-TODO: Make sure that the split and merge predicates are correct. 
-Should they be about implementation, or specification tags?
-
-WARNING: Make sure that the similarity should be for both tags and keys tags in the algorithm
-
-Internal messages will now contain implementation tags, so at last it will be clear
-what is a specification tag and what is an implementation tag
-
-It is a little bit unclear which predicates should be for the implementation and which
-should be for the specification.
-
-  - [ ] Splits/Merges predicates
-  - [X] Update type definitions
-  - [-] Update code in src
-    + [X] node.erl
-    + [X] producer.erl
-    + [X] configuration.erl
-    + [ ] optimizer_greedy.erl
-    + [X] optimizer_sequential.erl
-    + [ ] logger.erl
-    + [ ] router.erl
-    + [ ] anything else?
-  - [-] Update code in examples
-    + [X] abexample
-    + [ ] taxiexample
-    + [X] smart_home_example
-
 *** TODO Allow the configuration generator to search for a sequence of splits to satisfy a split
 
+*** TODO Organize state of each process to be in a record
 
+Also the data from data structures such as the configuration tree should be gotten via getter 
+functions and never explicitly. Otherwise it is difficult to add and remove fields.
+
+  - [ ] node.erl
+  - [ ] mailbox.erl
+  - [ ] producer.erl
 
 *** TODO Don't return redundant setup trees (Completeness of similarity relation)
 
@@ -282,6 +256,33 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Separate timestamp and node id from the message, as it is never needed for the computation
+
+
+WARNING: Make sure that the similarity should be for both tags and keys tags in the algorithm
+
+Internal messages will now contain implementation tags, so at last it will be clear
+what is a specification tag and what is an implementation tag
+
+It is a little bit unclear which predicates should be for the implementation and which
+should be for the specification.
+
+  - [X] Splits/Merges predicates
+  - [X] Update type definitions
+  - [X] Update code in src
+    + [X] node.erl
+    + [X] producer.erl
+    + [X] configuration.erl
+    + [X] optimizer_greedy.erl
+    + [X] optimizer_sequential.erl
+    + [X] logger.erl
+    + [X] router.erl
+    + [X] anything else?
+  - [X] Update code in examples
+    + [X] abexample
+    + [X] taxiexample
+    + [X] smart_home_example
+
 *** DONE Optimization: Reduce the redundancy of the returned setup trees
 
 Implement a simple similarty relation as a starting point. This doesn't

@@ -27,14 +27,15 @@ impl_tags_to_predicate(Tags) ->
 	      end,Tags)
     end.
 
--spec impl_tags_to_spec_predicate(impl_tags()) -> message_predicate().
+-spec impl_tags_to_spec_predicate(impl_tags()) -> tag_predicate().
 impl_tags_to_spec_predicate(Tags) ->
-    fun({MTag, _Val}) ->
+    fun(MTag) ->
 	    lists:any(
 	      fun({Tag, _Node}) -> 
 		      MTag =:= Tag
 	      end,Tags)
     end.
+
 
 -spec can_state_type_handle_tags(state_type_name(), sets:set(impl_tag()), specification()) -> boolean().
 can_state_type_handle_tags(StateType, ImplTags, Specification) ->

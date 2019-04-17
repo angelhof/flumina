@@ -83,9 +83,9 @@ distr_big_conf(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, node(), fun(Msg) -> isImplA1(Msg, node()) end, Funs, []},
-    NodeA2 = {0, node(), fun(Msg) -> isImplA2(Msg, node()) end, Funs, []},
-    NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeA1 = {0, node(), {fun isTagA1/1, fun(Msg) -> isImplA1(Msg, node()) end}, Funs, []},
+    NodeA2 = {0, node(), {fun isTagA2/1, fun(Msg) -> isImplA2(Msg, node()) end}, Funs, []},
+    NodeB  = {0, node(), {fun true_pred/1, fun true_pred/1}, Funs, [NodeA1, NodeA2]},
     ConfTree = configuration:create(NodeB, dependencies(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
@@ -285,9 +285,9 @@ distributed_conf(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, node(), fun(Msg) -> isImplA1(Msg, node()) end, Funs, []},
-    NodeA2 = {0, node(), fun(Msg) -> isImplA2(Msg, node()) end, Funs, []},
-    NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeA1 = {0, node(), {fun isTagA1/1, fun(Msg) -> isImplA1(Msg, node()) end}, Funs, []},
+    NodeA2 = {0, node(), {fun isTagA2/1, fun(Msg) -> isImplA2(Msg, node()) end}, Funs, []},
+    NodeB  = {0, node(), {fun true_pred/1, fun true_pred/1}, Funs, [NodeA1, NodeA2]},
     ConfTree = configuration:create(NodeB, dependencies(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
@@ -319,9 +319,9 @@ distributed_conf_1(SinkPid) ->
 
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
-    NodeA1 = {0, node(), fun(Msg) -> isImplA1(Msg, node()) end, Funs, []},
-    NodeA2 = {0, node(), fun(Msg) -> isImplA2(Msg, node()) end, Funs, []},
-    NodeB  = {0, node(), fun true_pred/1, Funs, [NodeA1, NodeA2]},
+    NodeA1 = {0, node(), {fun isTagA1/1, fun(Msg) -> isImplA1(Msg, node()) end}, Funs, []},
+    NodeA2 = {0, node(), {fun isTagA2/1, fun(Msg) -> isImplA2(Msg, node()) end}, Funs, []},
+    NodeB  = {0, node(), {fun true_pred/1, fun true_pred/1}, Funs, [NodeA1, NodeA2]},
     ConfTree = configuration:create(NodeB, dependencies(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
@@ -525,6 +525,12 @@ isA1(_) -> false.
 
 isA2({{a,2}, _}) -> true;
 isA2(_) -> false.
+
+isTagA1({a,1}) -> true;
+isTagA1(_) -> false.
+
+isTagA2({a,2}) -> true;
+isTagA2(_) -> false.
 
 %% isB({b, _, _}) -> true;
 %% isB(_) -> false.    

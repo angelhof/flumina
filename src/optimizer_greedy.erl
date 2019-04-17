@@ -126,8 +126,9 @@ complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, []}, HoleTree},
     {StateType, State} = StateTypePair,
     {_Ts, UpdateFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
     Predicate = opt_lib:impl_tags_to_predicate(sets:to_list(HTags)),
+    SpecPredicate = opt_lib:impl_tags_to_spec_predicate(sets:to_list(HTags)),
     Funs = {UpdateFun, fun util:crash/2, fun util:crash/2},
-    NewTree = {State, Node, Predicate, Funs, []},
+    NewTree = {State, Node, {SpecPredicate, Predicate}, Funs, []},
     [HoleTree(NewTree)];
 complete_root_tree_to_setup_tree({StateTypePair, {{HTags, _Node}, [Child]}, HoleTree}, Specification) ->
     {StateType, _State} = StateTypePair,
@@ -370,6 +371,7 @@ finalize_split_hole_setup_trees(LeftRight, {StateType, State}, {HTags, Node},
     {SplitFun, MergeFun} = SplitMerge,
     Funs = {UpdateFun, SplitFun, MergeFun},
     HTagsPred = opt_lib:impl_tags_to_predicate(sets:to_list(HTags)),
+    HSpecTagsPred = opt_lib:impl_tags_to_spec_predicate(sets:to_list(HTags)),
     lists:map(
       fun(MatchedSideTempSetupTree) ->
 	      FinalHoleTree = 
@@ -384,7 +386,7 @@ finalize_split_hole_setup_trees(LeftRight, {StateType, State}, {HTags, Node},
 				  right ->
 				      [HoleSetupTree, MatchedSideTempSetupTree]
 			      end,
-			  {State, Node, HTagsPred, Funs, FinalChildren}
+			  {State, Node, {HSpecTagsPred, HTagsPred}, Funs, FinalChildren}
 		  end,
 	      %% The root tree now has an empty parent node, as it is really
 	      %% a forest of root trees. So just assign it to the current Node.

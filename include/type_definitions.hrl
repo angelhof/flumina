@@ -11,7 +11,8 @@
 
 -type predicate() :: fun((...) -> boolean()).
 -type message_predicate() :: fun((gen_message()) -> boolean()).
--type split_pred() :: message_predicate().
+-type tag_predicate() :: fun((tag()) -> boolean()).
+-type split_pred() :: tag_predicate().
 -type split_preds() :: {split_pred(), split_pred()}.
 
 -type update_fun() :: fun((gen_message(), State::any(), mailbox()) -> State::any()).
@@ -71,15 +72,18 @@
 
 -type mailbox() :: {Name::atom(), node()}.
 
+-type children_predicates() :: {[message_predicate()], [impl_message_predicate()]}.
+
 -type impl_dependencies() :: #{impl_tag() := [impl_tag()]}.
 
 %% The configuration tree, contains the pid and the mailbox pid of each node
 %% as well as a predicate that represents which messages does this node process.
--type configuration() :: {'node', Node::pid(), mailbox(), impl_message_predicate(), [configuration()]}.
+-type configuration() :: {'node', Node::pid(), mailbox(), 
+			  {tag_predicate(), impl_message_predicate()}, [configuration()]}.
 
 -type pid_tree() :: {{pid(), mailbox()}, [pid_tree()]}.
--type temp_setup_tree() :: {State::any(), node(), 
-			    impl_message_predicate(), spec_functions(), [temp_setup_tree()]}.
+-type temp_setup_tree() :: {State::any(), node(), {tag_predicate(), impl_message_predicate()}, 
+			    spec_functions(), [temp_setup_tree()]}.
 
 %%
 %% Configuration Generator

@@ -4,7 +4,7 @@
 	 init_mailbox/6,
 	 mailbox/5,
 	 init_node/5,
-	 loop/6]).
+	 loop/7]).
 
 -include("type_definitions.hrl").
 
@@ -430,15 +430,20 @@ init_node(State, Funs, LogTriple, CheckPred, Output) ->
 	{configuration, ConfTree} ->
 	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p received configuration~n", 
 			      [util:local_timestamp(),self(), node()]),
-	    loop(State, Funs, LogTriple, CheckPred, Output, ConfTree)
+	    %% Setup the children predicates so that they don't have to be searched 
+	    %% on the configuration tree every time
+	    Preds = configuration:find_children_preds(self(), ConfTree),
+	    SpecPreds = configuration:find_children_spec_preds(self(), ConfTree),
+	    ChildrenPredicates = {SpecPreds, Preds},
+	    loop(State, Funs, LogTriple, CheckPred, Output, ChildrenPredicates, ConfTree)
     end.
-	
+
 
 %% This is the main loop that each node executes.
 -spec loop(State::any(), #funs{}, num_log_triple(), checkpoint_predicate(), 
-	   mailbox(), configuration()) -> no_return().
+	   mailbox(), children_predicates(), configuration()) -> no_return().
 loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, 
-     {LogFun, ResetFun, LogState} = LogTriple, CheckPred, Output, ConfTree) ->
+     {LogFun, ResetFun, LogState} = LogTriple, CheckPred, Output, ChildrenPredicates, ConfTree) ->
     receive
         {MsgOrMerge, _} = MessageMerge when MsgOrMerge =:= msg orelse MsgOrMerge =:= merge ->
 	    %% The mailbox has cleared this message so we don't need to check for pred
@@ -455,8 +460,10 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun},
 			{LogState2, NewState0} = 
 			    handle_message(MessageMerge, MergedState, Output, UFun, 
 					   {LogFun, ResetFun, LogState1}, ConfTree),
-			[Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
-			{NewState1, NewState2} = SFun({Pred1, Pred2}, NewState0),
+			{[SpecPred1, SpecPred2], _} = ChildrenPredicates, 
+			%% [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
+
+			{NewState1, NewState2} = SFun({SpecPred1, SpecPred2}, NewState0),
 			[C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
 			{LogState2, NewState0}
 		end,
@@ -464,14 +471,16 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun},
 	    NewCheckPred = CheckPred(MessageMerge, NewState),
 	    %% Maybe log some information about the message
 	    FinalLogState = LogFun(MsgOrMerge, NewLogState),
-	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, NewCheckPred, Output, ConfTree);
+	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, 
+		 NewCheckPred, Output, ChildrenPredicates, ConfTree);
 	{get_message_log, ReplyTo} = GetLogMsg ->
 	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
 			      " -- Its erl_mailbox_size is: ~p~n", 
 			      [util:local_timestamp(),self(), node(), 
 			       erlang:process_info(self(), message_queue_len)]),
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
-	    loop(State, Funs, {LogFun, ResetFun, NewLogState}, CheckPred, Output, ConfTree)
+	    loop(State, Funs, {LogFun, ResetFun, NewLogState}, CheckPred, 
+		 Output, ChildrenPredicates, ConfTree)
     end.
 
 -spec handle_message(gen_impl_message() | merge_request(), State::any(), mailbox(), 

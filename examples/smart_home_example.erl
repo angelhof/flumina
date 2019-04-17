@@ -206,8 +206,8 @@ merge1(ThermoMap, {LastPres, MaxSpike}) ->
 %% allowed to keep the whole thermo map
 -spec split_a(split_preds(), state_a()) -> {state_a(), state_a()}.
 split_a({Pred1, Pred2}, ThermoMap) ->
-    {maps:filter(fun(K,_) -> Pred1({K,u}) end, ThermoMap),
-     maps:filter(fun(K,_) -> Pred2({K,u}) end, ThermoMap)}.
+    {maps:filter(fun(K,_) -> Pred1(K) end, ThermoMap),
+     maps:filter(fun(K,_) -> Pred2(K) end, ThermoMap)}.
 
 -spec merge_a(state_a(), state_a()) -> state_a().
 merge_a(ThermoMap1, ThermoMap2) ->
