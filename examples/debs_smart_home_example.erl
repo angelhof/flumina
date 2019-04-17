@@ -58,7 +58,9 @@ sequential() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, sequential_conf, [SinkName]),
-    HouseGen = make_house_generator(0, 10, 1377986405),
+    %% The initial and final values could also be gotten in an 
+    %% automatic way.
+    HouseGen = make_house_generator(0, 100, 1377986401000, 1377986405000),
     io:format("Messages:~n~p~n", [producer:generator_to_list(HouseGen)]),
     util:sink().
 
@@ -96,22 +98,21 @@ sequential_conf(SinkPid) ->
 
 
 %% Makes a generator for that house, and adds heartbeats
--spec make_house_generator(integer(), integer(), integer()) -> msg_generator().
-make_house_generator(HouseId, Period, Until) ->
+-spec make_house_generator(integer(), integer(), integer(), integer()) -> msg_generator().
+make_house_generator(HouseId, Period, From, Until) ->
     Filename = io_lib:format("sample_debs_house_~w", [HouseId]),
-    producer:file_generator(Filename, fun parse_house_csv_line/1).
-    %% producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
-    %% 					    {{house,HouseId}, Period}, Until).
+    %% producer:file_generator(Filename, fun parse_house_csv_line/1).
+    producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
+    					    {{house,HouseId}, Period}, From, Until).
     
-%% TODO: We might want to adjust the timestamp to be ms instead of seconds.
+%% NOTE: This adjusts the timestamps to be ms instead of seconds
 -spec parse_house_csv_line(string()) -> event().
 parse_house_csv_line(Line) ->
     TrimmedLine = string:trim(Line),
-    %% io:format("Line:~n~p~n", [TrimmedLine]),
     [SId, STs, SValue, SProp, SPlug, SHousehold, SHouse] = 
 	string:split(TrimmedLine, ",", all),
     Id = list_to_integer(SId),
-    Ts = list_to_integer(STs),
+    Ts = 1000 * list_to_integer(STs),
     Value = util:list_to_number(SValue),
     Prop = list_to_integer(SProp),
     Plug = list_to_integer(SPlug),

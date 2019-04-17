@@ -4,8 +4,8 @@
 
   - [ ] Implement the hour-window generators
   - [X] Split the big file into house files without heartbeats
-  - [-] Add heartbeats to the files of each house
-    + [ ] In order to do this I have to implement a function that interleaves
+  - [X] Add heartbeats to the files of each house
+    + [X] In order to do this I have to implement a function that interleaves
           generators with heartbeats
     + [X] I have to extend generate_heartbeat to generate all heartbeats up
           to a point, and not only the last one.
@@ -18,6 +18,8 @@
 *** TODO Separate timestamp and node id from the message, as it is never needed for the computation
 
 *** TODO Allow the configuration generator to search for a sequence of splits to satisfy a split
+
+
 
 *** TODO Don't return redundant setup trees (Completeness of similarity relation)
 
