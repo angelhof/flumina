@@ -92,7 +92,10 @@ create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
     Input3 = b_input_with_heartbeats(),
     Input4 = MarkerFun(),
 
-    InputStreams = [{Input1, {a,1}, 100}, {Input2, {a,2}, 100}, {Input3, b, 100}, {Input4, MarkerTag, 100}],
+    InputStreams = [{producer:list_generator(Input1), {a,1}, 100}, 
+		    {producer:list_generator(Input2), {a,2}, 100}, 
+		    {producer:list_generator(Input3), b, 100}, 
+		    {producer:list_generator(Input4), MarkerTag, 100}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
@@ -246,16 +249,16 @@ init_state() ->
 
 minute_markers_input() ->
     Input = [{minute, T * 60, marker} || T <- lists:seq(1, 10)],
-    producer:interleave_heartbeats(Input, #{minute => 60}, 650).
+    producer:interleave_heartbeats(Input, {minute, 60}, 650).
 
 a1_input_with_heartbeats() ->
-    producer:interleave_heartbeats(a1_input(), #{{a,1} => 10}, 650).
+    producer:interleave_heartbeats(a1_input(), {{a,1}, 10}, 650).
 
 a2_input_with_heartbeats() ->
-    producer:interleave_heartbeats(a2_input(), #{{a,2} => 10}, 650).
+    producer:interleave_heartbeats(a2_input(), {{a,2}, 10}, 650).
 
 b_input_with_heartbeats() ->
-    producer:interleave_heartbeats(b_input(), #{b => 10}, 650).
+    producer:interleave_heartbeats(b_input(), {b, 10}, 650).
 
 a1_input() ->
     Inputs = 
