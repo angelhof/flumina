@@ -12,7 +12,8 @@
 	 always_ok/1,
 	 unregister_names/1,
 	 local_timestamp/0,
-	 do_n_times/2]).
+	 do_n_times/2,
+	 do_n_times/3]).
 
 -include("type_definitions.hrl").
 
@@ -123,9 +124,11 @@ local_timestamp() ->
 		  [Day,Mstr,Year,Hour,Minute,Second,Micro]).
 
 do_n_times(N, Fun) ->
-	fun (X) -> do_n_times(0, X, Fun) end.
+    fun (X) -> 
+	    do_n_times(0, X, Fun) 
+    end.
 
 do_n_times(0, Init, Fun) ->
-	Init;
+    Init;
 do_n_times(N, Init, Fun) when N > 0 ->
-	do_n_times(N - 1, Fun(Init), Fun).
+    do_n_times(N - 1, Fun(Init), Fun).
