@@ -8,8 +8,8 @@ mainExec="-noshell -run util exec abexample. real_distributed. [['${A1}@${A1}.lo
 
 simulTime=60 # seconds
 
+#  -n "--TotalTime=${simulTime}" \
 ./ns3/simulate.sh -m "${B}" \
   -e "${mainExec}" \
-  -t "${simulTime}" \
   ${A1} ${A2}
 

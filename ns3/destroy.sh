@@ -11,11 +11,11 @@ done
 
 echo "Stopping docker containers..."
 
-docker stop ${nodes[*]}
+docker stop $(for node in ${nodes[@]}; do echo -n "${node}.local "; done)
 
 # Bring down the network interfaces and clean up
 
-for node in ${nodes[*]}
+for node in ${nodes[@]}
 do
   echo "Cleaning up the devices and PID files for ${node}..."
 

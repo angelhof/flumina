@@ -14,6 +14,6 @@ simulTime=60 # seconds
 
 ./ns3/simulate.sh -m "${B}" \
   -e "${EXEC}" \
-  -t "${simulTime}" \
+  -n "--TotalTime=${simulTime}" \
   ${A1} ${A2} ${A3}
 

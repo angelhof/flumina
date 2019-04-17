@@ -1,6 +1,7 @@
 #!/bin/bash
 
 nodes=()
+ns3=0
 
 while (( "$#" ))
 do
@@ -9,12 +10,13 @@ do
       main="$2"
       shift 2
       ;;
-    -e|--exec)
-      mainExec="$2"
+    -e|--erlArgs)
+      erlArgs="$2"
       shift 2
       ;;
-    -t|--time)
-      simulTime="$2"
+    -n|--ns3Args)
+      ns3=1
+      ns3Args="$2"
       shift 2
       ;;
     *)
@@ -33,7 +35,7 @@ echo "Setting up the simulation context..."
 
 hosts=$(mktemp /tmp/hosts-XXXXXXXX)
 
-for i in ${!nodes[*]}
+for i in ${!nodes[@]}
 do
   # Generate an IP address based on the index. The address needs
   # to match the one generated in ../docker/container.sh.
@@ -46,99 +48,146 @@ done
 
 # Create configuration, logging, taps, and bridges
 
-for i in ${!nodes[*]}
+for node in ${nodes[@]}
 do
-  node=${nodes[${i}]}
-  if [ "${i}" -eq "0" ]
+  if [ "${node}" = "${main}" ]
   then
-    exec="${mainExec}"
+    args="${erlArgs}"
   else
-    exec=""
+    args=""
   fi
 
   mkdir -p ${workdir}/var/log/${node}
   mkdir -p ${workdir}/var/conf/${node}
 
   echo -n ${node} > ${workdir}/var/conf/${node}/node
-  echo -n ${exec} > ${workdir}/var/conf/${node}/exec
+  echo -n ${args} > ${workdir}/var/conf/${node}/args
+  echo -n ${ns3} > ${workdir}/var/conf/${node}/ns3
   cp ${hosts} ${workdir}/var/conf/${node}/hosts
 
-  ./ns3/singleSetup.sh ${node} ${USER}
+  if [ "${ns3}" -eq "1" ]
+  then
+    ./ns3/singleSetup.sh ${node} ${USER}
+  fi
 done
 
-# Run the docker containers. Assumes existence of an image called erlnode.
+# Run the docker containers. Assumes existence of an image called erlnode, or earlnode-ns3 for the ns3 simulation.
 
 echo "Starting the docker containers..."
 
 mkdir -p ${workdir}/var/run
 
-for node in ${nodes[*]}
+# Set docker options depending on whether we're running ns3
+
+if [ "${ns3}" -eq "1" ]
+then
+  net="none"
+else
+  net="temp"
+fi
+
+# Run the non-main nodes
+
+for node in ${nodes[@]}
 do
-  # --user $(id -u):$(id -g) \
-  docker run \
-    -dit \
-    --rm \
-    --privileged \
-    --net=none \
-    --name ${node} \
-    -v "${workdir}/var/conf/${node}":/conf \
-    -v "${workdir}/var/log/${node}":/proto/logs \
-    erlnode
-
-  docker inspect --format '{{ .State.Pid }}' ${node} > ${workdir}/var/run/${node}.pid
-done
-
-# Run the ns3 process. Assumes it is compiled and located in $NS3_HOME/scratch.
-
-echo "Starting the ns3 process..."
-
-cd ${NS3_HOME}
-./waf --run "scratch/tap-vm --TotalTime=${simulTime} ${nodes[*]}" &
-wafPid=$!
-echo ${wafPid} > ${workdir}/var/run/ns3.pid
-cd ${workdir}
-
-sleep 25
-
-# Set up the device containers -- this unblocks the nodes
-
-echo "Unblocking the containers and starting the simulation..."
-
-for i in ${!nodes[*]}
-do
-  if [ "${i}" -gt "0" ]
+  if [ "${node}" != "${main}" ]
   then
-    ./docker/container.sh ${nodes[${i}]} ${i}
+    # --user $(id -u):$(id -g) \
+    docker run \
+      -dit \
+      --rm \
+      --privileged \
+      --net=${net} \
+      --name "${node}.local" \
+      --hostname "${node}.local" \
+      -v "${workdir}/var/conf/${node}":/conf \
+      -v "${workdir}/var/log/${node}":/proto/logs \
+      erlnode
+
+    docker inspect --format '{{ .State.Pid }}' "${node}.local" > ${workdir}/var/run/${node}.pid
   fi
 done
 
-# We set up and unblock the main node last
+# Run the main node
 
 sleep 1
-./docker/container.sh ${main} 0
+docker run \
+  -dit \
+  --rm \
+  --privileged \
+  --net=${net} \
+  --name "${main}.local" \
+  --hostname "${main}.local" \
+  -v "${workdir}/var/conf/${main}":/conf \
+  -v "${workdir}/var/log/${main}":/proto/logs \
+  erlnode
 
-# Wait for Waf to finish
+docker inspect --format '{{ .State.Pid }}' "${main}.local" > ${workdir}/var/run/${main}.pid
 
-echo "Waiting for the ns3 process to finish..."
+if [ "${ns3}" -eq "1" ]
+then
+  # Run the ns3 process. Assumes it is compiled and located in $NS3_HOME/scratch.
 
-wait ${wafPid}
-rm ${workdir}/var/run/ns3.pid
+  echo "Starting the ns3 process..."
+
+  cd ${NS3_HOME}
+
+  ./waf --run "scratch/tap-vm ${ns3Args} ${nodes[*]}" &
+  wafPid=$!
+  echo ${wafPid} > ${workdir}/var/run/ns3.pid
+  cd ${workdir}
+
+  sleep 25
+
+  # Set up the device containers -- this unblocks the nodes
+
+  echo "Unblocking the containers and starting the simulation..."
+
+  for i in ${!nodes[@]}
+  do
+    if [ "${i}" -gt "0" ]
+    then
+      ./docker/container.sh ${nodes[${i}]} ${i}
+    fi
+  done
+
+  # We set up and unblock the main node last
+
+  sleep 1
+  ./docker/container.sh ${main} 0
+
+  # Wait for Waf to finish
+
+  echo "Waiting for the ns3 process to finish..."
+
+  wait ${wafPid}
+  rm ${workdir}/var/run/ns3.pid
+else
+  # We are not running ns3; just wait for main to finish
+
+  echo "Waiting for ${main}.local to finish..."
+
+  docker wait "${main}.local"
+fi
 
 echo "Destroying the simulation context... "
 
 # Stop the containers
 
-docker stop ${nodes[*]}
+docker stop $(for node in ${nodes[@]}; do echo -n "${node}.local "; done)
 
-# Bring down the network interfaces and clean up
+if [ "${ns3}" -eq "1" ]
+then
+  # Bring down the network interfaces and clean up
 
-for node in ${nodes[*]}
-do
-  ./ns3/singleDestroy.sh ${node}
-  PID=$(cat ${workdir}/var/run/${node}.pid)
-  rm /var/run/netns/${PID}
-  rm ${workdir}/var/run/${node}.pid
-done
+  for node in ${nodes[@]}
+  do
+    ./ns3/singleDestroy.sh ${node}
+    PID=$(cat ${workdir}/var/run/${node}.pid)
+    rm /var/run/netns/${PID}
+    rm ${workdir}/var/run/${node}.pid
+  done
+fi
 
 echo "DONE"
 

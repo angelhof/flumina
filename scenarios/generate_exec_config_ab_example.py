@@ -42,11 +42,10 @@ from plot_scaling_latency_throughput import plot_scaleup_rate
 
 
 def format_node(node_name):
-    return "\\'%s@%s.local\\'" % (node_name, node_name)
+    return "'%s@%s.local'" % (node_name, node_name)
 
 def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer):
     a_nodes_names = ['a%dnode' % (node) for node in range(1,a_node_numbers+1)]
-    a_nodes_string = " ".join(a_nodes_names)
     exec_a_nodes = [format_node(node_name) for node_name in a_nodes_names]
     exec_b_node = format_node("main")
     exec_nodes_string = ",".join([exec_b_node] + exec_a_nodes)
@@ -55,7 +54,7 @@ def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers,
     exec_suffix = ' -s erlang halt'
     exec_string = exec_prefix + args + exec_suffix
     print exec_string
-    subprocess.check_call(["scenarios/no_ns3_docker_scenario.sh", a_nodes_string, exec_string])
+    subprocess.check_call(["ns3/simulate.sh", "-m", "main", "-e", exec_string] + a_nodes_names)
 
     ## 1st argument is the name of the folder to gather the logs
     dir_prefix = 'multi_run_ab_experiment'
@@ -63,10 +62,11 @@ def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers,
     conf_string = '%s_%s_%s_%s_%s' % (rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
     
     ## Make the directory to save the current logs
+    ## TODO: Also add a timestamp?
     dir_name = dir_prefix + '_' + conf_string
-    to_dir_path = os.path.join('docker', 'docker_logs', dir_name)
+    to_dir_path = os.path.join('archive', dir_name)
 
-    log_folders = [os.path.join('docker', 'read-only', node, 'logs') for node in nodes]
+    log_folders = [os.path.join('var', 'log', node) for node in nodes]
 
     copy_logs_from_to(log_folders, to_dir_path)
     ## TODO: Make this runnable for the ns3 script
@@ -100,9 +100,9 @@ optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 
-dirname = os.path.join('docker', 'docker_logs', 'server_node_scale_up', 'docker_logs')
-plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
-                  rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
+dirname = os.path.join('archive')
+#plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
+#                  rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
 
 ## Notes:
 ## On my machine it chokes above 50 rate and never gives any response.
@@ -147,3 +147,6 @@ a_nodes_numbers = [10]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+
+# Test
+run_configuration(10, 1000, 10, 2, "optimizer_greedy")
