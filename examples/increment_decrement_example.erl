@@ -12,9 +12,6 @@
 
 %% State types, events, and dependencies
 -type state() :: {integer(), integer()}. % Total today and max today
--type state_i() :: integer(). % Only processes increments
--type state_d() :: integer(). % Only processes decrements
--type state_remain() :: {integer(), integer()}. % State left behind -- the max so far
 
 -type event_i() :: message({'i',integer()},'none').
 -type event_d() :: message({'d',integer()},'none').
@@ -46,11 +43,11 @@ parameterized_dependencies(I_IDs,D_IDs) ->
 -spec init_state() -> state().
 init_state() -> {0,0}.
 
--spec update_whole(events(), state(), pid()) -> state().
-update_whole({'#', _Timestamp, 'none'}, {_Total, Max}, SinkPid) ->
+-spec update(events(), state(), pid()) -> state().
+update({'#', _Timestamp, 'none'}, {_Total, Max}, SinkPid) ->
     SinkPid ! {Max},
     {0,0};
-update_whole({{Tag,_ImpID}, _Timestamp, 'none'}, {Total, Max}, SinkPid) ->
+update({{Tag,_ImpID}, _Timestamp, 'none'}, {Total, Max}, _SinkPid) ->
     case Tag of
         'i' ->
             NewTotal = Total + 1;
@@ -60,41 +57,19 @@ update_whole({{Tag,_ImpID}, _Timestamp, 'none'}, {Total, Max}, SinkPid) ->
     NewMax = max(NewTotal,Max),
     {NewTotal,NewMax}.
 
--spec update_i(event_i(), state_i(), pid()) -> state_i().
-update_i({{'i',_ImpID}, _Timestamp, 'none'}, Total, SinkPid) ->
-    Total + 1.
+%% Parallelization Primitives
+-spec fork(split_preds(), state()) -> {state(), state()}.
+fork(_, {Total, Max}) ->
+    {{Total, Max}, {0, 0}}
 
--spec update_d(event_d(), state_d(), pid()) -> state_d().
-update_d({{'d',_ImpID}, _Timestamp, 'none'}, Total, SinkPid) ->
-    Total - 1.
-
-%% Parallelization Hints
--spec fork_ir(state()) -> {state_i(), state_remain()}.
-fork_ir({X, Y}) -> {0, {X, Y}}.
--spec fork_dr(state()) -> {state_d(), state_remain()}.
-fork_dr({X, Y}) -> {0, {X, Y}}.
-
--spec fork_i(split_preds(), state_i()) -> {state_i(), state_i()}.
-fork_i(_, X) -> {X, 0}.
--spec fork_d(split_preds(), state_d()) -> {state_d(), state_d()}.
-fork_d(_, X) -> {X, 0}.
-
--spec join_ir(state_i(), state_remain()) -> state().
-join_ir(X1, {X2, Y2}) ->
+-spec join(state(), state()) -> state().
+join({X1, Y1}, {X2, _Y2}) -> % Y2 not used
     X = X1 + X2,
-    {X, max(X,Y2)}.
--spec join_dr(state_d(), state_remain()) -> state().
-join_dr(X1, {X2, Y2}) ->
-    {X1 + X2, Y2}. % No need to recalculate max here.
+    {X, max(Y1,X)}.
 
--spec join_i(state_i(), state_i()) -> state_i().
-join_i(X1, X2) -> X1 + X2.
--spec join_d(state_d(), state_d()) -> state_d().
-join_d(X1, X2) -> X1 + X2.
-
-%% ==============================
-%% ===== Architecture Setup =====
-%% ==============================
+%% ============================
+%% ===== Experiment Setup =====
+%% ============================
 
 -spec distributed_setup(atom(), [atom()], [atom()], float(), float(), float(), float(), float(), float(), float(), integer(), optimizer_type()) -> ok.
 distributed_setup(SharpNodeName, INodeNames, DNodeNames, SharpRate, IRate, BRate, SharpHBRate, IHBRate, BHBRate, RateMultiplier, UpdateCost, Optimizer) ->
@@ -117,31 +92,27 @@ distributed_setup(SharpNodeName, INodeNames, DNodeNames, SharpRate, IRate, BRate
     RateTopo = IRatesTopo ++ DRateTopo ++ SharpRateTopo,
     Topology = conf_gen:make_topology(RateTopo, SinkName),
 
-    %% Computation
+    %% Computation Specification
     StateTypesMap = 
-	#{'state' => {sets:from_list(Tags), fun update_whole/3},
-        'state_i' => {sets:from_list(ITags), fun update_i/3},
-        'state_d' => {sets:from_list(DTags), fun update_d/3},
-        'state_remain' => {sets:from_list([]), fun crash/0}
-            % this update function never gets called
+	#{'state' => {sets:from_list(Tags), fun update/3}
         },
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
-		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
-    Dependencies = parametrized_dependencies(ATags),
-    InitState = {'state0', 0},
+    SplitsMerges = [{{'state', 'state', 'state'}, {fun fork/2, fun join/2}}],
+    Dependencies = parametrized_dependencies(
+            lists:seq(1,NumINodes),lists:seq(1,NumDNodes)),
+    InitState = {'state', init_state()},
     Specification = 
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-    
+	conf_gen:make_specification(
+            StateTypesMap, SplitsMerges, Dependencies, InitState),
+
+    %% Logging and configuration tree
     LogTriple = log_mod:make_num_log_triple(),    
     ConfTree = conf_gen:generate(Specification, Topology, 
 				 [{optimizer,Optimizer}, 
 				  {checkpoint, fun conf_gen:always_checkpoint/2},
 				  {log_triple, LogTriple}]),
     
-    %% Set up where will the input arrive
-    
     %% Input Streams
-    {As, Bs} = parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio),
+    {Is, Ds} = parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
     AInputStreams = [{AIn, ATag, RateMultiplier} || {AIn, ATag} <- lists:zip(As, ATags)],
     BInputStream = {Bs, b, RateMultiplier},
@@ -166,6 +137,28 @@ distributed_setup(SharpNodeName, INodeNames, DNodeNames, SharpRate, IRate, BRate
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
     util:sink(LoggerInitFun).
+
+%% Input to the system
+
+% generate_distributed_input(ITags, DTags, IRate, DRate, SharpRate, )
+% 
+% parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio) ->
+%     LengthAStream = 1000000,
+%     As = [make_as(Id, LengthAStream, 1) || Id <- lists:seq(1, NumberAs)],
+% 
+%     LengthBStream = LengthAStream div RatioAB,
+%     %% Bs = [{b, RatioAB + (RatioAB * BT), empty} 
+%     %% 	  || BT <- lists:seq(0,LengthBStream)]
+%     %% 	++ [{heartbeat, {b,LengthAStream + 1}}],
+%     Bs = lists:flatten(
+% 	   [[{heartbeat, {b, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}} 
+% 	    || T <- lists:seq(0, HeartbeatBRatio - 1)] 
+% 	   ++ [{b, RatioAB + (RatioAB * BT), RatioAB + (RatioAB * BT)}]
+% 	   || BT <- lists:seq(0,LengthBStream)])
+% 	++ [{heartbeat, {b,LengthAStream + 1}}],
+%     {As, Bs}.
+
+
 
 
 % distributed() ->
