@@ -30,8 +30,8 @@ initialize_message_logger_state(Prefix, Tags) ->
     
 %% Generalize the predicate to be anything instead of just a tag set
 %% WARNING: At the moment this only logs messages, not heartbeats
--spec maybe_log_message(gen_message(), message_logger_state()) -> 'ok'.
-maybe_log_message({Tag, _, _} = Msg, {Tags, _} = LoggerState) ->
+-spec maybe_log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
+maybe_log_message({{Tag, _}, _, _} = Msg, {Tags, _} = LoggerState) ->
     case sets:is_element(Tag, Tags) of
 	true ->
 	    log_message(Msg, LoggerState);
@@ -41,7 +41,7 @@ maybe_log_message({Tag, _, _} = Msg, {Tags, _} = LoggerState) ->
 maybe_log_message(Msg, LoggerState) ->
     ok.
 
--spec log_message(gen_message(), message_logger_state()) -> 'ok'.
+-spec log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
 log_message(Msg, {_Tags, File}) ->
     %% WARNING: The timestamp is monotonic, so we should only 
     %%          compare timestamps taken on the same machine
@@ -70,7 +70,7 @@ init_num_log_state() ->
 reset_num_log_state(_) -> 
     0.
 
--spec incr_num_log_state(gen_message() | gen_merge_request(), num_log_state()) -> num_log_state().
+-spec incr_num_log_state(gen_message() | merge_request(), num_log_state()) -> num_log_state().
 incr_num_log_state(_Msg, Num) ->
     Num + 1.
 

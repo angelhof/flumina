@@ -1,6 +1,7 @@
 -module(opt_lib).
 
--export([tags_to_predicate/1,
+-export([impl_tags_to_predicate/1,
+	 impl_tags_to_spec_predicate/1,
 	 can_state_type_handle_tags/3,
 	 max_rate_node/1,
 	 map_physical_node_root_tree_constant/2,
@@ -17,18 +18,29 @@
 
 %% TODO: This will eventually disappear when predicates 
 %%       become sets of tags
--spec tags_to_predicate(tags()) -> message_predicate().
-tags_to_predicate(Tags) ->
-    fun({MTag, _, _}) ->
+-spec impl_tags_to_predicate(impl_tags()) -> impl_message_predicate().
+impl_tags_to_predicate(Tags) ->
+    fun({{MTag, _}, MNode, _}) ->
 	    lists:any(
-	      fun(Tag) -> 
+	      fun({Tag, Node}) -> 
+		      MTag =:= Tag andalso MNode =:= Node
+	      end,Tags)
+    end.
+
+-spec impl_tags_to_spec_predicate(impl_tags()) -> message_predicate().
+impl_tags_to_spec_predicate(Tags) ->
+    fun({MTag, _Val}) ->
+	    lists:any(
+	      fun({Tag, _Node}) -> 
 		      MTag =:= Tag
 	      end,Tags)
     end.
 
--spec can_state_type_handle_tags(state_type_name(), sets:set(tag()), specification()) -> boolean().
-can_state_type_handle_tags(StateType, Tags, Specification) ->
+-spec can_state_type_handle_tags(state_type_name(), sets:set(impl_tag()), specification()) -> boolean().
+can_state_type_handle_tags(StateType, ImplTags, Specification) ->
     {HandledTagsSet, _UpdFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
+    Tags = 
+	sets:from_list([Tag || {Tag, Node} <- sets:to_list(ImplTags)]),
     sets:is_subset(Tags, HandledTagsSet).
 
 -spec max_rate_node(nodes_rates()) -> node().
@@ -54,25 +66,25 @@ max_rate_node(NodesRates) ->
 %% that many processes will try to be registered with the same name 
 %% (which clearly fails)
 -spec map_physical_node_root_tree_constant(node(), tag_root_tree()) -> root_tree().
-map_physical_node_root_tree_constant(SinkNode, {Tags, Children}) ->
+map_physical_node_root_tree_constant(SinkNode, {ImplTags, Children}) ->
     MappedChildren = [map_physical_node_root_tree_constant(SinkNode, C) || C <- Children],
-    {{Tags, SinkNode}, MappedChildren}.
+    {{ImplTags, SinkNode}, MappedChildren}.
 
 %% This function maps each root tree node to the node which has the highest rate
 %% for the tags handled by this node.
 -spec map_physical_node_root_tree_max_rate(nodes_rates(), tag_root_tree()) -> root_tree().
-map_physical_node_root_tree_max_rate(NodesRates, {Tags, Children}) ->
+map_physical_node_root_tree_max_rate(NodesRates, {ImplTags, Children}) ->
     MappedChildren = [map_physical_node_root_tree_max_rate(NodesRates, C) || C <- Children],
-    RelevantNodesRates = filter_tags_in_nodes_rates(Tags, NodesRates),
+    RelevantNodesRates = filter_tags_in_nodes_rates(ImplTags, NodesRates),
     MaxRateNode = max_rate_node(RelevantNodesRates),
-    {{Tags, MaxRateNode}, MappedChildren}.
+    {{ImplTags, MaxRateNode}, MappedChildren}.
 
 %% This function filters and keeps only the node-tag-rate triples that contain
 %% a tag in the given list of tags.
--spec filter_tags_in_nodes_rates(tags(), nodes_rates()) -> nodes_rates().
-filter_tags_in_nodes_rates(Tags, NodesRates) ->
-    TagsSet = sets:from_list(Tags),
-    [{Node, Tag, Rate} || {Node, Tag, Rate} <- NodesRates, sets:is_element(Tag, TagsSet)].
+-spec filter_tags_in_nodes_rates(impl_tags(), nodes_rates()) -> nodes_rates().
+filter_tags_in_nodes_rates(ImplTags, NodesRates) ->
+    ImplTagsSet = sets:from_list(ImplTags),
+    [{Node, Tag, Rate} || {Node, Tag, Rate} <- NodesRates, sets:is_element({Tag, Node}, ImplTagsSet)].
 
 %% Returns the height of a temp_setup_tree
 -spec temp_setup_tree_height(temp_setup_tree()) -> integer().

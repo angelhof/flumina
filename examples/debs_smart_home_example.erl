@@ -60,7 +60,7 @@ sequential() ->
     _ExecPid = spawn_link(?MODULE, sequential_conf, [SinkName]),
     %% The initial and final values could also be gotten in an 
     %% automatic way.
-    HouseGen = make_house_generator(0, 100, 1377986401000, 1377986405000),
+    HouseGen = make_house_generator(0, node(), 100, 1377986401000, 1377986405000),
     io:format("Messages:~n~p~n", [producer:generator_to_list(HouseGen)]),
     util:sink().
 
@@ -93,17 +93,17 @@ sequential_conf(SinkPid) ->
 
 
 -type house_tag() :: {'house', integer()}.
--type payload() :: {integer(), float(), integer(), integer(), integer()}.
--type event() :: message(house_tag(), payload()).
+-type payload() :: {integer(), integer(), float(), integer(), integer(), integer()}.
+-type event() :: impl_message(house_tag(), payload()).
 
 
 %% Makes a generator for that house, and adds heartbeats
--spec make_house_generator(integer(), integer(), integer(), integer()) -> msg_generator().
-make_house_generator(HouseId, Period, From, Until) ->
+-spec make_house_generator(integer(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
+make_house_generator(HouseId, NodeName, Period, From, Until) ->
     Filename = io_lib:format("sample_debs_house_~w", [HouseId]),
     %% producer:file_generator(Filename, fun parse_house_csv_line/1).
     producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
-    					    {{house,HouseId}, Period}, From, Until).
+    					    {{{house,HouseId}, NodeName}, Period}, From, Until).
     
 %% NOTE: This adjusts the timestamps to be ms instead of seconds
 -spec parse_house_csv_line(string()) -> event().
@@ -118,5 +118,7 @@ parse_house_csv_line(Line) ->
     Plug = list_to_integer(SPlug),
     Household = list_to_integer(SHousehold),
     House = list_to_integer(SHouse),
-    {{house, House}, Ts, {Id, Value, Prop, Plug, Household}}.
+    %% WARNING: This should return the producer node
+    Node = node(),
+    {{{house, House}, {Ts, Id, Value, Prop, Plug, Household}}, Node, Ts}.
     

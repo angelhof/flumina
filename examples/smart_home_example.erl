@@ -50,7 +50,7 @@ distributed_conf(SinkPid) ->
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_greedy}]),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
+    create_producers(fun minute_markers_input/1, minute, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -82,20 +82,20 @@ sequential_conf(SinkPid) ->
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
+    create_producers(fun minute_markers_input/1, minute, ConfTree, Topology),
 
     SinkPid ! finished.
 
 create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
-    Input1 = a1_input_with_heartbeats(),
-    Input2 = a2_input_with_heartbeats(),
-    Input3 = b_input_with_heartbeats(),
-    Input4 = MarkerFun(),
+    Input1 = a1_input_with_heartbeats(node()),
+    Input2 = a2_input_with_heartbeats(node()),
+    Input3 = b_input_with_heartbeats(node()),
+    Input4 = MarkerFun(node()),
 
-    InputStreams = [{producer:list_generator(Input1), {a,1}, 100}, 
-		    {producer:list_generator(Input2), {a,2}, 100}, 
-		    {producer:list_generator(Input3), b, 100}, 
-		    {producer:list_generator(Input4), MarkerTag, 100}],
+    InputStreams = [{producer:list_generator(Input1), {{a,1},node()}, 100}, 
+		    {producer:list_generator(Input2), {{a,2},node()}, 100}, 
+		    {producer:list_generator(Input3), {b,node()}, 100}, 
+		    {producer:list_generator(Input4), {MarkerTag,node()}, 100}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
@@ -133,7 +133,7 @@ create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
 
 
 -spec update0(messages0(), state0(), pid()) -> state0().
-update0({minute, Ts, marker}, {LastPres, MaxSpike, ThermoMap}, SendTo) ->
+update0({minute, Ts}, {LastPres, MaxSpike, ThermoMap}, SendTo) ->
     MinMaxThermo = lists:min(maps:values(ThermoMap)),
     case MaxSpike >= 100 andalso MinMaxThermo >= 50 of
 	true ->
@@ -143,10 +143,10 @@ update0({minute, Ts, marker}, {LastPres, MaxSpike, ThermoMap}, SendTo) ->
     end,
     NewThermoMap = maps:map(fun(_,_MaxT) -> 0 end, ThermoMap),
     {LastPres, 0, NewThermoMap};
-update0({b, _Ts, Pressure}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
+update0({b, Pressure}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
     NewMaxSpike = max(Pressure - LastPres, MaxSpike),
     {Pressure, NewMaxSpike, ThermoMap};
-update0({{a, Id}, _Ts, Thermo}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
+update0({{a, Id}, Thermo}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
     NewThermoMap = 
 	maps:update_with({a, Id}, 
 			 fun(PrevMax) ->
@@ -164,7 +164,7 @@ update0({{a, Id}, _Ts, Thermo}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
 
 %% To think about: Ideally we would want to not have to rewrite the same update
 -spec update_b(messages_b(), state_b(), pid()) -> state_b().
-update_b({b, _Ts, Pressure}, {LastPres, MaxSpike}, _SendTo) ->
+update_b({b, Pressure}, {LastPres, MaxSpike}, _SendTo) ->
     NewMaxSpike = max(Pressure - LastPres, MaxSpike),
     {Pressure, NewMaxSpike}.
 
@@ -178,7 +178,7 @@ update_b({b, _Ts, Pressure}, {LastPres, MaxSpike}, _SendTo) ->
 
 %% To think about: Ideally we would want to not have to rewrite the same update
 -spec update_a(messages_a(), state_a(), pid()) -> state_a().
-update_a({{a, Id}, _Ts, Thermo}, ThermoMap, _SendTo) ->
+update_a({{a, Id}, Thermo}, ThermoMap, _SendTo) ->
     maps:update_with({a, Id}, 
 		     fun(PrevMax) ->
 			     max(Thermo, PrevMax)
@@ -206,8 +206,8 @@ merge1(ThermoMap, {LastPres, MaxSpike}) ->
 %% allowed to keep the whole thermo map
 -spec split_a(split_preds(), state_a()) -> {state_a(), state_a()}.
 split_a({Pred1, Pred2}, ThermoMap) ->
-    {maps:filter(fun(K,_) -> Pred1({K,u,u}) end, ThermoMap),
-     maps:filter(fun(K,_) -> Pred2({K,u,u}) end, ThermoMap)}.
+    {maps:filter(fun(K,_) -> Pred1({K,u}) end, ThermoMap),
+     maps:filter(fun(K,_) -> Pred2({K,u}) end, ThermoMap)}.
 
 -spec merge_a(state_a(), state_a()) -> state_a().
 merge_a(ThermoMap1, ThermoMap2) ->
@@ -247,20 +247,20 @@ init_state() ->
 
 %% Some input examples
 
-minute_markers_input() ->
-    Input = [{minute, T * 60, marker} || T <- lists:seq(1, 10)],
-    producer:interleave_heartbeats(Input, {minute, 60}, 650).
+minute_markers_input(Node) ->
+    Input = [{{minute, T * 60}, Node, T * 60} || T <- lists:seq(1, 10)],
+    producer:interleave_heartbeats(Input, {{minute, Node}, 60}, 650).
 
-a1_input_with_heartbeats() ->
-    producer:interleave_heartbeats(a1_input(), {{a,1}, 10}, 650).
+a1_input_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(a1_input(Node), {{{a,1},Node}, 10}, 650).
 
-a2_input_with_heartbeats() ->
-    producer:interleave_heartbeats(a2_input(), {{a,2}, 10}, 650).
+a2_input_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(a2_input(Node), {{{a,2}, Node}, 10}, 650).
 
-b_input_with_heartbeats() ->
-    producer:interleave_heartbeats(b_input(), {b, 10}, 650).
+b_input_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(b_input(Node), {{b,Node}, 10}, 650).
 
-a1_input() ->
+a1_input(Node) ->
     Inputs = 
 	[{20, 30},
 	 {40, 20},
@@ -281,9 +281,9 @@ a1_input() ->
 	 {260, 31},
 	 {280, 12},
 	 {300, 21}],
-    [{{a,1}, Ts, Tip} || {Ts, Tip} <- Inputs].
+    [{{{a,1}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
-a2_input() ->
+a2_input(Node) ->
     Inputs = 
 	[{20, 25},
 	 {40, 26},
@@ -304,9 +304,9 @@ a2_input() ->
 	 {260, 18},
 	 {280, 12},
 	 {300, 21}],
-    [{{a,2}, Ts, Tip} || {Ts, Tip} <- Inputs].
+    [{{{a,2}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
-b_input() ->
+b_input(Node) ->
     Inputs = 
 	[{20, 10},
 	 {40, 120},
@@ -327,7 +327,7 @@ b_input() ->
 	 {260, 18},
 	 {280, 12},
 	 {300, 21}],
-    [{b, Ts, Tip} || {Ts, Tip} <- Inputs].
+    [{{b, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
 
 %% -------- TESTS -------- %%

@@ -1,12 +1,13 @@
 -module(configuration).
 
--export([create/3,
-	 create/4,
+-export([create/4,
+	 create/5,
 	 find_node/2,
 	 find_children/2,
 	 find_children_mbox_pids/2,
 	 find_children_node_pids/2,
 	 find_children_preds/2,
+	 find_children_spec_preds/2,
 	 find_descendant_preds/2,
 	 find_node_mailbox_pid_pairs/1,
 	 find_node_mailbox_father_pid_pairs/1,
@@ -20,21 +21,21 @@
 %% - It spawns and creates the nodes
 %% - It initializes the router
 %%
--spec create(temp_setup_tree(), dependencies(), mailbox()) -> configuration().
-create(Tree, Dependencies, OutputPid) ->
+-spec create(temp_setup_tree(), dependencies(), mailbox(), impl_tags()) -> configuration().
+create(Tree, Dependencies, OutputPid, ImplTags) ->
     Options = conf_gen:default_options(),
-    create(Tree, Dependencies, Options, OutputPid).
+    create(Tree, Dependencies, Options, OutputPid, ImplTags).
 
--spec create(temp_setup_tree(), dependencies(), conf_gen_options_rec(), mailbox()) 
+-spec create(temp_setup_tree(), dependencies(), conf_gen_options_rec(), mailbox(), impl_tags()) 
 	    -> configuration().
-create(Tree, Dependencies, OptionsRec, OutputPid) ->
+create(Tree, Dependencies, OptionsRec, OutputPid, ImplTags) ->
     
     %% Register this node as the master node
     true = register(master, self()),
 
     %% Spawns the nodes
     NameSeed = make_name_seed(),
-    {PidsTree, _NewNameSeed} = spawn_nodes(Tree, NameSeed, OptionsRec, Dependencies, OutputPid, 0),
+    {PidsTree, _NewNameSeed} = spawn_nodes(Tree, NameSeed, OptionsRec, Dependencies, OutputPid, 0, ImplTags),
 
     %% Create the configuration tree
     ConfTree = prepare_configuration_tree(PidsTree, Tree),
@@ -47,20 +48,20 @@ create(Tree, Dependencies, OptionsRec, OutputPid) ->
 
 %% Spawns the nodes based on the tree configuration
 -spec spawn_nodes(temp_setup_tree(), name_seed(), conf_gen_options_rec(), 
-		  dependencies(), mailbox(), integer()) -> {pid_tree(), name_seed()}.
+		  dependencies(), mailbox(), integer(), impl_tags()) -> {pid_tree(), name_seed()}.
 spawn_nodes({State, Node, Pred, Funs, Children}, NameSeed, 
-	    OptionsRec, Dependencies, OutputPid, Depth) ->
+	    OptionsRec, Dependencies, OutputPid, Depth, ImplTags) ->
     {ChildrenPidTrees, NewNameSeed} = 
 	lists:foldr(
 	 fun(C, {AccTrees, NameSeed0}) ->
 		 {CTree, NameSeed1} =
-		     spawn_nodes(C, NameSeed0, OptionsRec, Dependencies, OutputPid, Depth + 1),
+		     spawn_nodes(C, NameSeed0, OptionsRec, Dependencies, OutputPid, Depth + 1, ImplTags),
 		 {[CTree|AccTrees], NameSeed1}
 	 end, {[], NameSeed}, Children),
     ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
     {Name, FinalNameSeed} = gen_proc_name(NewNameSeed),
     {NodePid, NameNode} = 
-	node:node(State, {Name, Node}, Pred, Funs, OptionsRec, Dependencies, OutputPid, Depth),
+	node:node(State, {Name, Node}, Pred, Funs, OptionsRec, Dependencies, OutputPid, Depth, ImplTags),
     {{{NodePid, NameNode}, ChildrenPidTrees}, FinalNameSeed}.
 
 -spec make_name_seed() -> name_seed().
@@ -126,8 +127,12 @@ find_children_node_pids(Pid, ConfTree) ->
     [NPid || {node, NPid, _,  _, _} <- find_children(Pid, ConfTree)].
 
 %% This function returns the predicates of the pids of the children nodes
--spec find_children_preds(pid(), configuration()) -> [message_predicate()].
+-spec find_children_preds(pid(), configuration()) -> [impl_message_predicate()].
 find_children_preds(Pid, ConfTree) ->
+    [CPred || {node, _, _, CPred, _} <- find_children(Pid, ConfTree)].
+
+-spec find_children_preds(pid(), configuration()) -> [message_predicate()].
+find_children_spec_preds(Pid, ConfTree) ->
     [CPred || {node, _, _, CPred, _} <- find_children(Pid, ConfTree)].
 
 %% This function returns the predicates of the pids of all the descendant nodes
@@ -159,13 +164,13 @@ union_children_preds(Children) ->
 is_acc({acc, _}) -> true;
 is_acc(_) -> false.
 
--spec get_relevant_predicates(pid(), configuration()) -> {'ok', message_predicate()}.
+-spec get_relevant_predicates(pid(), configuration()) -> {'ok', impl_message_predicate()}.
 get_relevant_predicates(Attachee, ConfTree) ->
     [{acc, RelevantPred}] =
 	lists:filter(fun is_acc/1, get_relevant_predicates0(Attachee, ConfTree)),
     {ok, RelevantPred}.
 
--spec get_relevant_predicates0(pid(), configuration()) -> [{'acc' | 'rest', message_predicate()}].
+-spec get_relevant_predicates0(pid(), configuration()) -> [{'acc' | 'rest', impl_message_predicate()}].
 get_relevant_predicates0(Attachee, {node, Attachee, _MPid, Pred, Children}) ->
     ChildrenPred = union_children_preds(Children),
     ReturnPred =
