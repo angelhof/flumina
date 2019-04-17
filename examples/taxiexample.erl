@@ -42,21 +42,25 @@ distributed_conf_2(SinkPid) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
+    ImplTags = [{Tag, Node} || {Node, Tag, _R} <- Rates],
+
     %% Configuration Tree
     Funs = {fun update_2/3, fun split_2/2, fun merge_2/2},
     FunsP = {fun update_id_2/3, fun split_2/2, fun merge_2/2},
     Ids = init_state_2(),
-    {Ids1, Ids2} = split_2({fun isId1/1, fun isId2/1}, Ids),
-    Node1 = {Ids1, node(), fun isId1/1, FunsP, []},
-    Node2 = {Ids2, node(), fun isId2/1, FunsP, []},    
-    Node0  = {Ids, node(), fun isHour/1, Funs, [Node1, Node2]},
-    ConfTree = configuration:create(Node0, dependencies_2(), SinkPid),
+    {Ids1, Ids2} = split_2({fun isTagId1/1, fun isTagId2/1}, Ids),
+    Node1 = {Ids1, node(), {fun isTagId1/1, fun isId1/1}, FunsP, []},
+    Node2 = {Ids2, node(), {fun isTagId2/1, fun isId2/1}, FunsP, []},    
+    Node0  = {Ids, node(), {fun isTagHour/1, fun isHour/1}, Funs, [Node1, Node2]},
+    ConfTree = configuration:create(Node0, dependencies_2(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    Input1 = id1_positions_with_heartbeats(),
-    Input2 = id2_positions_with_heartbeats(),    
-    Input3 = hour_positions_input(),
-    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, hour, 10}],
+    Input1 = id1_positions_with_heartbeats(node()),
+    Input2 = id2_positions_with_heartbeats(node()),    
+    Input3 = hour_positions_input(node()),
+    InputStreams = [{producer:list_generator(Input1), {{id,1}, node()}, 10}, 
+		    {producer:list_generator(Input2), {{id,2}, node()}, 10}, 
+		    {producer:list_generator(Input3), {hour, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     %% io:format("Input3: ~p~n", [Input3]),
@@ -90,10 +94,12 @@ sequential_conf_2(SinkPid) ->
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
-    Input1 = id1_positions_with_heartbeats(),
-    Input2 = id2_positions_with_heartbeats(),
-    Input3 = hour_positions_input(),
-    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, hour, 10}],
+    Input1 = id1_positions_with_heartbeats(node()),
+    Input2 = id2_positions_with_heartbeats(node()),
+    Input3 = hour_positions_input(node()),
+    InputStreams = [{producer:list_generator(Input1), {{id,1}, node()}, 10}, 
+		    {producer:list_generator(Input2), {{id,2}, node()}, 10}, 
+		    {producer:list_generator(Input3), {hour, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -112,19 +118,21 @@ distributed_conf_1(SinkPid) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
+    ImplTags = [{Tag, Node} || {Node, Tag, _R} <- Rates],
+
     %% Configuration Tree
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
     %% We give the parallel nodes crash functions because they should never be called
     %% for leaf nodes
     FunsP = {fun update_id_1/3, fun util:crash/2, fun util:crash/2},
     Ids = init_state_1(),
-    Node1 = {Ids, node(), fun isId1/1, FunsP, []},
-    Node2 = {Ids, node(), fun isId2/1, FunsP, []},
-    Node0  = {Ids, node(), fun isWindow/1, Funs, [Node1, Node2]},
-    ConfTree = configuration:create(Node0, dependencies_1(), SinkPid),
+    Node1 = {Ids, node(), {fun isTagId1/1, fun isId1/1}, FunsP, []},
+    Node2 = {Ids, node(), {fun isTagId2/1, fun isId2/1}, FunsP, []},
+    Node0  = {Ids, node(), {fun isTagWindow/1, fun isWindow/1}, Funs, [Node1, Node2]},
+    ConfTree = configuration:create(Node0, dependencies_1(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/0, window, ConfTree, Topology),
+    create_producers(fun sliding_period_input/1, window, node(), ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -142,14 +150,16 @@ sequential_conf_1(SinkPid) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
+    ImplTags = [{Tag, Node} || {Node, Tag, _R} <- Rates],
+
     %% Configuration Tree
     Funs = {fun update_1/3, fun split_1/2, fun merge_1/2},
     Ids = init_state_1(),
-    Node  = {Ids, node(), fun true_pred/1, Funs, []},
-    ConfTree = configuration:create(Node, dependencies_1(), SinkPid),
+    Node  = {Ids, node(), {fun true_pred/1, fun true_pred/1}, Funs, []},
+    ConfTree = configuration:create(Node, dependencies_1(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/0, window, ConfTree, Topology),
+    create_producers(fun sliding_period_input/1, window, node(), ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -168,22 +178,24 @@ distributed_conf(SinkPid) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
+    ImplTags = [{Tag, Node} || {Node, Tag, _R} <- Rates],
+
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     FunsP = {fun update_id/3, fun split/2, fun merge/2},
     Ids = init_state(),
-    Node1 = {Ids, node(), fun isId1/1, FunsP, []},
-    Node22 = {Ids, node(), fun isId2/1, FunsP, []},
-    Node23 = {Ids, node(), fun isId3/1, FunsP, []},
-    Node2 = {Ids, node(), fun isId23/1, FunsP, [Node22, Node23]},    
-    Node0  = {Ids, node(), fun isHour/1, Funs, [Node1, Node2]},
-    ConfTree = configuration:create(Node0, dependencies(), SinkPid),
+    Node1 = {Ids, node(), {fun isTagId1/1, fun isId1/1}, FunsP, []},
+    Node22 = {Ids, node(), {fun isTagId2/1, fun isId2/1}, FunsP, []},
+    Node23 = {Ids, node(), {fun isTagId3/1, fun isId3/1}, FunsP, []},
+    Node2 = {Ids, node(), {fun isTagId23/1, fun isId23/1}, FunsP, [Node22, Node23]},    
+    Node0  = {Ids, node(), {fun isTagHour/1, fun isHour/1}, Funs, [Node1, Node2]},
+    ConfTree = configuration:create(Node0, dependencies(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/0, hour, ConfTree, Topology),
+    create_producers(fun hour_markets_input/1, hour, node(), ConfTree, Topology),
 
-    Input3 = id3_input_with_heartbeats(),
-    InputStreams = [{Input3, {id,3}, 10}],
+    Input3 = id3_input_with_heartbeats(node()),
+    InputStreams = [{producer:list_generator(Input3), {{id,3}, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -203,26 +215,30 @@ sequential_conf(SinkPid) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
+    ImplTags = [{Tag, Node} || {Node, Tag, _R} <- Rates],
+
     %% Configuration Tree
     Funs = {fun update/3, fun split/2, fun merge/2},
     Ids = init_state(),
-    Node  = {Ids, node(), fun true_pred/1, Funs, []},
-    ConfTree = configuration:create(Node, dependencies(), SinkPid),
+    Node  = {Ids, node(), {fun true_pred/1, fun true_pred/1}, Funs, []},
+    ConfTree = configuration:create(Node, dependencies(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/0, hour, ConfTree, Topology),
+    create_producers(fun hour_markets_input/1, hour, node(), ConfTree, Topology),
 
-    Input3 = id3_input_with_heartbeats(),
-    InputStreams = [{Input3, {id,3}, 10}],
+    Input3 = id3_input_with_heartbeats(node()),
+    InputStreams = [{producer:list_generator(Input3), {{id,3}, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
-create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
-    Input1 = id1_input_with_heartbeats(),
-    Input2 = id2_input_with_heartbeats(),
-    Input3 = MarkerFun(),
-    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, MarkerTag, 10}],
+create_producers(MarkerFun, MarkerTag, Node, ConfTree, Topology) ->
+    Input1 = id1_input_with_heartbeats(Node),
+    Input2 = id2_input_with_heartbeats(Node),
+    Input3 = MarkerFun(Node),
+    InputStreams = [{producer:list_generator(Input1), {{id,1}, Node}, 10}, 
+		    {producer:list_generator(Input2), {{id,2}, Node}, 10}, 
+		    {producer:list_generator(Input3), {MarkerTag, Node}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
@@ -234,14 +250,14 @@ create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
 %% It finds the distance between each two consecutive points of each taxi driver
 %% and then adds them all for each hour
 
-update_id_2({Tag, Ts, Position}, DriverPosDists, SendTo) ->
+update_id_2({Tag, Position}, DriverPosDists, SendTo) ->
     %% SendTo ! {"Time", Ts, Tag, Position, self()},
     {PrevPos, PrevDist} = maps:get(Tag, DriverPosDists),
     Dist = dist(PrevPos, Position),
     maps:update(Tag, {Position, Dist + PrevDist}, DriverPosDists).
 
 
-update_2({hour, Ts, marker}, DriverPosDists, SendTo) ->
+update_2({hour, Ts}, DriverPosDists, SendTo) ->
     {Ids, Values} = lists:unzip(maps:to_list(DriverPosDists)),
     {_PrevPositions, Distances} = lists:unzip(Values),
     RoundedDistances = [round(D) || D <- Distances],
@@ -251,13 +267,14 @@ update_2(Msg, DriverPosDists, SendTo) ->
     update_id_2(Msg, DriverPosDists, SendTo).
 
 split_2({Pred1, Pred2}, DriverPosDists) ->
-    {maps:filter(fun(K,_) -> Pred1({K, dummy, dummy}) end, DriverPosDists),
-     maps:filter(fun(K,_) -> Pred2({K, dummy, dummy}) end, DriverPosDists)}.
+    {maps:filter(fun(K,_) -> Pred1(K) end, DriverPosDists),
+     maps:filter(fun(K,_) -> Pred2(K) end, DriverPosDists)}.
 
 merge_2(DriverPosDists1, DriverPosDists2) ->
     util:merge_with(
       fun(K, _V1, _V2) ->
 	      %% This should never be called
+	      %% Actually it could be called because preds might not be disjoint
 	      util:err("Key: ~p shouldn't exist in both maps~n", [K]),
 	      erlang:halt()
       end, DriverPosDists1, DriverPosDists2).
@@ -293,14 +310,14 @@ dist(undef, {X2, Y2}) ->
 %% both the window length and slide. Here this is the slide itself so the
 %% implementation is simplified.
 
-update_id_1({Tag, Ts, Value}, {TipSums, WindowTips}, SendTo) ->
+update_id_1({Tag, Value}, {TipSums, WindowTips}, SendTo) ->
     %% This is here for debugging purposes
     %% SendTo ! {"Time", Ts, Tag, Value},
     Tip = maps:get(Tag, TipSums),
     {maps:update(Tag, Tip + Value, TipSums), WindowTips}.
 
 
-update_1({window, Ts, marker}, {TipSums, WindowTips0}, SendTo) ->
+update_1({window, Ts}, {TipSums, WindowTips0}, SendTo) ->
     %% This keeps the past sliding periods tips for each
     %% driver in the map
     WindowTips1 =
@@ -349,10 +366,10 @@ output_tip_sums(WindowTips, DriverIds, Ts, SendTo) ->
 %%       ones, don't really do any processing most of the time. So in essence,
 %%       a parent can almost always be in the same node with one of its children.
 split_1({Pred1, Pred2}, {TipSums, WindowTips}) ->
-    {{maps:filter(fun(K,_) -> Pred1({K, dummy, dummy}) end, TipSums),
-      maps:filter(fun({K, _T},_) -> Pred1({K, dummy, dummy}) end, WindowTips)},
-     {maps:filter(fun(K,_) -> Pred2({K, dummy, dummy}) end, TipSums),
-      maps:filter(fun({K, _T},_) -> Pred2({K, dummy, dummy}) end, WindowTips)}}.
+    {{maps:filter(fun(K,_) -> Pred1(K) end, TipSums),
+      maps:filter(fun({K, _T},_) -> Pred1(K) end, WindowTips)},
+     {maps:filter(fun(K,_) -> Pred2(K) end, TipSums),
+      maps:filter(fun({K, _T},_) -> Pred2(K) end, WindowTips)}}.
 
 merge_1({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
     {util:merge_with(
@@ -362,6 +379,7 @@ merge_1({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
      util:merge_with(
        fun(_K, V1, V2) ->
 	       %% There shouldn't be a common key between those
+	       %% Actually there might be a common key between them
 	       erlang:halt(1)
        end, WindowTips1, WindowTips2)}.
 
@@ -382,14 +400,14 @@ init_state_1() ->
 %% This is the update that the parallel nodes will run
 %% It is the same as the other ones, but the parallel
 %% nodes are supposed to have maps for less ids
-update_id({Tag, Ts, Value}, TipSums, SendTo) ->
+update_id({Tag, Value}, TipSums, SendTo) ->
     %% This is here for debugging purposes
     %% SendTo ! {"Time", Ts, Tag, Value, self()},
     Tip = maps:get(Tag, TipSums),
     maps:update(Tag, Tip + Value, TipSums).
 
 %% This is the sequential update of the total 
-update({hour, Ts, marker}, TipSums, SendTo) ->
+update({hour, Ts}, TipSums, SendTo) ->
     SendTo ! {"Tips per rider", TipSums},
     maps:map(fun(_,_) -> 0 end, TipSums);
 update(Msg, TipSums, SendTo) ->
@@ -403,8 +421,8 @@ merge(TipsMap1, TipsMap2) ->
       end, TipsMap1, TipsMap2).
 
 split({Pred1, Pred2}, TipSums) ->
-    {maps:filter(fun(K,_) -> Pred1({K, dummy, dummy}) end, TipSums),
-     maps:filter(fun(K,_) -> Pred2({K, dummy, dummy}) end, TipSums)}.
+    {maps:filter(fun(K,_) -> Pred1(K) end, TipSums),
+     maps:filter(fun(K,_) -> Pred2(K) end, TipSums)}.
 
 dependencies() ->
     #{{id,1} => [hour],
@@ -417,23 +435,40 @@ init_state() ->
     maps:from_list([{{id,1}, 0}, {{id,2}, 0}, {{id,3}, 0}]).
 
 %% The predicates
-isId1({{id,1}, _, _}) -> true;
+isId1({{{id,1}, _}, _, _}) -> true;
 isId1(_) -> false.
 
-isId2({{id,2}, _, _}) -> true;
+isId2({{{id,2}, _}, _, _}) -> true;
 isId2(_) -> false.    
 
-isId3({{id,3}, _, _}) -> true;
+isId3({{{id,3}, _}, _, _}) -> true;
 isId3(_) -> false.
 
 isId23(Msg) -> isId2(Msg) orelse isId3(Msg).
 
-isHour({hour, _, _}) -> true;
+isHour({{hour, _}, _, _}) -> true;
 isHour(_) -> false.
 
-isWindow({window, _, _}) -> true;
+isWindow({{window, _}, _, _}) -> true;
 isWindow(_) -> false.    
 
+isTagId1({id,1}) -> true;
+isTagId1(_) -> false.
+
+isTagId2({id,2}) -> true;
+isTagId2(_) -> false.    
+
+isTagId3({id,3}) -> true;
+isTagId3(_) -> false.
+
+isTagId23(Tag) ->
+    isTagId2(Tag) orelse isTagId3(Tag).
+
+isTagHour(hour) -> true;
+isTagHour(_) -> false.
+
+isTagWindow(window) -> true;
+isTagWindow(_) -> false.    
 
 true_pred(_) -> true.
 
@@ -442,46 +477,46 @@ true_pred(_) -> true.
 
 %% Some input examples
 
-id1_positions_with_heartbeats() ->
-    producer:interleave_heartbeats(taxi_1_position_inputs(), #{{id,1} => 5}, 2050).
+id1_positions_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(taxi_1_position_inputs(Node), {{{id,1}, Node}, 5}, 2050).
 
-id2_positions_with_heartbeats() ->
-    producer:interleave_heartbeats(taxi_2_position_inputs(), #{{id,2} => 5}, 2050).
+id2_positions_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(taxi_2_position_inputs(Node), {{{id,2}, Node}, 5}, 2050).
 
-taxi_1_position_inputs() ->
+taxi_1_position_inputs(Node) ->
     Positions = [{X, 0} || X <- lists:seq(1,1000)] ++ [{X + 1000, X} || X <- lists:seq(1,1000)],
     TsPositions = lists:zip(Positions, lists:seq(1, length(Positions))),
-    [{{id,1}, Ts, Pos} || {Pos, Ts} <- TsPositions].
+    [{{{id,1}, Pos}, Node, Ts} || {Pos, Ts} <- TsPositions].
 
-taxi_2_position_inputs() ->
+taxi_2_position_inputs(Node) ->
     Positions = [{0, X} || X <- lists:seq(1,1000)] ++ [{X, 1000} || X <- lists:seq(1,1000)],
     TsPositions = lists:zip(Positions, lists:seq(1, length(Positions))),
-    [{{id,2}, Ts, Pos} || {Pos, Ts} <- TsPositions].
+    [{{{id,2}, Pos}, Node, Ts} || {Pos, Ts} <- TsPositions].
 
-hour_positions_input() ->
-    Input = [{hour, T * 60, marker} || T <- lists:seq(1, 35)],
-    producer:interleave_heartbeats(Input, #{hour => 60}, 2100).
+hour_positions_input(Node) ->
+    Input = [{{hour, T * 60}, Node, T * 60} || T <- lists:seq(1, 35)],
+    producer:interleave_heartbeats(Input, {{hour, Node}, 60}, 2100).
 
 
 
-hour_markets_input() ->
-    Input = [{hour, T * 60, marker} || T <- lists:seq(1, 10)],
-    producer:interleave_heartbeats(Input, #{hour => 60}, 650).
+hour_markets_input(Node) ->
+    Input = [{{hour, T * 60}, Node, T * 60} || T <- lists:seq(1, 10)],
+    producer:interleave_heartbeats(Input, {{hour, Node}, 60}, 650).
 
-sliding_period_input() ->
-    Input = [{window, T * 20, marker} || T <- lists:seq(1, 30)],
-    producer:interleave_heartbeats(Input, #{window => 60}, 650).
+sliding_period_input(Node) ->
+    Input = [{{window, T * 20}, Node, T * 20} || T <- lists:seq(1, 30)],
+    producer:interleave_heartbeats(Input, {{window, Node}, 60}, 650).
 
-id1_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id1_input(), #{{id,1} => 10}, 650).
+id1_input_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(id1_input(Node), {{{id,1}, Node}, 10}, 650).
 
-id2_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id2_input(), #{{id,2} => 10}, 650).
+id2_input_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(id2_input(Node), {{{id,2}, Node}, 10}, 650).
 
-id3_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id3_input(), #{{id,3} => 10}, 650).
+id3_input_with_heartbeats(Node) ->
+    producer:interleave_heartbeats(id3_input(Node), {{{id,3}, Node}, 10}, 650).
 
-id1_input() ->
+id1_input(Node) ->
     Inputs = 
 	[{1, 15},
 	 {10, 20},
@@ -496,9 +531,9 @@ id1_input() ->
 	 {210, 21},
 	 {234, 15},
 	 {250, 12}],
-    [{{id,1}, Ts, Tip} || {Ts, Tip} <- Inputs].
+    [{{{id,1}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
-id2_input() ->
+id2_input(Node) ->
     Inputs = 
 	[{5, 25},
 	 {32, 26},
@@ -517,9 +552,9 @@ id2_input() ->
 	 {245, 21},
 	 {268, 15},
 	 {290, 12}],
-    [{{id,2}, Ts, Tip} || {Ts, Tip} <- Inputs].
+    [{{{id,2}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
-id3_input() ->
+id3_input(Node) ->
     Inputs = 
 	[{11, 15},
 	 {21, 15},
@@ -539,7 +574,7 @@ id3_input() ->
 	 {239, 13},
 	 {272, 24},
 	 {285, 28}],
-    [{{id,3}, Ts, Tip} || {Ts, Tip} <- Inputs].
+    [{{{id,3}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
 
 %% -------- TESTS -------- %%

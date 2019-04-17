@@ -11,7 +11,7 @@ def copy_logs_from_to(from_dirs, to_dir_path):
     ## Delete the directory if it exists
     if os.path.isdir(to_dir_path):
         shutil.rmtree(to_dir_path)
-    os.mkdir(to_dir_path)
+    os.makedirs(to_dir_path)
 
     ## Gather the log file names
 

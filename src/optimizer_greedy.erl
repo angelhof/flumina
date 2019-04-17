@@ -34,18 +34,19 @@
 -spec generate_setup_tree(specification(), topology()) -> temp_setup_tree().
 generate_setup_tree(Specification, Topology) ->
     Dependencies = conf_gen:get_dependencies(Specification),
-    
+    ImplTags = conf_gen:get_implementation_tags(Topology),
+
     %% Make the dependency graph
-    {DepGraph, TagsVertices} = make_dependency_graph(Dependencies),
+    {DepGraph, TagsVertices} = make_impl_dependency_graph(Dependencies, ImplTags),
     print_graph(DepGraph),
 
     %% Get the nodes-tags-rates association list
     NodesRates = conf_gen:get_nodes_rates(Topology),
-    SortedTags = sort_tags_by_rate_ascending(NodesRates),
-    io:format("Sorted Tags: ~p~n", [SortedTags]),
+    SortedImplTags = sort_tags_by_rate_ascending(NodesRates),
+    io:format("Sorted Tags: ~p~n", [SortedImplTags]),
     
     %% TODO: Rename to iterative greedy disconnect
-    TagsRootTree = iterative_greedy_split(SortedTags, NodesRates, TagsVertices, DepGraph),
+    TagsRootTree = iterative_greedy_split(SortedImplTags, NodesRates, TagsVertices, DepGraph),
     io:format("Tags root tree: ~n~p~n", [TagsRootTree]),
     
     %% Now we have to run the DP algorithm that given a root tree
@@ -124,9 +125,10 @@ root_tree_to_setup_tree(RootTree, Specification) ->
 complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, []}, HoleTree}, Specification) ->
     {StateType, State} = StateTypePair,
     {_Ts, UpdateFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
-    Predicate = opt_lib:tags_to_predicate(sets:to_list(HTags)),
+    Predicate = opt_lib:impl_tags_to_predicate(sets:to_list(HTags)),
+    SpecPredicate = opt_lib:impl_tags_to_spec_predicate(sets:to_list(HTags)),
     Funs = {UpdateFun, fun util:crash/2, fun util:crash/2},
-    NewTree = {State, Node, Predicate, Funs, []},
+    NewTree = {State, Node, {SpecPredicate, Predicate}, Funs, []},
     [HoleTree(NewTree)];
 complete_root_tree_to_setup_tree({StateTypePair, {{HTags, _Node}, [Child]}, HoleTree}, Specification) ->
     {StateType, _State} = StateTypePair,
@@ -160,7 +162,7 @@ complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}, Hole
 %% of the tags and root trees by the recursive procedure.
 %%
 %% WARNING: It assumes that each tag appears in exactly one root tree.
--spec filter_splits_satisfy_any_child(state_type_pair(), {sets:set(tag()), node()}, split_merge_funs(), 
+-spec filter_splits_satisfy_any_child(state_type_pair(), {sets:set(impl_tag()), node()}, split_merge_funs(), 
 				      [set_root_tree()], specification()) 
 				     -> [hole_setup_tree()].
 filter_splits_satisfy_any_child(StateTypePair, TagsNode, SplitMergeFuns, SetRootTrees, Specification) ->
@@ -266,7 +268,7 @@ similar(_RootTree1, _RootTree2) ->
     false.
 
 %% This lifts the function from below to sets of implementation tags
--spec specification_tags(sets:set(tag())) -> sets:set(tag()).
+-spec specification_tags(sets:set(impl_tag())) -> sets:set(tag()).
 specification_tags(TagSet) ->
     sets:fold(
       fun(ImplTag, SpecTagsAcc) ->
@@ -276,10 +278,12 @@ specification_tags(TagSet) ->
 %% TODO: Move this function in a more general library
 %% This assumes that the specification tag is the first element of the 
 %% implementation tag tuple, (if the implementation tag is a tuple)
--spec specification_tag(tag()) -> tag().
-specification_tag(Tag) when is_atom(Tag) ->
+-spec specification_tag(impl_tag()) -> tag().
+specification_tag({Tag, Node}) when is_atom(Tag) ->
     Tag;
-specification_tag({Tag, Id}) when is_atom(Tag) ->
+%% WARNING: NOT SURE ABOUT THIS NOW THAT WE HAVE 
+%%          MOVED IMPLEMENTATION TAGS TO BE INDICATED BY NODE
+specification_tag({{Tag, Id}, Node}) when is_atom(Tag) ->
     Tag.
 
 
@@ -337,14 +341,14 @@ filter_splits_satisfy_child({StateType, State}, {HTags, Node}, SplitMergeFuns,
 		end, LeftRightMatches)
       end, FilteredSplitMergeFuns).
 
--spec split_left_or_right('left' | 'right', split_merge_fun(), sets:set(tag()), 
-			  sets:set(tag()), State::any()) 
+-spec split_left_or_right('left' | 'right', split_merge_fun(), sets:set(impl_tag()), 
+			  sets:set(impl_tag()), State::any()) 
 			 -> {state_type_pair(), state_type_pair()}.	 
 split_left_or_right(LeftRight, {Triple, SplitMerge}, CurrTags, RestTags, State) ->
     {SplitFun, MergeFun} = SplitMerge,
     {_PST, LStateType, RStateType} = Triple,
-    CurrTagsPred = opt_lib:tags_to_predicate(sets:to_list(CurrTags)),
-    RestTagsPred = opt_lib:tags_to_predicate(sets:to_list(RestTags)),
+    CurrTagsPred = opt_lib:impl_tags_to_spec_predicate(sets:to_list(CurrTags)),
+    RestTagsPred = opt_lib:impl_tags_to_spec_predicate(sets:to_list(RestTags)),
     case LeftRight of
 	left ->
 	    {New, Rest} = SplitFun({CurrTagsPred, RestTagsPred}, State),
@@ -366,7 +370,8 @@ finalize_split_hole_setup_trees(LeftRight, {StateType, State}, {HTags, Node},
     {_Ts, UpdateFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
     {SplitFun, MergeFun} = SplitMerge,
     Funs = {UpdateFun, SplitFun, MergeFun},
-    HTagsPred = opt_lib:tags_to_predicate(sets:to_list(HTags)),
+    HTagsPred = opt_lib:impl_tags_to_predicate(sets:to_list(HTags)),
+    HSpecTagsPred = opt_lib:impl_tags_to_spec_predicate(sets:to_list(HTags)),
     lists:map(
       fun(MatchedSideTempSetupTree) ->
 	      FinalHoleTree = 
@@ -381,7 +386,7 @@ finalize_split_hole_setup_trees(LeftRight, {StateType, State}, {HTags, Node},
 				  right ->
 				      [HoleSetupTree, MatchedSideTempSetupTree]
 			      end,
-			  {State, Node, HTagsPred, Funs, FinalChildren}
+			  {State, Node, {HSpecTagsPred, HTagsPred}, Funs, FinalChildren}
 		  end,
 	      %% The root tree now has an empty parent node, as it is really
 	      %% a forest of root trees. So just assign it to the current Node.
@@ -435,9 +440,9 @@ union_root_tree({{HTags, Node}, Children}) ->
 %%          but it returns the "optimal" greedy tree.
 %% MORE IMPORTANT WARNING: It deletes the original graph
 %% 
--spec iterative_greedy_split(tags(), nodes_rates(), tag_vertices(), digraph:graph()) -> tag_root_tree().
-iterative_greedy_split(Tags, NodesRates, TagsVertices, Graph) ->
-    {TopTags, TagsCCs} = best_greedy_split(Tags, TagsVertices, Graph),
+-spec iterative_greedy_split(impl_tags(), nodes_rates(), tag_vertices(), digraph:graph()) -> tag_root_tree().
+iterative_greedy_split(ImplTags, NodesRates, TagsVertices, Graph) ->
+    {TopTags, TagsCCs} = best_greedy_split(ImplTags, TagsVertices, Graph),
     %% WARNING: Naive sorting of Tags based on rates. A better way would be
     %%          to keep the rates and use them to sort here. Or keep the rates
     %%          for each tag in a map
@@ -462,23 +467,23 @@ iterative_greedy_split(Tags, NodesRates, TagsVertices, Graph) ->
 
 %% This function returns the minimal set of tags that disconnects
 %% the dependency graph.
--spec best_greedy_split(tags(), tag_vertices(), digraph:graph()) -> {tags(), [tags()]}.
-best_greedy_split(Tags, TagsVertices, Graph) ->
-    best_greedy_split(Tags, TagsVertices, Graph, []).
+-spec best_greedy_split(impl_tags(), tag_vertices(), digraph:graph()) -> {impl_tags(), [impl_tags()]}.
+best_greedy_split(ImplTags, TagsVertices, Graph) ->
+    best_greedy_split(ImplTags, TagsVertices, Graph, []).
 
--spec best_greedy_split(tags(), tag_vertices(), digraph:graph(), tags()) -> {tags(), [tags()]}.
+-spec best_greedy_split(impl_tags(), tag_vertices(), digraph:graph(), impl_tags()) -> {impl_tags(), [impl_tags()]}.
 best_greedy_split([], _TagsVertices, _Graph, Acc) ->
     {Acc, []};
-best_greedy_split([Tag|Tags], TagsVertices, Graph, Acc) ->
-    Vertex = maps:get(Tag, TagsVertices),
+best_greedy_split([ImplTag|ImplTags], TagsVertices, Graph, Acc) ->
+    Vertex = maps:get(ImplTag, TagsVertices),
     case does_disconnect(Vertex, Graph) of
 	{disconnected, Components} ->
 	    TagCCs = 
 		[[get_label(V, Graph) || V <- Component] 
 		 || Component <- Components],
-	    {[Tag|Acc], TagCCs};
+	    {[ImplTag|Acc], TagCCs};
 	still_connected ->
-	    best_greedy_split(Tags, TagsVertices, Graph, [Tag|Acc])
+	    best_greedy_split(ImplTags, TagsVertices, Graph, [ImplTag|Acc])
     end.
 
 -spec does_disconnect(digraph:vertex(), digraph:graph()) -> 
@@ -498,45 +503,87 @@ does_disconnect(Vertex, Graph) ->
 	    {disconnected, Components}
     end.
 
--spec make_dependency_graph(dependencies()) -> {digraph:graph(), tag_vertices()}.
-make_dependency_graph(Dependencies) ->
+-spec make_impl_dependency_graph(dependencies(), impl_tags()) -> {digraph:graph(), tag_vertices()}.
+make_impl_dependency_graph(Dependencies, ImplTags) ->
     Graph = digraph:new(),
-    Tags = maps:keys(Dependencies),
-    TagsVertices = add_tags_in_dependency_graph(Tags, Graph),
-    ok = add_edges_in_dependency_graph(Dependencies, Graph, TagsVertices),
+    TagsVertices = add_tags_in_dependency_graph(ImplTags, Graph),
+    ok = add_edges_in_dependency_graph(Dependencies, Graph, TagsVertices, ImplTags),
     {Graph, TagsVertices}.
     
--spec add_tags_in_dependency_graph(tags(), digraph:graph()) -> tag_vertices().
-add_tags_in_dependency_graph(Tags, Graph) ->
+-spec add_tags_in_dependency_graph(impl_tags(), digraph:graph()) -> tag_vertices().
+add_tags_in_dependency_graph(ImplTags, Graph) ->
     TagsVerticesList = 
 	lists:map(
-	  fun(Tag) ->
+	  fun(ImplTag) ->
 		  V = digraph:add_vertex(Graph),
-		  V = digraph:add_vertex(Graph, V, Tag),
-		  {Tag, V}
-	  end, Tags),
+		  V = digraph:add_vertex(Graph, V, ImplTag),
+		  {ImplTag, V}
+	  end, ImplTags),
     maps:from_list(TagsVerticesList).
     
--spec add_edges_in_dependency_graph(dependencies(), digraph:graph(), tag_vertices()) -> ok.
-add_edges_in_dependency_graph(Dependencies, Graph, TagsVerts) ->
+-spec add_edges_in_dependency_graph(dependencies(), digraph:graph(), tag_vertices(), impl_tags()) -> ok.
+add_edges_in_dependency_graph(Dependencies, Graph, TagsVerts, ImplTags) ->
     lists:foreach(
-      fun({Tag, DTags}) ->
+      fun({STag, SDTags}) ->
+	      %% All the implementation tags that come from 
+	      %% this spec tag
+	      ITags = spec_tag_to_impl_tags(STag, ImplTags),
+	      IDTags = 
+		  lists:flatten([spec_tag_to_impl_tags(SDT, ImplTags) || SDT <- SDTags]),
 	      lists:foreach(
-		fun(DTag) ->
-			V1 = maps:get(Tag, TagsVerts),
-			V2 = maps:get(DTag, TagsVerts),
-		        digraph:add_edge(Graph, V1, V2)
-		end, DTags)
+		fun(IT) ->
+			lists:foreach(
+			  fun(IDT) ->
+				  V1 = maps:get(IT, TagsVerts),
+				  V2 = maps:get(IDT, TagsVerts),
+				  digraph:add_edge(Graph, V1, V2)
+			  end, IDTags)
+		end, ITags)
       end, maps:to_list(Dependencies)).
 
--spec sort_tags_by_rate_ascending(nodes_rates()) -> tags().
+-spec spec_tag_to_impl_tags(tag(), impl_tags()) -> impl_tags().
+spec_tag_to_impl_tags(STag, ImplTags) ->
+    [IT || {T, _} = IT <- ImplTags, IT =:= STag].
+
+%% -spec make_dependency_graph(dependencies()) -> {digraph:graph(), tag_vertices()}.
+%% make_dependency_graph(Dependencies) ->
+%%     Graph = digraph:new(),
+%%     Tags = maps:keys(Dependencies),
+%%     TagsVertices = add_tags_in_dependency_graph(Tags, Graph),
+%%     ok = add_edges_in_dependency_graph(Dependencies, Graph, TagsVertices),
+%%     {Graph, TagsVertices}.
+    
+%% -spec add_tags_in_dependency_graph(tags(), digraph:graph()) -> tag_vertices().
+%% add_tags_in_dependency_graph(Tags, Graph) ->
+%%     TagsVerticesList = 
+%% 	lists:map(
+%% 	  fun(Tag) ->
+%% 		  V = digraph:add_vertex(Graph),
+%% 		  V = digraph:add_vertex(Graph, V, Tag),
+%% 		  {Tag, V}
+%% 	  end, Tags),
+%%     maps:from_list(TagsVerticesList).
+    
+%% -spec add_edges_in_dependency_graph(dependencies(), digraph:graph(), tag_vertices()) -> ok.
+%% add_edges_in_dependency_graph(Dependencies, Graph, TagsVerts) ->
+%%     lists:foreach(
+%%       fun({Tag, DTags}) ->
+%% 	      lists:foreach(
+%% 		fun(DTag) ->
+%% 			V1 = maps:get(Tag, TagsVerts),
+%% 			V2 = maps:get(DTag, TagsVerts),
+%% 		        digraph:add_edge(Graph, V1, V2)
+%% 		end, DTags)
+%%       end, maps:to_list(Dependencies)).
+
+-spec sort_tags_by_rate_ascending(nodes_rates()) -> impl_tags().
 sort_tags_by_rate_ascending(NodesRates) ->
     SortedTagsRate =
 	lists:sort(
 	  fun({_Node1, _Tag1, Rate1}, {_Node2, _Tag2, Rate2}) ->
 		  Rate1 =< Rate2
 	  end, NodesRates),
-    [Tag || {_Node, Tag, _Rate} <- SortedTagsRate].
+    [{Tag, Node} || {Node, Tag, _Rate} <- SortedTagsRate].
 
 -spec print_graph(digraph:graph()) -> ok.
 print_graph(Graph) ->

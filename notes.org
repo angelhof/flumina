@@ -1,5 +1,33 @@
 ** Work TODO
 
+*** TODO Setup all the generators for the debs smart home experiments
+
+  - [ ] Implement the hour-window generators
+  - [X] Split the big file into house files without heartbeats
+  - [X] Add heartbeats to the files of each house
+    + [X] In order to do this I have to implement a function that interleaves
+          generators with heartbeats
+    + [X] I have to extend generate_heartbeat to generate all heartbeats up
+          to a point, and not only the last one.
+    + [X] I have to extend interleave_heartbeats to handle many messages from generate
+          heartbeats.
+  - [ ] Implement a setup that doesn't copy the hearbeat files, 
+        but gives access to the house files to all docker containers,
+        and then each one reads from its own file
+
+*** TODO Make the abexample use a tags and not a1 a2 now that we have correct spec/impl
+
+*** TODO Allow the configuration generator to search for a sequence of splits to satisfy a split
+
+*** TODO Organize state of each process to be in a record
+
+Also the data from data structures such as the configuration tree should be gotten via getter 
+functions and never explicitly. Otherwise it is difficult to add and remove fields.
+
+  - [ ] node.erl
+  - [ ] mailbox.erl
+  - [ ] producer.erl
+
 *** TODO Don't return redundant setup trees (Completeness of similarity relation)
 
 This can be solved by finding the largest root tree similarity relation
@@ -228,6 +256,33 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+*** DONE Separate timestamp and node id from the message, as it is never needed for the computation
+
+
+WARNING: Make sure that the similarity should be for both tags and keys tags in the algorithm
+
+Internal messages will now contain implementation tags, so at last it will be clear
+what is a specification tag and what is an implementation tag
+
+It is a little bit unclear which predicates should be for the implementation and which
+should be for the specification.
+
+  - [X] Splits/Merges predicates
+  - [X] Update type definitions
+  - [X] Update code in src
+    + [X] node.erl
+    + [X] producer.erl
+    + [X] configuration.erl
+    + [X] optimizer_greedy.erl
+    + [X] optimizer_sequential.erl
+    + [X] logger.erl
+    + [X] router.erl
+    + [X] anything else?
+  - [X] Update code in examples
+    + [X] abexample
+    + [X] taxiexample
+    + [X] smart_home_example
+
 *** DONE Optimization: Reduce the redundancy of the returned setup trees
 
 Implement a simple similarty relation as a starting point. This doesn't
