@@ -34,7 +34,8 @@ generate0(Specification, Topology, #options{optimizer = OptimizerModule} = Optio
     SetupTree = gen_setup_tree(Specification, Topology, OptimizerModule),
     Dependencies = get_dependencies(Specification),
     SinkPid = get_sink_pid(Topology),
-    configuration:create(SetupTree, Dependencies, OptionsRec, SinkPid).
+    ImplTags = get_implementation_tags(Topology),
+    configuration:create(SetupTree, Dependencies, OptionsRec, SinkPid, ImplTags).
 
 
 -spec gen_setup_tree(specification(), topology(), atom()) -> temp_setup_tree().
@@ -85,10 +86,10 @@ get_init_state({_StateTypes, _SplitMerges, _Dependencies, InitState}) ->
 get_nodes_rates({NodesRates, _SinkPid}) ->
     NodesRates.
 
--spec get_implementation_tags(topology()) -> tags().
+-spec get_implementation_tags(topology()) -> impl_tags().
 get_implementation_tags(Topology) ->
     NodesRates = get_nodes_rates(Topology),
-    [Tag || {_Node, Tag, _Rate} <- NodesRates].
+    [{Tag, Node} || {Node, Tag, _Rate} <- NodesRates].
 
 -spec get_sink_pid(topology()) -> mailbox().
 get_sink_pid({_Rates, SinkPid}) ->
