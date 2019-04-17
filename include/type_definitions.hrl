@@ -139,3 +139,5 @@
 -type producer_type() :: 'constant' 
 		       | 'timestamp_based' 
 		       | 'steady_timestamp'.
+
+-type input_file_parser() :: fun((string()) -> gen_message_or_heartbeat()).

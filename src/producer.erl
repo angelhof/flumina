@@ -15,9 +15,10 @@
 	 route_constant_rate_source/5,
 	 dumper/2,
 	 interleave_heartbeats/3,
+	 interleave_heartbeats_generator/3,
 	 list_generator/1,
 	 file_generator/2,
-	 %% file_generator_with_heartbeats/3,
+	 file_generator_with_heartbeats/4,
 	 generator_to_list/1
 	]).
 
@@ -368,84 +369,14 @@ maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period) ->
 	    {[], NextHeartbeat}
     end.
 
--spec append_gens(msg_generator(), msg_generator()) -> msg_generator().
-append_gens(MsgGen1, MsgGen2) ->
-    case MsgGen1 of
-	done ->
-	    MsgGen2;
-	{Msg, NewMsgGen1} ->
-	    fun() ->
-		    {Msg, append_gens(NewMsgGen1, MsgGen2)}
-	    end
-    end.
-%%
-%% This function interleaves heartbeats with a specific frequency in the message stream.
-%% Our new streams have one tag each, but this function can add heartbeats for streams 
-%% with many tags.
-%%
-%% WARNING: Because of those strange generators, it might be a bit inefficient.
-%% -spec interleave_heartbeats_generator(msg_generator(), tag_periods(), integer()) 
-%% 				     -> msg_generator().
-%% interleave_heartbeats_generator(StreamGen, Tags, Until) ->
-%%     AccGen = fun() -> done end,
-%%     interleave_heartbeats_generator(StreamGen, Tags, Tags, AccGen, Until).
-
-%% -spec interleave_heartbeats_generator(msg_generator(), tag_periods(), tag_periods(), msg_generator(), integer()) 
-%% 				     -> msg_generator().
-%% interleave_heartbeats_generator(MsgGen, NextHeartbeats, Periods, AccMsgGen, Until) ->
-%%     case MsgGen of
-%% 	done ->
-%% 	    %% Create the final heartbeats to send
-%% 	    {FinalHeartbeatsToSend, _} = 
-%% 		maps:fold(
-%% 		  fun(HTag, HTs, Acc) ->
-%% 			  update_next_heartbeats(Until, HTag, HTs, Acc, Periods)
-%% 		  end, {[], NextHeartbeats}, NextHeartbeats),
-%% 	    FinalGen =
-%% 		list_generator([{Tag, Ts, Payload}|HeartbeatsToSend]),
-%% 	    FinalGen = fun() -> done end,
-
-
-%% 	    append_gens(AccMsgGen, FinalGen);
-%% 	{{Tag, Ts, Payload}, NewMsgGen} ->
-%% 	    %% Create the new Heartbeats to send
-%% 	    {HeartbeatsToSend, NewNextHeartbeats} = 
-%% 		maps:fold(
-%% 		  fun(HTag, HTs, Acc) ->
-%% 			  update_next_heartbeats(Ts, HTag, HTs, Acc, Periods)
-%% 		  end, {[], NextHeartbeats}, NextHeartbeats),
-%% 	    %% Turn the new messages to send into a generator
-%% 	    NewMessagesGen = list_generator([{Tag, Ts, Payload}|HeartbeatsToSend]),
-%% 	    NewAccMsgGen = append_gens(AccMsgGen, NewMessagesGen),
-%% 	    interleave_heartbeats_generator(NewMsgGen, NewNextHeartbeats, Periods, NewAccMsgGen, Until)
-%%     end.
-	    
-
-%%     %% Output the messages until now
-%%     lists:reverse(StreamAcc) ++ 
-%% 	%% Spit out the last heartbeats
-%% 	[{heartbeat, {Tag, Ts}} || {Tag, Ts} <- maps:to_list(NextHeartbeats)] ++
-%% 	%% and all the rest heartbeats until the end
-%% 	FinalHeartbeatsToSend;
-%% interleave_heartbeats_generator([{Tag, Ts, Payload}|Rest], NextHeartbeats, Periods, StreamAcc, Until) ->
-%%     {HeartbeatsToSend, NewNextHeartbeats} = 
-%% 	maps:fold(
-%% 	  fun(HTag, HTs, Acc) ->
-%% 		  update_next_heartbeats(Ts, HTag, HTs, Acc, Periods)
-%% 	  end, {[], NextHeartbeats}, NextHeartbeats),
-%%     NewStreamAcc = 
-%% 	HeartbeatsToSend ++ [{Tag, Ts, Payload}|StreamAcc],
-%%     interleave_heartbeats_generator(Rest, NewNextHeartbeats, Periods, NewStreamAcc, Until).
-	
-
 %% This function generates the latest heartbeat in a period
--spec generate_heartbeat(tag(), integer(), integer(), integer()) 
-			-> {gen_heartbeat(), integer()}.
-generate_heartbeat(HTag, From, To, Period) ->
-    Times = (To - From) div Period,
-    HTs = From + Times * Period,
-    Heartbeat = {heartbeat, {HTag, HTs}},
-    {Heartbeat, HTs + Period}.
+%% -spec generate_last_heartbeat(tag(), integer(), integer(), integer()) 
+%% 			-> {gen_heartbeat(), integer()}.
+%% generate_last_heartbeat(HTag, From, To, Period) ->
+%%     Times = (To - From) div Period,
+%%     HTs = From + Times * Period,
+%%     Heartbeat = {heartbeat, {HTag, HTs}},
+%%     {Heartbeat, HTs + Period}.
 
 %% This generates all heartbeats that can fit in a period
 -spec generate_heartbeats(tag(), integer(), integer(), integer()) 
@@ -456,6 +387,52 @@ generate_heartbeats(HTag, From, To, Period) ->
     Heartbeats = 
 	[{heartbeat, {HTag, HT}} || HT <- HTs],
     {Heartbeats, lists:last(HTs) + Period}.
+
+
+%%
+%% This function interleaves heartbeats with a specific frequency in the message stream.
+%% Our new streams have one tag each, but this function can add heartbeats for streams 
+%% with many tags.
+%%
+%% WARNING: The append generators might make it a bit inefficient.
+-spec interleave_heartbeats_generator(msg_generator(), {tag(), integer()}, integer()) 
+				     -> msg_generator().
+interleave_heartbeats_generator(StreamGen, {Tag, Period}, Until) ->
+    AccGen = fun() -> done end,
+    interleave_heartbeats_generator(StreamGen, Tag, Period, Period, AccGen, Until).
+
+
+-spec interleave_heartbeats_generator(msg_generator(), tag(), integer(), 
+			    integer(), msg_generator(), integer()) 
+			   -> msg_generator().
+interleave_heartbeats_generator(MsgGen, Tag, NextHeartbeat, Period, AccMsgGen, Until) ->
+    case MsgGen() of
+	done ->
+	    %% Generate the final heartbeats to send
+	    {FinalHeartbeatsToSend, _} = 
+		maybe_generate_heartbeats(Until, NextHeartbeat, Tag, Period),
+	    %% Output the messages until now and the final heartbeats
+	    append_gens(AccMsgGen, list_generator(FinalHeartbeatsToSend));
+	{{Tag, Ts, Payload}, RestMsgGen} ->	 
+	    %% Generate the new heartbeats
+	    {HeartbeatsToSend, NewNextHeartbeat} = 
+		maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period),
+	    NewAccMsgGen = 
+	        append_gens(AccMsgGen, list_generator([{Tag, Ts, Payload}|HeartbeatsToSend])),
+	    interleave_heartbeats_generator(RestMsgGen, Tag, NewNextHeartbeat, Period, NewAccMsgGen, Until)
+    end.
+	    
+	
+-spec append_gens(msg_generator(), msg_generator()) -> msg_generator().
+append_gens(MsgGen1, MsgGen2) ->
+    case MsgGen1() of
+	done ->
+	    MsgGen2;
+	{Msg, NewMsgGen1} ->
+	    fun() ->
+		    {Msg, append_gens(NewMsgGen1, MsgGen2)}
+	    end
+    end.
 
 
 
@@ -496,8 +473,6 @@ list_generator(List) ->
 	    end
     end.
 
--type input_file_parser() :: fun((string()) -> gen_message_or_heartbeat()).
-
 -spec file_generator(file:filename(), input_file_parser()) -> msg_generator().
 file_generator(Filename, LineParser) ->
     {ok, IoDevice} = file:open(Filename, [read]),
@@ -514,6 +489,12 @@ file_generator0(IoDevice, LineParser) ->
 		    done
 		end
     end.
+
+-spec file_generator_with_heartbeats(file:filename(), input_file_parser(),
+				     {tag(), integer()}, integer()) -> msg_generator().
+file_generator_with_heartbeats(Filename, LineParser, {Tag, Period}, Until) ->
+    FileGen = file_generator(Filename, LineParser),
+    interleave_heartbeats_generator(FileGen, {Tag, Period}, Until).
     
 
 -spec generator_to_list(msg_generator()) -> [gen_message_or_heartbeat()].
