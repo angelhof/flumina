@@ -91,8 +91,7 @@ def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_num
 ##
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
-rate_multipliers = [10, 20, 50]
-# rate_multipliers = [5, 10, 20, 40, 50]
+rate_multipliers = [5, 10, 20, 40, 50]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 a_nodes_numbers = [4]
@@ -101,8 +100,8 @@ optimizers = ["optimizer_greedy"]
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 
 dirname = os.path.join('archive')
-#plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
-#                  rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
+plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
+                  rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
 
 ## Notes:
 ## On my machine it chokes above 50 rate and never gives any response.
@@ -143,7 +142,7 @@ optimizers = ["optimizer_greedy"]
 rate_multipliers = [10]
 ratios_ab = [1000]
 heartbeat_rates = [10]
-a_nodes_numbers = [10]
+a_nodes_numbers = [2]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)

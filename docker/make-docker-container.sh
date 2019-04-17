@@ -34,3 +34,4 @@ docker run -e ERL_TOP='/usr/local'\
        erlang:21.0 bash -c \
        "cd stream-processing-prototype && make all && erl -name $1@$1.local -setcookie docker -pa ebin $3"
 
+sleep 3
