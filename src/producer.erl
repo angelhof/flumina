@@ -14,7 +14,14 @@
 	 route_constant_rate_source/4,
 	 route_constant_rate_source/5,
 	 dumper/2,
-	 interleave_heartbeats/3
+	 interleave_heartbeats/3,
+	 interleave_heartbeats/4,
+	 interleave_heartbeats_generator/3,
+	 interleave_heartbeats_generator/4,
+	 list_generator/1,
+	 file_generator/2,
+	 file_generator_with_heartbeats/5,
+	 generator_to_list/1
 	]).
 
 -include("type_definitions.hrl").
@@ -22,35 +29,36 @@
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%% 
--spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), topology()) -> ok.
-make_producers(InputStreams, Configuration, Topology) ->
-    make_producers(InputStreams, Configuration, Topology, constant).
+-spec make_producers([{msg_generator(), tag(), integer()}], configuration(), topology()) -> ok.
+make_producers(InputGens, Configuration, Topology) ->
+    make_producers(InputGens, Configuration, Topology, constant).
 
--spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), 
+-spec make_producers([{msg_generator(), tag(), integer()}], configuration(), 
 		     topology(), producer_type()) -> ok.
-make_producers(InputStreams, Configuration, Topology, ProducerType) ->
-    make_producers(InputStreams, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
+make_producers(InputGens, Configuration, Topology, ProducerType) ->
+    make_producers(InputGens, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
 
--spec make_producers([{[gen_message_or_heartbeat()], tag(), integer()}], configuration(), 
+-spec make_producers([{msg_generator(), tag(), integer()}], configuration(), 
 		     topology(), producer_type(), message_logger_init_fun()) -> ok.
-make_producers(InputStreams, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
+make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
     ProducerPids = 
 	lists:map(
-	  fun({InputStream, Tag, Rate}) ->
+	  fun({InputGen, Tag, Rate}) ->
 		  %% TODO: Maybe at some point I will use the real given rate
 		  {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
 		  %% Log producer creation
 		  case ProducerType of
 		      constant ->
 			  Pid = spawn_link(Node, producer, route_constant_rate_source, 
-					   [Tag, InputStream, Rate, Configuration, MessageLoggerInitFun]),
+					   [Tag, generator_to_list(InputGen), Rate, 
+					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning constant rate producer for tag: ~p with pid: ~p in node: ~p~n", 
 				    [Tag, Pid, Node]),
 			  Pid;
 		      timestamp_based ->
 			  Pid = spawn_link(Node, producer, route_timestamp_rate_source, 
-					   [Tag, list_generator(InputStream), Rate, 
+					   [Tag, InputGen, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning timestamp based rate producer for" 
 				    "tag: ~p with pid: ~p in node: ~p~n", 
@@ -58,14 +66,14 @@ make_producers(InputStreams, Configuration, Topology, ProducerType, MessageLogge
 			  Pid;
 		      steady_timestamp ->
 			  Pid = spawn_link(Node, producer, route_steady_timestamp_rate_source, 
-					   [Tag, list_generator(InputStream), Rate, 
+					   [Tag, InputGen, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning steady timestamp rate producer for" 
 				    "tag: ~p with pid: ~p in node: ~p~n", 
 				    [Tag, Pid, Node]),
 			  Pid
 		  end
-	  end, InputStreams),
+	  end, InputGens),
 
     %% Synchronize the producers by starting them all together
     lists:foreach(
@@ -326,56 +334,131 @@ dumper([Msg|Rest], SendTo) ->
     dumper(Rest, SendTo).
 
 
-%% This assumes that the input stream that it gets is sorted
+%% ASSUMPTION: This assumes that the input stream that it gets is sorted
+%% 
+%% NOTE: The Until number is exclusive
+%% 
 %% It also returns the stream in a correct order so it puts the
 %% heartbeats in the exact position where they should be (inserting 
-%% them later on would also be correct, but we could implement
-%% this scrambling of message order in another function)
+%% them later on would/should also be correct)
 %% MAYBE: I could sort the stream before calling the internal interleave
-interleave_heartbeats(Stream, Tags, Until) ->
-    interleave_heartbeats(Stream, Tags, Tags, [], Until).
+%%
+%% WARNING: It assumes that there is only one tag in the input stream
+%% 
+%% NOTE: It can either be given the starting time or not
+-spec interleave_heartbeats([gen_message_or_heartbeat()], {tag(), integer()}, integer()) 
+			   -> [gen_message_or_heartbeat()].
+interleave_heartbeats(Stream, {Tag, Period}, Until) ->
+    interleave_heartbeats(Stream, {Tag, Period}, Period, Until).
 
-interleave_heartbeats([], NextHeartbeats, Periods, StreamAcc, Until) ->
+-spec interleave_heartbeats([gen_message_or_heartbeat()], {tag(), integer()}, integer(), integer()) 
+			   -> [gen_message_or_heartbeat()].
+interleave_heartbeats(Stream, {Tag, Period}, From, Until) ->
+    interleave_heartbeats(Stream, Tag, From, Period, [], Until).
+
+-spec interleave_heartbeats([gen_message_or_heartbeat()], tag(), 
+			    integer(), integer(), [gen_message_or_heartbeat()], integer()) 
+			   -> [gen_message_or_heartbeat()].
+interleave_heartbeats([], Tag, NextHeartbeat, Period, StreamAcc, Until) ->
+    %% Generate the final heartbeats to send
     {FinalHeartbeatsToSend, _} = 
-	maps:fold(
-	  fun(HTag, HTs, Acc) ->
-		  update_next_heartbeats(Until, HTag, HTs, Acc, Periods)
-	  end, {[], NextHeartbeats}, NextHeartbeats),
-    %% Output the messages until now
-    lists:reverse(StreamAcc) ++ 
-	%% Spit out the last heartbeats
-	[{heartbeat, {Tag, Ts}} || {Tag, Ts} <- maps:to_list(NextHeartbeats)] ++
-	%% and all the rest heartbeats until the end
-	FinalHeartbeatsToSend;
-interleave_heartbeats([{Tag, Ts, Payload}|Rest], NextHeartbeats, Periods, StreamAcc, Until) ->
-    {HeartbeatsToSend, NewNextHeartbeats} = 
-	maps:fold(
-	  fun(HTag, HTs, Acc) ->
-		  update_next_heartbeats(Ts, HTag, HTs, Acc, Periods)
-	  end, {[], NextHeartbeats}, NextHeartbeats),
+	maybe_generate_heartbeats(Until, NextHeartbeat, Tag, Period),
+    %% Output the messages until now and the final heartbeats
+    lists:reverse(StreamAcc) ++ FinalHeartbeatsToSend;
+interleave_heartbeats([{Tag, Ts, Payload}|Rest], Tag, NextHeartbeat, Period, StreamAcc, Until) ->
+    {HeartbeatsToSend, NewNextHeartbeat} = 
+	maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period),
     NewStreamAcc = 
-	HeartbeatsToSend ++ [{Tag, Ts, Payload}|StreamAcc],
-    interleave_heartbeats(Rest, NewNextHeartbeats, Periods, NewStreamAcc, Until).
-	
-update_next_heartbeats(CurrTs, HTag, HTs, {ToSend, NewMap}, Periods) when CurrTs > HTs ->
-    %% If the current timestamp is larger than the next heartbeat timestamp
-    %% we have to generate a heartbeat and update the next heartbeat timestamp
-    {Heartbeat, NextHTs} = 
-	generate_heartbeat(HTag, HTs, CurrTs, maps:get(HTag, Periods)),
-    {[Heartbeat|ToSend], maps:update(HTag, NextHTs, NewMap)};
-update_next_heartbeats(CurrTs, _HTag, HTs, {ToSend, NewMap}, _Periods) when CurrTs =< HTs ->
-    {ToSend, NewMap}.
+	[{Tag, Ts, Payload}|lists:reverse(HeartbeatsToSend)] ++ StreamAcc,
+    interleave_heartbeats(Rest, Tag, NewNextHeartbeat, Period, NewStreamAcc, Until).
 
-%% There is no need to generate all heartbeats in a from to period, as only the 
-%% last one will do the job
-%% WARNING: That is not true in general, I have to implement a heartbeat
-%%          mechanism that interleaves heartbeats in order to have a minimum rate
-%%          of the stream
-generate_heartbeat(HTag, From, To, Period) ->
+-spec maybe_generate_heartbeats(integer(), integer(), tag(), integer()) 
+			       -> {[gen_heartbeat()], integer()}.
+maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period) ->
+    case Ts > NextHeartbeat of
+	true ->
+	    generate_heartbeats(Tag, NextHeartbeat, Ts, Period);
+	false ->
+	    {[], NextHeartbeat}
+    end.
+
+%% This function generates the latest heartbeat in a period
+%% -spec generate_last_heartbeat(tag(), integer(), integer(), integer()) 
+%% 			-> {gen_heartbeat(), integer()}.
+%% generate_last_heartbeat(HTag, From, To, Period) ->
+%%     Times = (To - From) div Period,
+%%     HTs = From + Times * Period,
+%%     Heartbeat = {heartbeat, {HTag, HTs}},
+%%     {Heartbeat, HTs + Period}.
+
+%% This generates all heartbeats that can fit in a period
+-spec generate_heartbeats(tag(), integer(), integer(), integer()) 
+			-> {[gen_heartbeat()], integer()}.
+generate_heartbeats(HTag, From, To, Period) ->
     Times = (To - From) div Period,
-    HTs = From + Times * Period,
-    Heartbeat = {heartbeat, {HTag, HTs}},
-    {Heartbeat, HTs + Period}.
+    HTs = [From + Time * Period || Time <- lists:seq(0, Times)],
+    %% A heartbeat timestamp that is same with the message
+    %% could be generated but we only want the smaller ones
+    SmallerThanTo = lists:takewhile(fun(HT) -> HT < To end, HTs),
+    Heartbeats = 
+	[{heartbeat, {HTag, HT}} || HT <- SmallerThanTo],
+    {Heartbeats, lists:last(SmallerThanTo) + Period}.
+
+
+%%
+%% This function interleaves heartbeats with a specific frequency in the message stream.
+%% Our new streams have one tag each, but this function can add heartbeats for streams 
+%% with many tags.
+%%
+%% WARNING: The append generators might make it a bit inefficient.
+-spec interleave_heartbeats_generator(msg_generator(), {tag(), integer()}, integer()) 
+				     -> msg_generator().
+interleave_heartbeats_generator(StreamGen, {Tag, Period}, Until) ->
+    interleave_heartbeats_generator(StreamGen, {Tag, Period}, Period, Until).
+
+-spec interleave_heartbeats_generator(msg_generator(), {tag(), integer()}, integer(), integer()) 
+				     -> msg_generator().
+interleave_heartbeats_generator(StreamGen, {Tag, Period}, From, Until) ->
+    AccGen = fun() -> done end,
+    interleave_heartbeats_generator(StreamGen, Tag, From, Period, AccGen, Until).
+
+
+-spec interleave_heartbeats_generator(msg_generator(), tag(), integer(), 
+			    integer(), msg_generator(), integer()) 
+			   -> msg_generator().
+interleave_heartbeats_generator(MsgGen, Tag, NextHeartbeat, Period, AccMsgGen, Until) ->
+    case MsgGen() of
+	done ->
+	    %% Generate the final heartbeats to send
+	    {FinalHeartbeatsToSend, _} = 
+		maybe_generate_heartbeats(Until, NextHeartbeat, Tag, Period),
+	    %% Output the messages until now and the final heartbeats
+	    append_gens(AccMsgGen, list_generator(FinalHeartbeatsToSend));
+	{{Tag, Ts, Payload}, RestMsgGen} ->
+	    %% io:format("Msg: ~p~n", [{Tag, Ts, Payload}]),
+	    %% Generate the new heartbeats
+	    {HeartbeatsToSend, NewNextHeartbeat} = 
+		maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period),
+	    io:format("To Send: ~p~n", [HeartbeatsToSend]),
+	    NewAccMsgGen = 
+	        append_gens(AccMsgGen, list_generator(HeartbeatsToSend ++ [{Tag, Ts, Payload}])),
+	    interleave_heartbeats_generator(RestMsgGen, Tag, NewNextHeartbeat, Period, NewAccMsgGen, Until)
+    end.
+	    
+	
+-spec append_gens(msg_generator(), msg_generator()) -> msg_generator().
+append_gens(MsgGen1, MsgGen2) ->
+    case MsgGen1() of
+	done ->
+	    MsgGen2;
+	{Msg, NewMsgGen1} ->
+	    fun() ->
+		    {Msg, append_gens(NewMsgGen1, MsgGen2)}
+	    end
+    end.
+
+
+
     
 -spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 			        message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
@@ -411,4 +494,40 @@ list_generator(List) ->
 		[Msg|Rest] ->
 		    {Msg, list_generator(Rest)}
 	    end
+    end.
+
+-spec file_generator(file:filename(), input_file_parser()) -> msg_generator().
+file_generator(Filename, LineParser) ->
+    {ok, IoDevice} = file:open(Filename, [read]),
+    file_generator0(IoDevice, LineParser).
+
+-spec file_generator0(file:io_device(), input_file_parser()) -> msg_generator().
+file_generator0(IoDevice, LineParser) ->
+    fun() ->
+	    case file:read_line(IoDevice) of
+		{ok, Line} ->
+		    Msg = LineParser(Line),
+		    {Msg, file_generator0(IoDevice, LineParser)};
+		eof ->
+		    done
+		end
+    end.
+
+-spec file_generator_with_heartbeats(file:filename(), input_file_parser(),
+				     {tag(), integer()}, integer(), integer()) -> msg_generator().
+file_generator_with_heartbeats(Filename, LineParser, {Tag, Period}, From, Until) ->
+    FileGen = file_generator(Filename, LineParser),
+    interleave_heartbeats_generator(FileGen, {Tag, Period}, From, Until).
+    
+
+-spec generator_to_list(msg_generator()) -> [gen_message_or_heartbeat()].
+generator_to_list(Gen) ->
+    generator_to_list(Gen, []).
+
+generator_to_list(Gen, Acc) ->
+    case Gen() of
+	done ->
+	    lists:reverse(Acc);
+	{Msg, NewGen} ->
+	    generator_to_list(NewGen, [Msg|Acc])
     end.

@@ -49,6 +49,10 @@ init_mailbox(Name, Dependencies, Pred, Attachee, Master) ->
     %% Register the mailbox to have a name
     true = register(Name, self()),
     Master ! {registered, Name},
+    
+    %% Set the priority of the mailboxes to high, so that it can handle tis messages.
+    %% erlang:process_flag(priority, high),
+
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
     %% after all the nodes have already been spawned
@@ -155,6 +159,9 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 		false ->
 		    %% This should be unreachable because all the messages 
 		    %% are routed to a node that can indeed handle them
+		    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was sent msg: ~p ~n"
+				      "  that doesn't satisfy its predicate.~n",
+				      [util:local_timestamp(),self(), node(), Msg]),
 		    util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
 		    erlang:halt(1);
 		true ->
@@ -209,6 +216,12 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewBuffersTimers]),
 	    mailbox(NewBuffersTimers, Dependencies, Pred, Attachee, ConfTree);
 	{get_message_log, ReplyTo} ->
+	    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was asked for throughput.~n" 
+			      " -- Its erl_mailbox_size is: ~p~n"
+			      " -- Its buffer mailbox size is: ~p~n",
+			      [util:local_timestamp(),self(), node(), 
+			       erlang:process_info(self(), message_queue_len),
+			       buffers_length(BuffersTimers)]),
 	    Attachee ! {get_message_log, ReplyTo},
 	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree)
     end.
@@ -335,6 +348,14 @@ add_to_buffers_timers(Msg, {Buffers, Timers}) ->
     NewBuffers = maps:update(Tag, NewBuffer, Buffers),
     {NewBuffers, Timers}.
 
+-spec buffers_length(buffers_timers()) -> #{tag() := integer()}.
+buffers_length({Buffers, _Timers}) ->
+    maps:map(
+      fun(_Tag, Buffer) ->
+	      queue:len(Buffer)
+      end, Buffers).
+
+
 %% This function adds a newly arrived message to its buffer.
 %% As messages arrive from the same channel, we can be certain that 
 %% any message will be the last one on its buffer
@@ -419,6 +440,10 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun},
 	    FinalLogState = LogFun(MsgOrMerge, NewLogState),
 	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, NewCheckPred, Output, ConfTree);
 	{get_message_log, ReplyTo} = GetLogMsg ->
+	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
+			      " -- Its erl_mailbox_size is: ~p~n", 
+			      [util:local_timestamp(),self(), node(), 
+			       erlang:process_info(self(), message_queue_len)]),
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
 	    loop(State, Funs, {LogFun, ResetFun, NewLogState}, CheckPred, Output, ConfTree)
     end.
@@ -488,6 +513,10 @@ receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, LogState}}) ->
 	{state, {C, State}} ->
 	    {[State|States], {LogFun, ResetFun, LogState}};
 	{get_message_log, ReplyTo} = GetLogMsg ->
+	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
+			      " -- Its erl_mailbox_size is: ~p~n", 
+			      [util:local_timestamp(),self(), node(), 
+			       erlang:process_info(self(), message_queue_len)]),
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
 	    receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, NewLogState}})
     end.

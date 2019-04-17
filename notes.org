@@ -1,5 +1,26 @@
 ** Work TODO
 
+*** TODO Setup all the generators for the debs smart home experiments
+
+  - [ ] Implement the hour-window generators
+  - [X] Split the big file into house files without heartbeats
+  - [X] Add heartbeats to the files of each house
+    + [X] In order to do this I have to implement a function that interleaves
+          generators with heartbeats
+    + [X] I have to extend generate_heartbeat to generate all heartbeats up
+          to a point, and not only the last one.
+    + [X] I have to extend interleave_heartbeats to handle many messages from generate
+          heartbeats.
+  - [ ] Implement a setup that doesn't copy the hearbeat files, 
+        but gives access to the house files to all docker containers,
+        and then each one reads from its own file
+
+*** TODO Separate timestamp and node id from the message, as it is never needed for the computation
+
+*** TODO Allow the configuration generator to search for a sequence of splits to satisfy a split
+
+
+
 *** TODO Don't return redundant setup trees (Completeness of similarity relation)
 
 This can be solved by finding the largest root tree similarity relation

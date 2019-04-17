@@ -58,7 +58,9 @@ seq_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    InputStreams = [{producer:list_generator(A1), {a,1}, 10}, 
+		    {producer:list_generator(A2), {a,2}, 10}, 
+		    {producer:list_generator(Bs), b, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -86,7 +88,9 @@ distr_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
-    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    InputStreams = [{producer:list_generator(A1), {a,1}, 10}, 
+		    {producer:list_generator(A2), {a,2}, 10}, 
+		    {producer:list_generator(Bs), b, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),   
 
     SinkPid ! finished.
@@ -129,7 +133,9 @@ greedy_big_conf(SinkPid) ->
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(),
     %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
-    InputStreams = [{A1, {a,1}, 100}, {A2, {a,2}, 100}, {Bs, b, 100}],
+    InputStreams = [{producer:list_generator(A1), {a,1}, 100}, 
+		    {producer:list_generator(A2), {a,2}, 100}, 
+		    {producer:list_generator(Bs), b, 100}],
 
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
@@ -173,7 +179,11 @@ greedy_complex_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, A3, A4, Bs} = complex_input_distr_example(),
-    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {A3, {a,3}, 10}, {A4, {a,4}, 10}, {Bs, b, 10}],
+    InputStreams = [{producer:list_generator(A1), {a,1}, 10}, 
+		    {producer:list_generator(A2), {a,2}, 10}, 
+		    {producer:list_generator(A3), {a,3}, 10}, 
+		    {producer:list_generator(A4), {a,4}, 10}, 
+		    {producer:list_generator(Bs), b, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -238,8 +248,9 @@ greedy_local_conf(SinkPid) ->
     %% Input Streams
     {As, Bs} = parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    AInputStreams = [{AIn, ATag, RateMultiplier} || {AIn, ATag} <- lists:zip(As, ATags)],
-    BInputStream = {Bs, b, RateMultiplier},
+    AInputStreams = [{producer:list_generator(AIn), ATag, RateMultiplier} 
+		     || {AIn, ATag} <- lists:zip(As, ATags)],
+    BInputStream = {producer:list_generator(Bs), b, RateMultiplier},
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the input times of b messages
@@ -277,7 +288,9 @@ distributed_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = input_example2(),
-    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    InputStreams = [{producer:list_generator(A1), {a,1}, 10}, 
+		    {producer:list_generator(A2), {a,2}, 10}, 
+		    {producer:list_generator(Bs), b, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     io:format("Tree: ~p~n", [ConfTree]),
@@ -307,7 +320,9 @@ distributed_conf_1(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = input_example(),
-    InputStreams = [{A1, {a,1}, 10}, {A2, {a,2}, 10}, {Bs, b, 10}],
+    InputStreams = [{producer:list_generator(A1), {a,1}, 10}, 
+		    {producer:list_generator(A2), {a,2}, 10}, 
+		    {producer:list_generator(Bs), b, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
@@ -353,7 +368,9 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Big Inputs
     {A1, A2, Bs} = big_input_distr_example(),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    InputStreams = [{A1, {a,1}, 100}, {A2, {a,2}, 100}, {Bs, b, 100}],
+    InputStreams = [{producer:list_generator(A1), {a,1}, 100}, 
+		    {producer:list_generator(A2), {a,2}, 100}, 
+		    {producer:list_generator(Bs), b, 100}],
 
     %% BsInput = bs_input_example(),
     %% {A1input, A2input} = as_input_example(),
@@ -431,8 +448,9 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
     %% Input Streams
     {As, Bs} = parametrized_input_distr_example(NumberAs, RatioAB, HeartbeatBRatio),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    AInputStreams = [{AIn, ATag, RateMultiplier} || {AIn, ATag} <- lists:zip(As, ATags)],
-    BInputStream = {Bs, b, RateMultiplier},
+    AInputStreams = [{producer:list_generator(AIn), ATag, RateMultiplier} 
+		     || {AIn, ATag} <- lists:zip(As, ATags)],
+    BInputStream = {producer:list_generator(Bs), b, RateMultiplier},
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the input times of b messages

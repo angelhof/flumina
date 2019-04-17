@@ -56,7 +56,9 @@ distributed_conf_2(SinkPid) ->
     Input1 = id1_positions_with_heartbeats(),
     Input2 = id2_positions_with_heartbeats(),    
     Input3 = hour_positions_input(),
-    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, hour, 10}],
+    InputStreams = [{producer:list_generator(Input1), {id,1}, 10}, 
+		    {producer:list_generator(Input2), {id,2}, 10}, 
+		    {producer:list_generator(Input3), hour, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     %% io:format("Input3: ~p~n", [Input3]),
@@ -93,7 +95,9 @@ sequential_conf_2(SinkPid) ->
     Input1 = id1_positions_with_heartbeats(),
     Input2 = id2_positions_with_heartbeats(),
     Input3 = hour_positions_input(),
-    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, hour, 10}],
+    InputStreams = [{producer:list_generator(Input1), {id,1}, 10}, 
+		    {producer:list_generator(Input2), {id,2}, 10}, 
+		    {producer:list_generator(Input3), hour, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -183,7 +187,7 @@ distributed_conf(SinkPid) ->
     create_producers(fun hour_markets_input/0, hour, ConfTree, Topology),
 
     Input3 = id3_input_with_heartbeats(),
-    InputStreams = [{Input3, {id,3}, 10}],
+    InputStreams = [{producer:list_generator(Input3), {id,3}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -213,7 +217,7 @@ sequential_conf(SinkPid) ->
     create_producers(fun hour_markets_input/0, hour, ConfTree, Topology),
 
     Input3 = id3_input_with_heartbeats(),
-    InputStreams = [{Input3, {id,3}, 10}],
+    InputStreams = [{producer:list_generator(Input3), {id,3}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -222,7 +226,9 @@ create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
     Input1 = id1_input_with_heartbeats(),
     Input2 = id2_input_with_heartbeats(),
     Input3 = MarkerFun(),
-    InputStreams = [{Input1, {id,1}, 10}, {Input2, {id,2}, 10}, {Input3, MarkerTag, 10}],
+    InputStreams = [{producer:list_generator(Input1), {id,1}, 10}, 
+		    {producer:list_generator(Input2), {id,2}, 10}, 
+		    {producer:list_generator(Input3), MarkerTag, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
@@ -443,10 +449,10 @@ true_pred(_) -> true.
 %% Some input examples
 
 id1_positions_with_heartbeats() ->
-    producer:interleave_heartbeats(taxi_1_position_inputs(), #{{id,1} => 5}, 2050).
+    producer:interleave_heartbeats(taxi_1_position_inputs(), {{id,1}, 5}, 2050).
 
 id2_positions_with_heartbeats() ->
-    producer:interleave_heartbeats(taxi_2_position_inputs(), #{{id,2} => 5}, 2050).
+    producer:interleave_heartbeats(taxi_2_position_inputs(), {{id,2}, 5}, 2050).
 
 taxi_1_position_inputs() ->
     Positions = [{X, 0} || X <- lists:seq(1,1000)] ++ [{X + 1000, X} || X <- lists:seq(1,1000)],
@@ -460,26 +466,26 @@ taxi_2_position_inputs() ->
 
 hour_positions_input() ->
     Input = [{hour, T * 60, marker} || T <- lists:seq(1, 35)],
-    producer:interleave_heartbeats(Input, #{hour => 60}, 2100).
+    producer:interleave_heartbeats(Input, {hour, 60}, 2100).
 
 
 
 hour_markets_input() ->
     Input = [{hour, T * 60, marker} || T <- lists:seq(1, 10)],
-    producer:interleave_heartbeats(Input, #{hour => 60}, 650).
+    producer:interleave_heartbeats(Input, {hour, 60}, 650).
 
 sliding_period_input() ->
     Input = [{window, T * 20, marker} || T <- lists:seq(1, 30)],
-    producer:interleave_heartbeats(Input, #{window => 60}, 650).
+    producer:interleave_heartbeats(Input, {window, 60}, 650).
 
 id1_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id1_input(), #{{id,1} => 10}, 650).
+    producer:interleave_heartbeats(id1_input(), {{id,1}, 10}, 650).
 
 id2_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id2_input(), #{{id,2} => 10}, 650).
+    producer:interleave_heartbeats(id2_input(), {{id,2}, 10}, 650).
 
 id3_input_with_heartbeats() ->
-    producer:interleave_heartbeats(id3_input(), #{{id,3} => 10}, 650).
+    producer:interleave_heartbeats(id3_input(), {{id,3}, 10}, 650).
 
 id1_input() ->
     Inputs = 
