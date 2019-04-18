@@ -7,7 +7,7 @@ import shutil
 sys.path.append(os.path.relpath("./scripts"))
 sys.path.append(os.path.relpath("./analysis"))
 from lib import copy_logs_from_to
-from plot_scaling_latency_throughput import plot_scaleup_rate
+from plot_scaling_latency_throughput import plot_scaleup_rate, plot_scaleup_node_rate
 
 
 ## The purpose of this script is to generate different exec strings for the
@@ -100,8 +100,8 @@ optimizers = ["optimizer_greedy"]
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 
 dirname = os.path.join('archive')
-plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
-                  rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
+# plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
+#                   rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
 
 ## Notes:
 ## On my machine it chokes above 50 rate and never gives any response.
@@ -126,10 +126,14 @@ plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
 rate_multipliers = [10]
 ratios_ab = [1000]
 heartbeat_rates = [10]
-a_nodes_numbers = [1, 2, 5, 10, 20, 30, 40, 50]
+# a_nodes_numbers = [2, 5, 10, 20, 30]
+a_nodes_numbers = range(2, 37, 2)
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+dirname = os.path.join('archive')
+plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
+                       rate_multipliers[0], ratios_ab[0], heartbeat_rates[0], a_nodes_numbers, optimizers[0])
 
 ## An issue with the above experiment is that when setting up 50 nodes, and trying to run
 ## them all, the nodes don't connect. It might be because they all try to make ? or it is
@@ -148,4 +152,4 @@ optimizers = ["optimizer_greedy"]
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 
 # Test
-run_configuration(10, 1000, 10, 2, "optimizer_greedy")
+# run_configuration(10, 1000, 10, 2, "optimizer_greedy")
