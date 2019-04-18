@@ -14,17 +14,21 @@ def plot_scaleup_node_rate(dirname, prefix, rate_multiplier, ratio_ab, heartbeat
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_multiplier, ratio_ab, heartbeat_rate, a_node, optimizer)
                 for a_node in a_nodes_numbers]
 
-    common_plot_scaleup(dirname, dirnames, a_nodes_numbers, 'number of nodes')
+    output_name = '%s_rate-%d_ab-%d_heart-%d_%s' % (prefix, rate_multiplier,
+                                                    ratio_ab, heartbeat_rate, optimizer)
+    common_plot_scaleup(dirname, dirnames, a_nodes_numbers, 'number of nodes', output_name)
 
 def plot_scaleup_rate(dirname, prefix, rate_multipliers, ratio_ab, heartbeat_rate, a_nodes_number, optimizer):
 
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_mult, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
                 for rate_mult in rate_multipliers]
 
-    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'rate multiplier')
+    output_name = '%s_ab-%d_heart-%d_as-%d_%s' % (prefix, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
+    
+    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'rate multiplier', output_name)
 
     
-def common_plot_scaleup(dirname, dirnames, xticks, xlabel):
+def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
 
     ## We assume that all directories are there
     path_dirnames = [os.path.join(dirname, name) for name in dirnames]
@@ -81,6 +85,8 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel):
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     # plt.legend(loc='best')
     plt.xticks(inds, xticks)
+    plt.title('Median, 10th, 90th, percentile Latency and Throughput')
+    plt.savefig(os.path.join('plots', output_name + ".png"))
     plt.show()
     
     # plt.xlabel('rate multiplier')
