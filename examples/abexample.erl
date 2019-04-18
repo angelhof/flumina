@@ -478,7 +478,7 @@ update({{a,_}, Value}, Sum, SendTo) ->
     %% SendTo ! {self(), a, Value, Ts},
     Sum + Value;
 update({b, Ts}, Sum, SendTo) ->
-    SendTo ! {sum, {b, Ts}, Sum},
+    SendTo ! {sum, {{b, Ts}, Sum}},
     Sum.
 
 merge(Sum1, Sum2) ->

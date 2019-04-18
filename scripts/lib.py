@@ -30,12 +30,12 @@ def copy_logs_from_to(from_dirs, to_dir_path):
 
 def parse_producer_line(line):
     timestamp = line.split("}")[-2].split(',')[-1]
-    message = line[1:].split("}")[0] + '}'
+    message = line[2:].split("}")[0] + '}'
     return (message, int(timestamp))
 
 def parse_sink_line(line):
     timestamp = line.split("}")[-2].split(',')[-1]
-    message = line[1:].split("}")[0].split('{')[-1]
+    message = line[2:].split("}")[0].split('{')[-1]
     return ('{' + message + '}', int(timestamp))
 
 def read_preprocess_latency_data(log_dir_name):
