@@ -14,7 +14,10 @@
 	 local_timestamp/0,
 	 list_to_number/1,
 	 do_n_times/2,
-	 do_n_times/3]).
+	 do_n_times/3,
+	 floor/1,
+	 mod/2,
+	 idiv/2]).
 
 -include("type_definitions.hrl").
 
@@ -140,3 +143,23 @@ do_n_times(0, Init, Fun) ->
     Init;
 do_n_times(N, Init, Fun) when N > 0 ->
     do_n_times(N - 1, Fun(Init), Fun).
+
+%%% Integer Division etc.
+
+floor(X) when X < 0 ->
+    T = trunc(X),
+    case X - T == 0 of
+        true -> T;
+        false -> T - 1
+    end;
+
+floor(X) -> 
+    trunc(X) .
+
+idiv(A, B) ->
+    floor(A / B).
+
+mod(X,Y) when X > 0 -> X rem Y;
+mod(X,Y) when X < 0 -> Y + X rem Y;
+mod(0,Y) -> 0.
+
