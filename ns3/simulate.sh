@@ -57,6 +57,11 @@ do
     args=""
   fi
 
+  ## First delete any old data in the
+  ## log and conf directory
+  rm -rf ${workdir}/var/log/${node}
+  rm -rf ${workdir}/var/conf/${node}
+  
   mkdir -p ${workdir}/var/log/${node}
   mkdir -p ${workdir}/var/conf/${node}
 
