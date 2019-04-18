@@ -58,29 +58,28 @@ join({X1, Y1}, {X2, _Y2}) -> % Y2 not used
 %% ===== Experiment Setup =====
 %% ============================
 
--spec distributed_experiment(atom(), non_neg_integer(), non_neg_integer(), float(), float(), float(), float(), float(), float(), optimizer_type(), float(), non_neg_integer()) -> ok.
+% -spec distributed_experiment(atom(), non_neg_integer(), non_neg_integer(), float(), float(), float(), float(), float(), float(), optimizer_type(), float(), non_neg_integer()) -> ok.
 distributed_experiment(NumINodes, NumDNodes, SharpRate, IRate, DRate, SharpHBRate, IHBRate, DHBRate, Optimizer, RateMultiplier, UpdateCost) ->
     StateTypesMap = 
-	   #{'state' => {sets:from_list(Tags), fun update/3}
+	   #{'state' => {maps:keys(dependencies()), fun update/3}
         },
     SplitsMerges = [{{'state', 'state', 'state'}, {fun fork/2, fun join/2}}],
-    Dependencies = parameterized_dependencies(
-            lists:seq(1,NumINodes),lists:seq(1,NumDNodes)),
+    Dependencies = dependencies(),
     InitState = {'state', init_state()},
     Specification = 
 	conf_gen:make_specification(
             StateTypesMap, SplitsMerges, Dependencies, InitState),
-    distributed_setup(
+    setup:distributed_setup(
         Specification,
         [
-            [{'#',1,SharpRate,SharpHBRate}],
-            [{'i',NumINodes,IRate,IHBRate}],
-            [{'d',NumDNodes,DRate,DHBRate}]
+            {'#',1,SharpRate,SharpHBRate},
+            {'i',NumINodes,IRate,IHBRate},
+            {'d',NumDNodes,DRate,DHBRate}
         ],
         Optimizer,
         RateMultiplier,
         UpdateCost
-    ])
+    ),
     ok.
 
 

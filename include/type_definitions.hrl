@@ -173,4 +173,4 @@
 
 %% Tag, number of nodes with this tag, rate, and heartbeat rate.
 -type node_setup_info() :: [{non_neg_integer(), tag(), float(), float()}].
--type expanded_node_setup_info() :: [{tag(), float(), float()}]
+-type expanded_node_setup_info() :: [{tag(), float(), float()}].
