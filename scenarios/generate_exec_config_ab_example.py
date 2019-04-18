@@ -149,7 +149,7 @@ heartbeat_rates = [10]
 a_nodes_numbers = [2]
 optimizers = ["optimizer_greedy"]
 
-# run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 
 # Test
 # run_configuration(10, 1000, 10, 2, "optimizer_greedy")
