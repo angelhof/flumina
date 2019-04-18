@@ -132,8 +132,8 @@ optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 dirname = os.path.join('archive')
-# plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
-#                        rate_multipliers[0], ratios_ab[0], heartbeat_rates[0], a_nodes_numbers, optimizers[0])
+plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
+                       rate_multipliers[0], ratios_ab[0], heartbeat_rates[0], a_nodes_numbers, optimizers[0])
 
 ## An issue with the above experiment is that when setting up 50 nodes, and trying to run
 ## them all, the nodes don't connect. It might be because they all try to make ? or it is
