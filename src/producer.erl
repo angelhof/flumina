@@ -29,48 +29,51 @@
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%% 
--spec make_producers([{msg_generator(), tag(), integer()}], configuration(), topology()) -> ok.
+-spec make_producers([{msg_generator(), impl_tag(), integer()}], configuration(), topology()) -> ok.
 make_producers(InputGens, Configuration, Topology) ->
     make_producers(InputGens, Configuration, Topology, constant).
 
--spec make_producers([{msg_generator(), tag(), integer()}], configuration(), 
+-spec make_producers([{msg_generator(), impl_tag(), integer()}], configuration(), 
 		     topology(), producer_type()) -> ok.
 make_producers(InputGens, Configuration, Topology, ProducerType) ->
     make_producers(InputGens, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
 
--spec make_producers([{msg_generator(), tag(), integer()}], configuration(), 
+-spec make_producers([{msg_generator(), impl_tag(), integer()}], configuration(), 
 		     topology(), producer_type(), message_logger_init_fun()) -> ok.
 make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
     ProducerPids = 
 	lists:map(
-	  fun({InputGen, Tag, Rate}) ->
+	  fun({InputGen, ImplTag, Rate}) ->
+		  %% Old way of finding node
 		  %% TODO: Maybe at some point I will use the real given rate
-		  {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
+		  %% {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
+		  {Tag, Node} = ImplTag,
 		  %% Log producer creation
 		  case ProducerType of
 		      constant ->
 			  Pid = spawn_link(Node, producer, route_constant_rate_source, 
-					   [Tag, generator_to_list(InputGen), Rate, 
+					   [ImplTag, generator_to_list(InputGen), Rate, 
 					    Configuration, MessageLoggerInitFun]),
-			  io:format("Spawning constant rate producer for tag: ~p with pid: ~p in node: ~p~n", 
-				    [Tag, Pid, Node]),
+			  io:format("Spawning constant rate producer for impl tag: ~p" 
+				    "with pid: ~p in node: ~p~n", 
+				    [ImplTag, Pid, Node]),
 			  Pid;
 		      timestamp_based ->
 			  Pid = spawn_link(Node, producer, route_timestamp_rate_source, 
-					   [Tag, InputGen, Rate, 
+					   [ImplTag, InputGen, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning timestamp based rate producer for" 
-				    "tag: ~p with pid: ~p in node: ~p~n", 
-				    [Tag, Pid, Node]),
+				    "impl tag: ~p with pid: ~p in node: ~p~n", 
+				    [ImplTag, Pid, Node]),
 			  Pid;
 		      steady_timestamp ->
 			  Pid = spawn_link(Node, producer, route_steady_timestamp_rate_source, 
-					   [Tag, InputGen, Rate, 
+					   [ImplTag, InputGen, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning steady timestamp rate producer for" 
-				    "tag: ~p with pid: ~p in node: ~p~n", 
-				    [Tag, Pid, Node]),
+				    "impl tag: ~p with pid: ~p in node: ~p~n", 
+				    [ImplTag, Pid, Node]),
 			  Pid
 		  end
 	  end, InputGens),
@@ -93,18 +96,19 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 %% it shouldn't be expected to return the same results every time.
 %%
 %% TODO: Find a better name
--spec route_steady_timestamp_rate_source(tag(), msg_generator(), integer(), configuration()) -> ok.
-route_steady_timestamp_rate_source(Tag, MsgGen, Rate, Configuration) ->
-    route_steady_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
+-spec route_steady_timestamp_rate_source(impl_tag(), msg_generator(), integer(), configuration()) -> ok.
+route_steady_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration) ->
+    route_steady_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_steady_timestamp_rate_source(tag(), msg_generator(), integer(), 
+-spec route_steady_timestamp_rate_source(impl_tag(), msg_generator(), integer(), 
 				  configuration(), message_logger_init_fun()) -> ok.
-route_steady_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
+route_steady_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
     log_mod:init_debug_log(),
     log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
-		      [util:local_timestamp(),self(), Tag, node()]),
+		      [util:local_timestamp(),self(), ImplTag, node()]),
     %% Find where to route the message in the configuration tree
-    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    {Tag, Node} = ImplTag,
+    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
     log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
 		      [util:local_timestamp(), self(), SendTo]),
     %% Every producer should synchronize, so that they 
@@ -117,13 +121,13 @@ route_steady_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, MessageLogg
     steady_timestamp_rate_source(MsgGen, Rate, SendTo, MessageLoggerInitFun).
 
 -spec steady_timestamp_rate_source(msg_generator(), Rate::integer(), 
-			    mailbox(), message_logger_init_fun()) -> ok.
+				   mailbox(), message_logger_init_fun()) -> ok.
 steady_timestamp_rate_source(MsgGen, Rate, SendTo, MsgLoggerInitFun) ->
     LoggerFun = MsgLoggerInitFun(),
     steady_timestamp_rate_source(MsgGen, Rate, 0, SendTo, LoggerFun).
 
 -spec steady_timestamp_rate_source(msg_generator(), Rate::integer(), PrevTs::integer(), 
-			    mailbox(), message_logger_log_fun()) -> ok.
+				   mailbox(), message_logger_log_fun()) -> ok.
 steady_timestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
     %% First compute how much time the process has to wait
     %% to send the next message.
@@ -151,18 +155,19 @@ steady_timestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
 %%          guarantees, and messages could be delayed more or less
 %%          than what their timestamps say. 
 %% TODO: Unify the route_constant and route_timestamp, as they do the same thing
--spec route_timestamp_rate_source(tag(), msg_generator(), integer(), configuration()) -> ok.
-route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration) ->
-    route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
+-spec route_timestamp_rate_source(impl_tag(), msg_generator(), integer(), configuration()) -> ok.
+route_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration) ->
+    route_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_timestamp_rate_source(tag(), msg_generator(), integer(), 
+-spec route_timestamp_rate_source(impl_tag(), msg_generator(), integer(), 
 				  configuration(), message_logger_init_fun()) -> ok.
-route_timestamp_rate_source(Tag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
+route_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
     log_mod:init_debug_log(),
     log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
-		      [util:local_timestamp(),self(), Tag, node()]),
+		      [util:local_timestamp(),self(), ImplTag, node()]),
     %% Find where to route the message in the configuration tree
-    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    {Tag, Node} = ImplTag,
+    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
     log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
 		      [util:local_timestamp(), self(), SendTo]),
     %% Every producer should synchronize, so that they 
@@ -234,7 +239,7 @@ messages_to_send(MsgGen, Rate, PrevTs, Wait, Acc) ->
 		case Msg of
 		    {heartbeat, {_Tag, Ts0}} ->
 			Ts0;
-		    {_Tag, Ts0, _V} ->
+		    {{_Tag, V}, _N, Ts0} ->
 			Ts0
 		end,
 	    NewWait = Wait + ((Ts - PrevTs) / Rate),
@@ -304,15 +309,16 @@ constant_rate_source_slow([Msg|Rest], Period, SendTo, MsgLoggerLogFun) ->
     timer:sleep(Period),
     constant_rate_source_slow(Rest, Period, SendTo, MsgLoggerLogFun).
 
--spec route_constant_rate_source(tag(), [gen_message_or_heartbeat()], integer(), configuration()) -> ok.
-route_constant_rate_source(Tag, Messages, Period, Configuration) ->
-    route_constant_rate_source(Tag, Messages, Period, Configuration, fun log_mod:no_message_logger/0).
+-spec route_constant_rate_source(impl_tag(), [gen_message_or_heartbeat()], integer(), configuration()) -> ok.
+route_constant_rate_source(ImplTag, Messages, Period, Configuration) ->
+    route_constant_rate_source(ImplTag, Messages, Period, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_constant_rate_source(tag(), [gen_message_or_heartbeat()], integer(), 
+-spec route_constant_rate_source(impl_tag(), [gen_message_or_heartbeat()], integer(), 
 				 configuration(), message_logger_init_fun()) -> ok.
-route_constant_rate_source(Tag, Messages, Period, Configuration, MessageLoggerInitFun) ->
+route_constant_rate_source(ImplTag, Messages, Period, Configuration, MessageLoggerInitFun) ->
     %% Find where to route the message in the configuration tree
-    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {Tag, 0, undef}),
+    {Tag, Node} = ImplTag,
+    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
     receive
 	start ->
 	    ok
@@ -346,18 +352,18 @@ dumper([Msg|Rest], SendTo) ->
 %% WARNING: It assumes that there is only one tag in the input stream
 %% 
 %% NOTE: It can either be given the starting time or not
--spec interleave_heartbeats([gen_message_or_heartbeat()], {tag(), integer()}, integer()) 
+-spec interleave_heartbeats([gen_message_or_heartbeat()], {impl_tag(), integer()}, timestamp()) 
 			   -> [gen_message_or_heartbeat()].
-interleave_heartbeats(Stream, {Tag, Period}, Until) ->
-    interleave_heartbeats(Stream, {Tag, Period}, Period, Until).
+interleave_heartbeats(Stream, {ImplTag, Period}, Until) ->
+    interleave_heartbeats(Stream, {ImplTag, Period}, Period, Until).
 
--spec interleave_heartbeats([gen_message_or_heartbeat()], {tag(), integer()}, integer(), integer()) 
+-spec interleave_heartbeats([gen_message_or_heartbeat()], {impl_tag(), integer()}, timestamp(), timestamp()) 
 			   -> [gen_message_or_heartbeat()].
-interleave_heartbeats(Stream, {Tag, Period}, From, Until) ->
-    interleave_heartbeats(Stream, Tag, From, Period, [], Until).
+interleave_heartbeats(Stream, {ImplTag, Period}, From, Until) ->
+    interleave_heartbeats(Stream, ImplTag, From, Period, [], Until).
 
--spec interleave_heartbeats([gen_message_or_heartbeat()], tag(), 
-			    integer(), integer(), [gen_message_or_heartbeat()], integer()) 
+-spec interleave_heartbeats([gen_message_or_heartbeat()], impl_tag(), 
+			    timestamp(), integer(), [gen_message_or_heartbeat()], timestamp()) 
 			   -> [gen_message_or_heartbeat()].
 interleave_heartbeats([], Tag, NextHeartbeat, Period, StreamAcc, Until) ->
     %% Generate the final heartbeats to send
@@ -365,19 +371,20 @@ interleave_heartbeats([], Tag, NextHeartbeat, Period, StreamAcc, Until) ->
 	maybe_generate_heartbeats(Until, NextHeartbeat, Tag, Period),
     %% Output the messages until now and the final heartbeats
     lists:reverse(StreamAcc) ++ FinalHeartbeatsToSend;
-interleave_heartbeats([{Tag, Ts, Payload}|Rest], Tag, NextHeartbeat, Period, StreamAcc, Until) ->
+interleave_heartbeats([{{Tag, _V}, Node, Ts} = Msg|Rest], {Tag, Node} = ImplTag, 
+		      NextHeartbeat, Period, StreamAcc, Until) ->
     {HeartbeatsToSend, NewNextHeartbeat} = 
-	maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period),
+	maybe_generate_heartbeats(Ts, NextHeartbeat, ImplTag, Period),
     NewStreamAcc = 
-	[{Tag, Ts, Payload}|lists:reverse(HeartbeatsToSend)] ++ StreamAcc,
-    interleave_heartbeats(Rest, Tag, NewNextHeartbeat, Period, NewStreamAcc, Until).
+	[Msg|lists:reverse(HeartbeatsToSend)] ++ StreamAcc,
+    interleave_heartbeats(Rest, ImplTag, NewNextHeartbeat, Period, NewStreamAcc, Until).
 
--spec maybe_generate_heartbeats(integer(), integer(), tag(), integer()) 
-			       -> {[gen_heartbeat()], integer()}.
-maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period) ->
+-spec maybe_generate_heartbeats(timestamp(), timestamp(), impl_tag(), integer()) 
+			       -> {[gen_heartbeat()], timestamp()}.
+maybe_generate_heartbeats(Ts, NextHeartbeat, ImplTag, Period) ->
     case Ts > NextHeartbeat of
 	true ->
-	    generate_heartbeats(Tag, NextHeartbeat, Ts, Period);
+	    generate_heartbeats(ImplTag, NextHeartbeat, Ts, Period);
 	false ->
 	    {[], NextHeartbeat}
     end.
@@ -392,8 +399,8 @@ maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period) ->
 %%     {Heartbeat, HTs + Period}.
 
 %% This generates all heartbeats that can fit in a period
--spec generate_heartbeats(tag(), integer(), integer(), integer()) 
-			-> {[gen_heartbeat()], integer()}.
+-spec generate_heartbeats(impl_tag(), timestamp(), timestamp(), integer()) 
+			 -> {[gen_heartbeat()], timestamp()}.
 generate_heartbeats(HTag, From, To, Period) ->
     Times = (To - From) div Period,
     HTs = [From + Time * Period || Time <- lists:seq(0, Times)],
@@ -411,38 +418,38 @@ generate_heartbeats(HTag, From, To, Period) ->
 %% with many tags.
 %%
 %% WARNING: The append generators might make it a bit inefficient.
--spec interleave_heartbeats_generator(msg_generator(), {tag(), integer()}, integer()) 
+-spec interleave_heartbeats_generator(msg_generator(), {impl_tag(), integer()}, timestamp()) 
 				     -> msg_generator().
-interleave_heartbeats_generator(StreamGen, {Tag, Period}, Until) ->
-    interleave_heartbeats_generator(StreamGen, {Tag, Period}, Period, Until).
+interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, Until) ->
+    interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, Period, Until).
 
--spec interleave_heartbeats_generator(msg_generator(), {tag(), integer()}, integer(), integer()) 
+-spec interleave_heartbeats_generator(msg_generator(), {impl_tag(), integer()}, timestamp(), timestamp()) 
 				     -> msg_generator().
-interleave_heartbeats_generator(StreamGen, {Tag, Period}, From, Until) ->
+interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, From, Until) ->
     AccGen = fun() -> done end,
-    interleave_heartbeats_generator(StreamGen, Tag, From, Period, AccGen, Until).
+    interleave_heartbeats_generator(StreamGen, ImplTag, From, Period, AccGen, Until).
 
 
--spec interleave_heartbeats_generator(msg_generator(), tag(), integer(), 
-			    integer(), msg_generator(), integer()) 
+-spec interleave_heartbeats_generator(msg_generator(), impl_tag(), timestamp(), 
+			    integer(), msg_generator(), timestamp()) 
 			   -> msg_generator().
-interleave_heartbeats_generator(MsgGen, Tag, NextHeartbeat, Period, AccMsgGen, Until) ->
+interleave_heartbeats_generator(MsgGen, {Tag, Node} = ImplTag, NextHeartbeat, Period, AccMsgGen, Until) ->
     case MsgGen() of
 	done ->
 	    %% Generate the final heartbeats to send
 	    {FinalHeartbeatsToSend, _} = 
-		maybe_generate_heartbeats(Until, NextHeartbeat, Tag, Period),
+		maybe_generate_heartbeats(Until, NextHeartbeat, ImplTag, Period),
 	    %% Output the messages until now and the final heartbeats
 	    append_gens(AccMsgGen, list_generator(FinalHeartbeatsToSend));
-	{{Tag, Ts, Payload}, RestMsgGen} ->
+	{{{Tag, _V}, Node, Ts} = Msg, RestMsgGen} ->
 	    %% io:format("Msg: ~p~n", [{Tag, Ts, Payload}]),
 	    %% Generate the new heartbeats
 	    {HeartbeatsToSend, NewNextHeartbeat} = 
-		maybe_generate_heartbeats(Ts, NextHeartbeat, Tag, Period),
+		maybe_generate_heartbeats(Ts, NextHeartbeat, ImplTag, Period),
 	    io:format("To Send: ~p~n", [HeartbeatsToSend]),
 	    NewAccMsgGen = 
-	        append_gens(AccMsgGen, list_generator(HeartbeatsToSend ++ [{Tag, Ts, Payload}])),
-	    interleave_heartbeats_generator(RestMsgGen, Tag, NewNextHeartbeat, Period, NewAccMsgGen, Until)
+	        append_gens(AccMsgGen, list_generator(HeartbeatsToSend ++ [Msg])),
+	    interleave_heartbeats_generator(RestMsgGen, ImplTag, NewNextHeartbeat, Period, NewAccMsgGen, Until)
     end.
 	    
 	
@@ -471,12 +478,12 @@ send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
 %% This function ignores the message timestamp and sends it with its own timestamp
 -spec timestamp_send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 					  message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
-timestamp_send_message_or_heartbeat({heartbeat, {Tag, _}}, SendTo, MessageLoggerInitFun) ->
+timestamp_send_message_or_heartbeat({heartbeat, {ImplTag, _}}, SendTo, MessageLoggerInitFun) ->
     Ts = erlang:system_time(),
-    SendTo ! {iheartbeat, {Tag, Ts}};
-timestamp_send_message_or_heartbeat({Tag, _, Value}, SendTo, MessageLoggerInitFun) ->
+    SendTo ! {iheartbeat, {ImplTag, Ts}};
+timestamp_send_message_or_heartbeat({{Tag, Value}, Node, _Ts}, SendTo, MessageLoggerInitFun) ->
     Ts = erlang:system_time(),
-    Msg = {Tag, Ts, Value},
+    Msg = {{Tag, Value}, Node, Ts},
     ok = MessageLoggerInitFun(Msg),
     SendTo ! {imsg, Msg}.
 
@@ -514,10 +521,10 @@ file_generator0(IoDevice, LineParser) ->
     end.
 
 -spec file_generator_with_heartbeats(file:filename(), input_file_parser(),
-				     {tag(), integer()}, integer(), integer()) -> msg_generator().
-file_generator_with_heartbeats(Filename, LineParser, {Tag, Period}, From, Until) ->
+				     {impl_tag(), integer()}, timestamp(), timestamp()) -> msg_generator().
+file_generator_with_heartbeats(Filename, LineParser, {ImplTag, Period}, From, Until) ->
     FileGen = file_generator(Filename, LineParser),
-    interleave_heartbeats_generator(FileGen, {Tag, Period}, From, Until).
+    interleave_heartbeats_generator(FileGen, {ImplTag, Period}, From, Until).
     
 
 -spec generator_to_list(msg_generator()) -> [gen_message_or_heartbeat()].
