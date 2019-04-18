@@ -13,6 +13,14 @@
 main() ->
     sequential().
 
+%% =====================================
+%% ===== Computation Specification =====
+%% =====================================
+
+%% ============================
+%% ===== Experiment Setup =====
+%% ============================
+
 %% Note:
 %% =====
 %% At the moment we assume that everything written in this module

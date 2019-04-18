@@ -7,3 +7,6 @@
 *.pyc
 
 docker/read-only/*
+var/*
+archive/*
+
