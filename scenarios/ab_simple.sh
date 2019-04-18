@@ -8,7 +8,7 @@ erlArgs="-noshell -run util exec abexample. real_distributed. [['${A1}@${A1}.loc
 
 simulTime=60 # seconds
 delay="6560ns"
-dataRate="1Gbps"
+dataRate="100Mbps"
 
 ns3Args="--TotalTime=${simulTime} --ns3::CsmaChannel::DataRate=${dataRate} --ns3::CsmaChannel::Delay=${delay}"
 
