@@ -62,6 +62,7 @@
 #include <fstream>
 #include <vector>
 #include <string>
+#include <map>
 
 #include "ns3/core-module.h"
 #include "ns3/network-module.h"
@@ -88,9 +89,11 @@ main (int argc, char *argv[])
   
   int NumNodes = cmd.GetNExtraNonOptions ();
   std::vector<std::string> nodeNames;
+  std::map<std::string, int> nodeNameMap;
   for (int i = 0; i < NumNodes; i++)
     {
-      nodeNames.emplace_back (cmd.GetExtraNonOption(i));
+      nodeNames.emplace_back (cmd.GetExtraNonOption (i));
+      nodeNameMap.emplace (nodeNames.back (), i);
     }
   
   //
@@ -159,6 +162,11 @@ main (int argc, char *argv[])
     anim.EnableWifiMacCounters (Seconds (0), Seconds (TotalTime)); //Optional
     anim.EnableWifiPhyCounters (Seconds (0), Seconds (TotalTime)); //Optional
   }
+
+  // Enable pcap tracing for the main node
+  // TODO: pass the name of the main node as an argument
+  auto mainInd = nodeNameMap["main"];
+  csma.EnablePcap ("tap-vm-main", devices.Get (mainInd), true);
 
   //
   // Run the simulation for TotalTime seconds to give the user time to play around
