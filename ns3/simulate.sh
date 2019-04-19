@@ -29,7 +29,11 @@ done
 nodes=("${main}" "${nodes[@]}")
 workdir=${PWD}
 
-echo "Setting up the simulation context..."
+function log {
+  echo "[${SECONDS}s] ${1}"
+}
+
+log "Setting up the simulation context..."
 
 # Generate a hosts file for the nodes
 
@@ -78,7 +82,7 @@ done
 
 # Run the docker containers. Assumes existence of an image called erlnode, or earlnode-ns3 for the ns3 simulation.
 
-echo "Starting the docker containers..."
+log "Starting the docker containers..."
 
 mkdir -p ${workdir}/var/run
 
@@ -133,7 +137,7 @@ if [ "${ns3}" -eq "1" ]
 then
   # Run the ns3 process. Assumes it is compiled and located in $NS3_HOME/scratch.
 
-  echo "Starting the ns3 process..."
+  log "Starting the ns3 process..."
 
   cd ${NS3_HOME}
 
@@ -146,7 +150,7 @@ then
 
   # Set up the device containers -- this unblocks the nodes
 
-  echo "Unblocking the containers and starting the simulation..."
+  log "Unblocking the containers and starting the simulation..."
 
   for i in ${!nodes[@]}
   do
@@ -163,19 +167,19 @@ then
 
   # Wait for Waf to finish
 
-  echo "Waiting for the ns3 process to finish..."
+  log "Waiting for the ns3 process to finish..."
 
   wait ${wafPid}
   rm ${workdir}/var/run/ns3.pid
 else
   # We are not running ns3; just wait for main to finish
 
-  echo "Waiting for ${main}.local to finish..."
+  log "Waiting for ${main}.local to finish..."
 
   docker wait "${main}.local"
 fi
 
-echo "Destroying the simulation context... "
+log "Destroying the simulation context... "
 
 # Stop the containers
 
@@ -194,5 +198,5 @@ then
   done
 fi
 
-echo "DONE"
+log "DONE"
 

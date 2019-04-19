@@ -282,34 +282,33 @@ sequential() ->
     _ExecPid = spawn_link(?MODULE, sequential_conf, [SinkName]),
     %% The initial and final values could also be gotten in an 
     %% automatic way.
-    HouseGen = make_house_generator(0, node(), 100, 1377986401000, 1377986405000),
-    io:format("Messages:~n~p~n", [producer:generator_to_list(HouseGen)]),
     util:sink().
 
 sequential_conf(SinkPid) ->
+    %% TODO: Quantify over all houses
+    Tags = [hour, {house,0}],
+
     %% Architecture
-    %% Rates = [{node(), minute, 10},
-    %% 	     {node(), {a,1}, 1000},
-    %% 	     {node(), {a,2}, 1000},
-    %% 	     {node(), b, 1000}],
-    %% Topology =
-    %% 	conf_gen:make_topology(Rates, SinkPid),
+    Rates = [{node(), hour, 10},
+    	     {node(), {house,0}, 1000}],
+    Topology =
+    	conf_gen:make_topology(Rates, SinkPid),
 
-    %% %% Computation
-    %% Tags = [minute, {a,1}, {a,2}, b],
-    %% StateTypesMap = 
-    %% 	#{'state0' => {sets:from_list(Tags), fun update0/3}},
-    %% SplitsMerges = [],
-    %% Dependencies = dependencies(),
-    %% InitState = {'state0', init_state()},
-    %% Specification = 
-    %% 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    %% Computation
+    StateTypesMap = 
+    	#{'state0' => {sets:from_list(Tags), fun update/3}},
+    SplitsMerges = [],
+    Dependencies = dependencies(),
+    InitState = {'state0', init_state()},
+    Specification = 
+    	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    %% ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
-    %% %% Set up where will the input arrive
+    %% Set up where will the input arrive
+    HouseGen = make_house_generator(0, node(), 100, 1377986401000, 1377986405000),
+    %% io:format("Messages:~n~p~n", [producer:generator_to_list(HouseGen)]),
     %% create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
-
 
     SinkPid ! finished.
 

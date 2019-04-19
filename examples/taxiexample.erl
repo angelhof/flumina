@@ -12,7 +12,15 @@
 	 sequential_conf_1/1,
 	 distributed_conf_1/1,
 	 sequential_conf_2/1,
-	 distributed_conf_2/1
+	 distributed_conf_2/1,
+	 id1_positions_with_heartbeats/1,
+	 id2_positions_with_heartbeats/1,
+	 hour_positions_input/1,
+	 hour_markets_input/1,
+	 sliding_period_input/1,
+	 id1_input_with_heartbeats/1,
+	 id2_input_with_heartbeats/1,
+	 id3_input_with_heartbeats/1
 	]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -55,12 +63,12 @@ distributed_conf_2(SinkPid) ->
     ConfTree = configuration:create(Node0, dependencies_2(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    Input1 = id1_positions_with_heartbeats(node()),
-    Input2 = id2_positions_with_heartbeats(node()),    
-    Input3 = hour_positions_input(node()),
-    InputStreams = [{producer:list_generator(Input1), {{id,1}, node()}, 10}, 
-		    {producer:list_generator(Input2), {{id,2}, node()}, 10}, 
-		    {producer:list_generator(Input3), {hour, node()}, 10}],
+    Input1 = {fun taxiexample:id1_positions_with_heartbeats/1, [node()]},
+    Input2 = {fun taxiexample:id2_positions_with_heartbeats/1, [node()]},
+    Input3 = {fun taxiexample:hour_positions_input/1, [node()]},
+    InputStreams = [{Input1, {{id,1}, node()}, 10}, 
+		    {Input2, {{id,2}, node()}, 10}, 
+		    {Input3, {hour, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     %% io:format("Input3: ~p~n", [Input3]),
@@ -94,12 +102,12 @@ sequential_conf_2(SinkPid) ->
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
-    Input1 = id1_positions_with_heartbeats(node()),
-    Input2 = id2_positions_with_heartbeats(node()),
-    Input3 = hour_positions_input(node()),
-    InputStreams = [{producer:list_generator(Input1), {{id,1}, node()}, 10}, 
-		    {producer:list_generator(Input2), {{id,2}, node()}, 10}, 
-		    {producer:list_generator(Input3), {hour, node()}, 10}],
+    Input1 = {fun taxiexample:id1_positions_with_heartbeats/1, [node()]},
+    Input2 = {fun taxiexample:id2_positions_with_heartbeats/1, [node()]},
+    Input3 = {fun taxiexample:hour_positions_input/1, [node()]},
+    InputStreams = [{Input1, {{id,1}, node()}, 10}, 
+		    {Input2, {{id,2}, node()}, 10}, 
+		    {Input3, {hour, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -132,7 +140,7 @@ distributed_conf_1(SinkPid) ->
     ConfTree = configuration:create(Node0, dependencies_1(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/1, window, node(), ConfTree, Topology),
+    create_producers(fun taxiexample:sliding_period_input/1, window, node(), ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -159,7 +167,7 @@ sequential_conf_1(SinkPid) ->
     ConfTree = configuration:create(Node, dependencies_1(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun sliding_period_input/1, window, node(), ConfTree, Topology),
+    create_producers(fun taxiexample:sliding_period_input/1, window, node(), ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -192,10 +200,10 @@ distributed_conf(SinkPid) ->
     ConfTree = configuration:create(Node0, dependencies(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/1, hour, node(), ConfTree, Topology),
+    create_producers(fun taxiexample:hour_markets_input/1, hour, node(), ConfTree, Topology),
 
-    Input3 = id3_input_with_heartbeats(node()),
-    InputStreams = [{producer:list_generator(Input3), {{id,3}, node()}, 10}],
+    Input3 = {fun taxiexample:id3_input_with_heartbeats/1, [node()]},
+    InputStreams = [{Input3, {{id,3}, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -224,21 +232,21 @@ sequential_conf(SinkPid) ->
     ConfTree = configuration:create(Node, dependencies(), SinkPid, ImplTags),
 
     %% Set up where will the input arrive
-    create_producers(fun hour_markets_input/1, hour, node(), ConfTree, Topology),
+    create_producers(fun taxiexample:hour_markets_input/1, hour, node(), ConfTree, Topology),
 
-    Input3 = id3_input_with_heartbeats(node()),
-    InputStreams = [{producer:list_generator(Input3), {{id,3}, node()}, 10}],
+    Input3 = {fun taxiexample:id3_input_with_heartbeats/1, [node()]},
+    InputStreams = [{Input3, {{id,3}, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
 create_producers(MarkerFun, MarkerTag, Node, ConfTree, Topology) ->
-    Input1 = id1_input_with_heartbeats(Node),
-    Input2 = id2_input_with_heartbeats(Node),
-    Input3 = MarkerFun(Node),
-    InputStreams = [{producer:list_generator(Input1), {{id,1}, Node}, 10}, 
-		    {producer:list_generator(Input2), {{id,2}, Node}, 10}, 
-		    {producer:list_generator(Input3), {MarkerTag, Node}, 10}],
+    Input1 = {fun taxiexample:id1_input_with_heartbeats/1, [node()]},
+    Input2 = {fun taxiexample:id2_input_with_heartbeats/1, [node()]},
+    Input3 = {MarkerFun, [Node]},
+    InputStreams = [{Input1, {{id,1}, Node}, 10}, 
+		    {Input2, {{id,2}, Node}, 10}, 
+		    {Input3, {MarkerTag, Node}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
@@ -478,10 +486,12 @@ true_pred(_) -> true.
 %% Some input examples
 
 id1_positions_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(taxi_1_position_inputs(Node), {{{id,1}, Node}, 5}, 2050).
+    Msgs = producer:interleave_heartbeats(taxi_1_position_inputs(Node), {{{id,1}, Node}, 5}, 2050),
+    producer:list_generator(Msgs).
 
 id2_positions_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(taxi_2_position_inputs(Node), {{{id,2}, Node}, 5}, 2050).
+    Msgs = producer:interleave_heartbeats(taxi_2_position_inputs(Node), {{{id,2}, Node}, 5}, 2050),
+    producer:list_generator(Msgs).
 
 taxi_1_position_inputs(Node) ->
     Positions = [{X, 0} || X <- lists:seq(1,1000)] ++ [{X + 1000, X} || X <- lists:seq(1,1000)],
@@ -495,26 +505,35 @@ taxi_2_position_inputs(Node) ->
 
 hour_positions_input(Node) ->
     Input = [{{hour, T * 60}, Node, T * 60} || T <- lists:seq(1, 35)],
-    producer:interleave_heartbeats(Input, {{hour, Node}, 60}, 2100).
-
+    Msgs = producer:interleave_heartbeats(Input, {{hour, Node}, 60}, 2100),
+    producer:list_generator(Msgs).
 
 
 hour_markets_input(Node) ->
     Input = [{{hour, T * 60}, Node, T * 60} || T <- lists:seq(1, 10)],
-    producer:interleave_heartbeats(Input, {{hour, Node}, 60}, 650).
+    Msgs = producer:interleave_heartbeats(Input, {{hour, Node}, 60}, 650),
+    producer:list_generator(Msgs).
 
 sliding_period_input(Node) ->
     Input = [{{window, T * 20}, Node, T * 20} || T <- lists:seq(1, 30)],
-    producer:interleave_heartbeats(Input, {{window, Node}, 60}, 650).
+    Msgs = producer:interleave_heartbeats(Input, {{window, Node}, 60}, 650),
+    producer:list_generator(Msgs).
 
 id1_input_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(id1_input(Node), {{{id,1}, Node}, 10}, 650).
+    Msgs = producer:interleave_heartbeats(id1_input(Node), {{{id,1}, Node}, 10}, 650),
+    producer:list_generator(Msgs).
 
 id2_input_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(id2_input(Node), {{{id,2}, Node}, 10}, 650).
+    Msgs = producer:interleave_heartbeats(id2_input(Node), {{{id,2}, Node}, 10}, 650),
+    producer:list_generator(Msgs).
 
 id3_input_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(id3_input(Node), {{{id,3}, Node}, 10}, 650).
+    Msgs = producer:interleave_heartbeats(id3_input(Node), {{{id,3}, Node}, 10}, 650),
+    producer:list_generator(Msgs).
+
+
+
+
 
 id1_input(Node) ->
     Inputs = 

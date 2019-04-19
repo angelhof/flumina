@@ -54,7 +54,7 @@ sink(MsgLoggerInitFun) ->
 sink_loop(LoggerFun) ->
     receive
 	Msg ->
-	    LoggerFun(Msg),
+	    LoggerFun({Msg, fake_node, 0}),
 	    io:format("~p~n", [Msg]),
 	    sink_loop(LoggerFun)
     after 
