@@ -79,7 +79,8 @@ distributed_setup(Specification, NodeSetupList, Optimizer, RateMultiplier, Repea
         [{NodeName, Tag, Rate} || 
             {NodeName, {Tag, Rate, _HBRate}} <-
                 lists:zip(NodeNames,TagsWithRates)
-        ]
+        ],
+        SinkName
     ),
 
     %% Logging and configuration tree

@@ -104,8 +104,8 @@ update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
 
 -spec update_household_load_summary(household_load_summary(), integer(), time_of_day(), integer()) -> household_load_summary().
 update_household_load_summary({Totals, TotalsByPlug}, NewVal, TimeOfDay, PlugID) ->
-	NewTotals = update_load_summary(Totals, NewVal),
-	NewTotallsByPlug = map:update_with(
+	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
+	NewTotalsByPlug = map:update_with(
 		PlugID,
 		fun (T) -> update_load_summary(T, NewVal, TimeOfDay) end,
 		update_load_summary({{0,0}, map:new()}, NewVal, TimeOfDay),
@@ -115,7 +115,7 @@ update_household_load_summary({Totals, TotalsByPlug}, NewVal, TimeOfDay, PlugID)
 
 -spec update_house_load_summary(house_load_summary(), integer(), time_of_day(), integer(), integer()) -> house_load_summary().
 update_house_load_summary({Totals, TotalsByHousehold}, NewVal, TimeOfDay, HouseholdID, PlugID) ->
-	NewTotals = update_load_summary(Totals, NewVal),
+	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
 	NewTotalsByHousehold = map:update_with(
 		HouseholdID,
 		fun (T) -> update_household_load_summary(T, NewVal, TimeOfDay, PlugID) end,
@@ -126,30 +126,31 @@ update_house_load_summary({Totals, TotalsByHousehold}, NewVal, TimeOfDay, Househ
 
 -spec update_global_load_summary(global_load_summary(), integer(), time_of_day(), integer(), integer(), integer()) -> global_load_summary().
 update_global_load_summary({Totals, TotalsByHouse}, NewVal, TimeOfDay, HouseID, HouseholdID, PlugID) ->
-	NewTotals = update_load_summary(Totals, NewVal),
+	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
 	NewTotalsByHouse = map:update_with(
 		HouseID,
 		fun (T) -> update_house_load_summary(T, NewVal, TimeOfDay, HouseholdID, PlugID) end,
-		update_house_load_summary({{0,0}, map:new()}, NewVal, TimeOfDay, PlugID),
+		update_house_load_summary({{0,0}, map:new()}, NewVal, TimeOfDay, HouseholdID, PlugID),
 		TotalsByHouse
 	),
 	{NewTotals, NewTotalsByHouse}.
 
 %% Resetting the totals (do NOT reset totals by time of day)
+%% TODO: Why does the dialyzer complain :(
 
 -spec reset_household_load_summary(household_load_summary()) -> household_load_summary().
 reset_household_load_summary({_Totals, TotalsByPlug}) ->
-	{{0,0}, TotalsByPlug}.
+	{{0,map:new()}, TotalsByPlug}.
 -spec reset_house_load_summary(house_load_summary()) -> house_load_summary().
 reset_house_load_summary({_Totals, TotalsByHousehold}) ->
-	{{0,0},map:map(
+	{{0,map:new()},map:map(
 		fun (_HouseholdID, HouseholdSummary) ->
 			reset_household_load_summary(HouseholdSummary) end,
 		TotalsByHousehold
 	)}.
 -spec reset_global_load_summary(global_load_summary()) -> global_load_summary().
 reset_global_load_summary({_Totals, TotalsByHouse}) ->
-	{{0,0},map:map(
+	{{0,map:new()},map:map(
 		fun (_HouseID, HouseSummary) ->
 			reset_house_load_summary(HouseSummary) end,
 		TotalsByHouse
@@ -177,7 +178,7 @@ get_time_of_day(TimeOverall) ->
 
 -spec update(event(), state(), pid()) -> state().
 update({{house, _HouseId, work}, _Payload}, State, _SinkPID) ->
-	State.
+	State;
 update(
 		{
 			{house, HouseID, load},
@@ -193,7 +194,7 @@ update(
 		HouseID,
 		HouseholdID,
 		PlugID
-	)}
+	)};
 update({'end_timeslice', TimeValue}, {TimeOverall, TimeOfDay, GlobalTotals}, SinkPID) ->
 	NewTimeOfDay = get_time_of_day(TimeValue),
 	output_predictions(GlobalTotals,NewTimeOfDay,SinkPID),

@@ -17,7 +17,7 @@
 	 do_n_times/3,
 	 floor/1,
 	 mod/2,
-	 idiv/2]).
+	 intdiv/2]).
 
 -include("type_definitions.hrl").
 
@@ -156,7 +156,7 @@ floor(X) when X < 0 ->
 floor(X) -> 
     trunc(X) .
 
-idiv(A, B) ->
+intdiv(A, B) ->
     floor(A / B).
 
 mod(X,Y) when X > 0 -> X rem Y;
