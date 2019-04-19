@@ -4,7 +4,12 @@
 	 sequential/0,
 	 distributed/0,
 	 sequential_conf/1,
-	 distributed_conf/1
+	 distributed_conf/1,
+	 minute_markers_input/1,
+	 input_with_heartbeats/3,
+	 a1_input/1,
+	 a2_input/1,
+	 b_input/1
 	]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -50,7 +55,7 @@ distributed_conf(SinkPid) ->
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_greedy}]),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/1, minute, ConfTree, Topology),
+    create_producers(fun smart_home_example:minute_markers_input/1, minute, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -82,20 +87,20 @@ sequential_conf(SinkPid) ->
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
-    create_producers(fun minute_markers_input/1, minute, ConfTree, Topology),
+    create_producers(fun smart_home_example:minute_markers_input/1, minute, ConfTree, Topology),
 
     SinkPid ! finished.
 
 create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
-    Input1 = a1_input_with_heartbeats(node()),
-    Input2 = a2_input_with_heartbeats(node()),
-    Input3 = b_input_with_heartbeats(node()),
-    Input4 = MarkerFun(node()),
+    Input1 = {fun smart_home_example:input_with_heartbeats/3, [node(), {a,1}, fun a1_input/1]},
+    Input2 = {fun smart_home_example:input_with_heartbeats/3, [node(), {a,2}, fun a2_input/1]},
+    Input3 = {fun smart_home_example:input_with_heartbeats/3, [node(), b, fun b_input/1]},
+    Input4 = {MarkerFun, [node()]},
 
-    InputStreams = [{producer:list_generator(Input1), {{a,1},node()}, 100}, 
-		    {producer:list_generator(Input2), {{a,2},node()}, 100}, 
-		    {producer:list_generator(Input3), {b,node()}, 100}, 
-		    {producer:list_generator(Input4), {MarkerTag,node()}, 100}],
+    InputStreams = [{Input1, {{a,1},node()}, 100}, 
+		    {Input2, {{a,2},node()}, 100}, 
+		    {Input3, {b,node()}, 100}, 
+		    {Input4, {MarkerTag,node()}, 100}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
 %%
@@ -249,16 +254,24 @@ init_state() ->
 
 minute_markers_input(Node) ->
     Input = [{{minute, T * 60}, Node, T * 60} || T <- lists:seq(1, 10)],
-    producer:interleave_heartbeats(Input, {{minute, Node}, 60}, 650).
+    Msgs = producer:interleave_heartbeats(Input, {{minute, Node}, 60}, 650),
+    producer:list_generator(Msgs).
 
-a1_input_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(a1_input(Node), {{{a,1},Node}, 10}, 650).
+input_with_heartbeats(Node, Tag, Fun) ->
+    Msgs = producer:interleave_heartbeats(Fun(Node), {{Tag,Node}, 10}, 650),
+    producer:list_generator(Msgs).
 
-a2_input_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(a2_input(Node), {{{a,2}, Node}, 10}, 650).
+%% a1_input_with_heartbeats(Node) ->
+%%     Msgs = producer:interleave_heartbeats(a1_input(Node), {{{a,1},Node}, 10}, 650),
+%%     producer:list_generator(Msgs).
 
-b_input_with_heartbeats(Node) ->
-    producer:interleave_heartbeats(b_input(Node), {{b,Node}, 10}, 650).
+%% a2_input_with_heartbeats(Node) ->
+%%     Msgs = producer:interleave_heartbeats(a2_input(Node), {{{a,2}, Node}, 10}, 650),
+%%     producer:list_generator(Msgs).
+
+%% b_input_with_heartbeats(Node) ->
+%%     Msgs = producer:interleave_heartbeats(b_input(Node), {{b,Node}, 10}, 650),
+%%     producer:list_generator(Msgs).
 
 a1_input(Node) ->
     Inputs = 

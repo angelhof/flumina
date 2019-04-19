@@ -29,22 +29,22 @@
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%% 
--spec make_producers([{msg_generator(), impl_tag(), integer()}], configuration(), topology()) -> ok.
+-spec make_producers([{msg_generator_init(), impl_tag(), integer()}], configuration(), topology()) -> ok.
 make_producers(InputGens, Configuration, Topology) ->
     make_producers(InputGens, Configuration, Topology, constant).
 
--spec make_producers([{msg_generator(), impl_tag(), integer()}], configuration(), 
+-spec make_producers([{msg_generator_init(), impl_tag(), integer()}], configuration(), 
 		     topology(), producer_type()) -> ok.
 make_producers(InputGens, Configuration, Topology, ProducerType) ->
     make_producers(InputGens, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
 
--spec make_producers([{msg_generator(), impl_tag(), integer()}], configuration(), 
+-spec make_producers([{msg_generator_init(), impl_tag(), integer()}], configuration(), 
 		     topology(), producer_type(), message_logger_init_fun()) -> ok.
 make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
     ProducerPids = 
 	lists:map(
-	  fun({InputGen, ImplTag, Rate}) ->
+	  fun({MsgGenInit, ImplTag, Rate}) ->
 		  %% Old way of finding node
 		  %% TODO: Maybe at some point I will use the real given rate
 		  %% {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
@@ -53,7 +53,7 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 		  case ProducerType of
 		      constant ->
 			  Pid = spawn_link(Node, producer, route_constant_rate_source, 
-					   [ImplTag, generator_to_list(InputGen), Rate, 
+					   [ImplTag, MsgGenInit, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning constant rate producer for impl tag: ~p" 
 				    "with pid: ~p in node: ~p~n", 
@@ -61,7 +61,7 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 			  Pid;
 		      timestamp_based ->
 			  Pid = spawn_link(Node, producer, route_timestamp_rate_source, 
-					   [ImplTag, InputGen, Rate, 
+					   [ImplTag, MsgGenInit, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning timestamp based rate producer for" 
 				    "impl tag: ~p with pid: ~p in node: ~p~n", 
@@ -69,7 +69,7 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 			  Pid;
 		      steady_timestamp ->
 			  Pid = spawn_link(Node, producer, route_steady_timestamp_rate_source, 
-					   [ImplTag, InputGen, Rate, 
+					   [ImplTag, MsgGenInit, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning steady timestamp rate producer for" 
 				    "impl tag: ~p with pid: ~p in node: ~p~n", 
@@ -96,16 +96,18 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 %% it shouldn't be expected to return the same results every time.
 %%
 %% TODO: Find a better name
--spec route_steady_timestamp_rate_source(impl_tag(), msg_generator(), integer(), configuration()) -> ok.
-route_steady_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration) ->
-    route_steady_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
+-spec route_steady_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
+route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration) ->
+    route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_steady_timestamp_rate_source(impl_tag(), msg_generator(), integer(), 
+-spec route_steady_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(), 
 				  configuration(), message_logger_init_fun()) -> ok.
-route_steady_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
+route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, MessageLoggerInitFun) ->
     log_mod:init_debug_log(),
     log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
 		      [util:local_timestamp(),self(), ImplTag, node()]),
+    %% Initialize the generator
+    MsgGen = init_generator(MsgGenInit),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
@@ -155,16 +157,18 @@ steady_timestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
 %%          guarantees, and messages could be delayed more or less
 %%          than what their timestamps say. 
 %% TODO: Unify the route_constant and route_timestamp, as they do the same thing
--spec route_timestamp_rate_source(impl_tag(), msg_generator(), integer(), configuration()) -> ok.
-route_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration) ->
-    route_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, fun log_mod:no_message_logger/0).
+-spec route_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
+route_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration) ->
+    route_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_timestamp_rate_source(impl_tag(), msg_generator(), integer(), 
+-spec route_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(), 
 				  configuration(), message_logger_init_fun()) -> ok.
-route_timestamp_rate_source(ImplTag, MsgGen, Rate, Configuration, MessageLoggerInitFun) ->
+route_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, MessageLoggerInitFun) ->
     log_mod:init_debug_log(),
     log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
 		      [util:local_timestamp(),self(), ImplTag, node()]),
+    %% Initialize the generator
+    MsgGen = init_generator(MsgGenInit),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
@@ -309,13 +313,15 @@ constant_rate_source_slow([Msg|Rest], Period, SendTo, MsgLoggerLogFun) ->
     timer:sleep(Period),
     constant_rate_source_slow(Rest, Period, SendTo, MsgLoggerLogFun).
 
--spec route_constant_rate_source(impl_tag(), [gen_message_or_heartbeat()], integer(), configuration()) -> ok.
-route_constant_rate_source(ImplTag, Messages, Period, Configuration) ->
-    route_constant_rate_source(ImplTag, Messages, Period, Configuration, fun log_mod:no_message_logger/0).
+-spec route_constant_rate_source(impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
+route_constant_rate_source(ImplTag, MsgGenInit, Period, Configuration) ->
+    route_constant_rate_source(ImplTag, MsgGenInit, Period, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_constant_rate_source(impl_tag(), [gen_message_or_heartbeat()], integer(), 
+-spec route_constant_rate_source(impl_tag(), msg_generator_init(), integer(), 
 				 configuration(), message_logger_init_fun()) -> ok.
-route_constant_rate_source(ImplTag, Messages, Period, Configuration, MessageLoggerInitFun) ->
+route_constant_rate_source(ImplTag, MsgGenInit, Period, Configuration, MessageLoggerInitFun) ->
+    MsgGen = init_generator(MsgGenInit),
+    Messages = generator_to_list(MsgGen),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
     [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
@@ -538,3 +544,8 @@ generator_to_list(Gen, Acc) ->
 	{Msg, NewGen} ->
 	    generator_to_list(NewGen, [Msg|Acc])
     end.
+
+%% Initializes the message generator
+-spec init_generator(msg_generator_init()) -> msg_generator().
+init_generator({MsgGenF, MsgGenA}) ->
+    apply(MsgGenF, MsgGenA).

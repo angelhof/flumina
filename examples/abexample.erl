@@ -17,7 +17,9 @@
 	 greedy_complex/0,
 	 greedy_complex_conf/1,
 	 greedy_local/0,
-	 greedy_local_conf/1
+	 greedy_local_conf/1,
+	 make_as/4,
+	 make_bs_heartbeats/4
 	]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -58,9 +60,9 @@ seq_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
-    InputStreams = [{producer:list_generator(A1), {{a,1},node()}, 10}, 
-		    {producer:list_generator(A2), {{a,2},node()}, 10}, 
-		    {producer:list_generator(Bs), {b, node()}, 10}],
+    InputStreams = [{A1, {{a,1},node()}, 10}, 
+		    {A2, {{a,2},node()}, 10}, 
+		    {Bs, {b, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -90,9 +92,9 @@ distr_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
-    InputStreams = [{producer:list_generator(A1), {{a,1}, node()}, 10}, 
-		    {producer:list_generator(A2), {{a,2}, node()}, 10}, 
-		    {producer:list_generator(Bs), {b, node()}, 10}],
+    InputStreams = [{A1, {{a,1}, node()}, 10}, 
+		    {A2, {{a,2}, node()}, 10}, 
+		    {Bs, {b, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),   
 
     SinkPid ! finished.
@@ -135,9 +137,9 @@ greedy_big_conf(SinkPid) ->
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
     %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
-    InputStreams = [{producer:list_generator(A1), {{a,1}, node()}, 100}, 
-		    {producer:list_generator(A2), {{a,2}, node()}, 100}, 
-		    {producer:list_generator(Bs), {b, node()}, 100}],
+    InputStreams = [{A1, {{a,1}, node()}, 100}, 
+		    {A2, {{a,2}, node()}, 100}, 
+		    {Bs, {b, node()}, 100}],
 
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
@@ -181,11 +183,11 @@ greedy_complex_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, A3, A4, Bs} = complex_input_distr_example(node(), node(), node(), node(), node()),
-    InputStreams = [{producer:list_generator(A1), {{a,1},node()}, 10}, 
-		    {producer:list_generator(A2), {{a,2},node()}, 10}, 
-		    {producer:list_generator(A3), {{a,3},node()}, 10}, 
-		    {producer:list_generator(A4), {{a,4},node()}, 10}, 
-		    {producer:list_generator(Bs), {b,node()}, 10}],
+    InputStreams = [{A1, {{a,1},node()}, 10}, 
+		    {A2, {{a,2},node()}, 10}, 
+		    {A3, {{a,3},node()}, 10}, 
+		    {A4, {{a,4},node()}, 10}, 
+		    {Bs, {b,node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -250,9 +252,9 @@ greedy_local_conf(SinkPid) ->
     %% Input Streams
     {As, Bs} = parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    AInputStreams = [{producer:list_generator(AIn), {ATag, ANode}, RateMultiplier} 
+    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier} 
 		     || {AIn, ATag, ANode} <- lists:zip3(As, ATags, ANodeNames)],
-    BInputStream = {producer:list_generator(Bs), {b, BNodeName}, RateMultiplier},
+    BInputStream = {Bs, {b, BNodeName}, RateMultiplier},
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the input times of b messages
@@ -292,9 +294,9 @@ distributed_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = input_example2(node(), node(), node()),
-    InputStreams = [{producer:list_generator(A1), {{a,1}, node()}, 10}, 
-		    {producer:list_generator(A2), {{a,2}, node()}, 10}, 
-		    {producer:list_generator(Bs), {b, node()}, 10}],
+    InputStreams = [{{fun() -> producer:list_generator(A1) end, []}, {{a,1}, node()}, 10}, 
+		    {{fun() -> producer:list_generator(A2) end, []}, {{a,2}, node()}, 10}, 
+		    {{fun() -> producer:list_generator(Bs) end, []}, {b, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     io:format("Tree: ~p~n", [ConfTree]),
@@ -327,9 +329,9 @@ distributed_conf_1(SinkPid) ->
     %% Set up where will the input arrive
     {A1, A2, Bs} = input_example(node(), node(), node()),
     io:format("Inputs: ~p~n", [{A1, A2, Bs}]),
-    InputStreams = [{producer:list_generator(A1), {{a,1}, node()}, 10}, 
-		    {producer:list_generator(A2), {{a,2}, node()}, 10}, 
-		    {producer:list_generator(Bs), {b, node()}, 10}],
+    InputStreams = [{{fun() -> producer:list_generator(A1) end, []}, {{a,1}, node()}, 10}, 
+		    {{fun() -> producer:list_generator(A2) end, []}, {{a,2}, node()}, 10}, 
+		    {{fun() -> producer:list_generator(Bs) end, []}, {b, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
     %% io:format("Prod: ~p~nTree: ~p~n", [Producer, PidTree]),
@@ -375,9 +377,9 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Big Inputs
     {A1, A2, Bs} = big_input_distr_example(A1NodeName, A2NodeName, BNodeName),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    InputStreams = [{producer:list_generator(A1), {{a,1}, A1NodeName}, 100}, 
-		    {producer:list_generator(A2), {{a,2}, A2NodeName}, 100}, 
-		    {producer:list_generator(Bs), {b, BNodeName}, 100}],
+    InputStreams = [{A1, {{a,1}, A1NodeName}, 100}, 
+		    {A2, {{a,2}, A2NodeName}, 100}, 
+		    {Bs, {b, BNodeName}, 100}],
 
     %% BsInput = bs_input_example(),
     %% {A1input, A2input} = as_input_example(),
@@ -453,11 +455,10 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
     %% Set up where will the input arrive
 
     %% Input Streams
-    {As, Bs} = parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
-    %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    AInputStreams = [{producer:list_generator(AIn), {ATag, ANode}, RateMultiplier} 
+    {As, BsMsgInit} = parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
+    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier} 
 		     || {AIn, ATag, ANode} <- lists:zip3(As, ATags, ANodeNames)],
-    BInputStream = {producer:list_generator(Bs), {b, BNodeName}, RateMultiplier},
+    BInputStream = {BsMsgInit, {b, BNodeName}, RateMultiplier},
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the input times of b messages
@@ -548,59 +549,81 @@ input_example(NodeA1, NodeA2, NodeB) ->
     B = [{{b, 1001}, NodeB, 1001}, {{b, 2001}, NodeB, 2001}, {heartbeat, {{b,NodeB},2005}}],
     {A1, A2, B}.
 
+
+-spec make_as(integer(), node(), integer(), integer()) -> msg_generator().
 make_as(Id, ANode, N, Step) ->
-    [{{{a,Id}, T}, ANode, T} || T <- lists:seq(1, N, Step)]
-	++ [{heartbeat, {{{a,Id}, ANode}, N + 1}}].
+    As = [{{{a,Id}, T}, ANode, T} || T <- lists:seq(1, N, Step)]
+	++ [{heartbeat, {{{a,Id}, ANode}, N + 1}}],
+    producer:list_generator(As).
 
-%% WARNING: The hearbeat ratio needs to be a divisor of RatioAB (Maybe not necessarily)
-parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, HeartbeatBRatio) ->
-    LengthAStream = 1000000,
-    As = [make_as(Id, ANode, LengthAStream, 1) || {Id, ANode} <- lists:zip(lists:seq(1, NumberAs), ANodeNames)],
-
-    LengthBStream = LengthAStream div RatioAB,
-    %% Bs = [{b, RatioAB + (RatioAB * BT), empty} 
-    %% 	  || BT <- lists:seq(0,LengthBStream)]
-    %% 	++ [{heartbeat, {b,LengthAStream + 1}}],
+-spec make_bs_heartbeats(node(), integer(), integer(), integer()) -> msg_generator().
+make_bs_heartbeats(BNodeName, LengthAStream, RatioAB, HeartbeatBRatio) ->
+    LengthBStream = LengthAStream div RatioAB,    
     Bs = lists:flatten(
 	   [[{heartbeat, {{b, BNodeName}, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}} 
-	    || T <- lists:seq(0, HeartbeatBRatio - 1)] 
-	   ++ [{{b, RatioAB + (RatioAB * BT)}, BNodeName, RatioAB + (RatioAB * BT)}]
-	   || BT <- lists:seq(0,LengthBStream)])
+	     || T <- lists:seq(0, HeartbeatBRatio - 1)] 
+	    ++ [{{b, RatioAB + (RatioAB * BT)}, BNodeName, RatioAB + (RatioAB * BT)}]
+	    || BT <- lists:seq(0,LengthBStream)])
 	++ [{heartbeat, {{b, BNodeName}, LengthAStream + 1}}],
+    producer:list_generator(Bs).
+
+%% WARNING: The hearbeat ratio needs to be a divisor of RatioAB (Maybe not necessarily)
+-spec parametrized_input_distr_example(integer(), [node()], integer(), integer()) 
+				      -> {[msg_generator_init()], msg_generator_init()}.
+parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, HeartbeatBRatio) ->
+    LengthAStream = 1000000,
+    %% Return a triple that makes the results
+    As = [{fun abexample:make_as/4, [Id, ANode, LengthAStream, 1]} 
+	  || {Id, ANode} <- lists:zip(lists:seq(1, NumberAs), ANodeNames)],
+
+    Bs = {fun abexample:make_bs_heartbeats/4, [BNodeName, LengthAStream, RatioAB, HeartbeatBRatio]},
+    
     {As, Bs}.
 
 
+
+-spec big_input_distr_example(node(), node(), node()) 
+			     -> {msg_generator_init(), msg_generator_init(), msg_generator_init()}.
 big_input_distr_example(NodeA1, NodeA2, NodeB) ->
-    A1 = lists:flatten(
-	   [[{{{a,1}, T + (1000 * BT)}, NodeA1, T + (1000 * BT)} 
-	     || T <- lists:seq(1, 999, 2)]
-	    || BT <- lists:seq(0,1000)])
-	++ [{heartbeat, {{{a,1},NodeA1},1000000}}], 
+    LengthA = 1000000,
+    A1 = {fun abexample:make_as/4, [1, NodeA1, LengthA, 2]},
+    %% A1 = lists:flatten(
+    %% 	   [[{{{a,1}, T + (1000 * BT)}, NodeA1, T + (1000 * BT)} 
+    %% 	     || T <- lists:seq(1, 999, 2)]
+    %% 	    || BT <- lists:seq(0,1000)])
+    %% 	++ [{heartbeat, {{{a,1},NodeA1},1000000}}], 
 
-    A2 = lists:flatten(
-	   [[{{{a,2}, T + (1000 * BT)}, NodeA2, T + (1000 * BT)} 
-	     || T <- lists:seq(2, 998, 2)]
-	    || BT <- lists:seq(0,1000)])
-	++ [{heartbeat, {{{a,2},NodeA2},1000000}}],
+    A2 = {fun abexample:make_as/4, [2, NodeA2, LengthA, 2]},
+    %% A2 = lists:flatten(
+    %% 	   [[{{{a,2}, T + (1000 * BT)}, NodeA2, T + (1000 * BT)} 
+    %% 	     || T <- lists:seq(2, 998, 2)]
+    %% 	    || BT <- lists:seq(0,1000)])
+    %% 	++ [{heartbeat, {{{a,2},NodeA2},1000000}}],
 
-    Bs = [{{b, 1000 + (1000 * BT)},NodeB, 1000 + (1000 * BT)} 
-	  || BT <- lists:seq(0,1000)]
-	++ [{heartbeat, {{b,NodeB},1000000}}],
+    Bs = {fun abexample:make_bs_heartbeats/4, [NodeB, LengthA, 1000, 1]},
+    %% Bs = [{{b, 1000 + (1000 * BT)},NodeB, 1000 + (1000 * BT)} 
+    %% 	  || BT <- lists:seq(0,1000)]
+    %% 	++ [{heartbeat, {{b,NodeB},1000000}}],
     {A1, A2, Bs}.
 
+-spec complex_input_distr_example(node(), node(), node(), node(), node()) 
+				 -> {msg_generator_init(), msg_generator_init(), 
+				     msg_generator_init(), msg_generator_init(), msg_generator_init()}.
 complex_input_distr_example(NodeA1, NodeA2, NodeA3, NodeA4, NodeB) ->
+    LengthA = 1000000,
     {A1, A2, Bs} = big_input_distr_example(NodeA1, NodeA2, NodeB),
-    A3 = lists:flatten(
-	   [[{{{a,3}, T + (1000 * BT)}, NodeA3, T + (1000 * BT)} 
-	     || T <- lists:seq(1, 999, 2)]
-	    || BT <- lists:seq(1,1000)])
-	++ [{heartbeat, {{{a,3},NodeA3}, 10000000}}], 
-    
-    A4 = lists:flatten(
-	   [[{{{a,4}, T + (1000 * BT)}, NodeA4, T + (1000 * BT)} 
-	     || T <- lists:seq(2, 998, 2)]
-	    || BT <- lists:seq(1,1000)])
-	++ [{heartbeat, {{{a,4},NodeA4}, 10000000}}], 
+    A3 = {fun abexample:make_as/4, [3, NodeA3, LengthA, 2]},
+    %% A3 = lists:flatten(
+    %% 	   [[{{{a,3}, T + (1000 * BT)}, NodeA3, T + (1000 * BT)} 
+    %% 	     || T <- lists:seq(1, 999, 2)]
+    %% 	    || BT <- lists:seq(1,1000)])
+    %% 	++ [{heartbeat, {{{a,3},NodeA3}, 10000000}}], 
+    A4 = {fun abexample:make_as/4, [4, NodeA4, LengthA, 2]},    
+    %% A4 = lists:flatten(
+    %% 	   [[{{{a,4}, T + (1000 * BT)}, NodeA4, T + (1000 * BT)} 
+    %% 	     || T <- lists:seq(2, 998, 2)]
+    %% 	    || BT <- lists:seq(1,1000)])
+    %% 	++ [{heartbeat, {{{a,4},NodeA4}, 10000000}}], 
     {A1, A2, A3, A4, Bs}.
 
 %% bs_input_example() ->
@@ -651,8 +674,8 @@ input_example2(NodeA1, NodeA2, NodeB) ->
 %% -------- TESTS -------- %%
 
 input_example_output() ->
-    [{sum,{b,1001},500500},
-     {sum,{b,2001},1999999}].
+    [{sum,{{b,1001},500500}},
+     {sum,{{b,2001},1999999}}].
 
 input_example_test_() ->
     Rounds = lists:seq(1,100),
@@ -665,10 +688,10 @@ input_example_test_() ->
       end} || _ <- Rounds]}.
 
 input_example2_output() ->
-    [{sum,{b,2},1},
-     {sum,{b,5},9},
-     {sum,{b,9},27},
-     {sum,{b,16},51}].
+    [{sum,{{b,2},1}},
+     {sum,{{b,5},9}},
+     {sum,{{b,9},27}},
+     {sum,{{b,16},51}}].
 
 input_example2_test_() ->
     Rounds = lists:seq(1,100),
