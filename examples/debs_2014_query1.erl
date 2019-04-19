@@ -36,8 +36,9 @@ main() ->
 
 % Finally, the input event tags and input events:
 -type event_tag() :: measurement_tag() | end_timeslice().
+-type end_timeslice_message() :: message(end_timeslice(), time_overall()).
 -type event() :: message(measurement_tag(), measurement_payload())
-		| message(end_timeslice(), time_overall()).
+		| end_timeslice_message().
 
 %% ========== Tag Dependencies ==========
 
@@ -337,6 +338,16 @@ sequential_conf(SinkPid) ->
 
 
 -type impl_event() :: impl_message(measurement_tag(), measurement_payload()).
+
+%% TODO: Add heartbeats
+-spec make_end_timeslice_stream(node(), integer(), integer(), integer()) -> msg_generator().
+make_end_timeslice_stream(Node, From, To, Step) ->
+    Timeslices 
+	= [{{end_timeslice, T}, Node, T} 
+	   || T <- lists:seq(From, To, Step)]
+	++ [{heartbeat, {{end_timeslice, ANode}, To + 1}}],
+    producer:list_generator(Timeslices).
+
 
 %% Makes a generator for that house, and adds heartbeats
 -spec make_house_generator(integer(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
