@@ -22,12 +22,12 @@ main() ->
 % Whether value_id is a work measurement or load measurement
 -type measurement_type() :: 'work' | 'load'.
 % IDs: house implies household implies plug implies measurement. Each measurement ID is unique.
--type house_id() :: non_neg_integer().
--type household_id() :: non_neg_integer().
--type plug_id() :: non_neg_integer().
--type measurement_id() :: non_neg_integer().
+-type house_id() :: integer().
+-type household_id() :: integer().
+-type plug_id() :: integer().
+-type measurement_id() :: integer().
 % Timestamp and value of the actual measurement.
--type measurement_timestamp() :: non_neg_integer().
+-type measurement_timestamp() :: integer().
 -type measurement_value() :: float().
 -type time_overall() :: integer(). % Time of the current slice of input msgs
 -type measurement_tag() :: {house, house_id(), measurement_type()}.
@@ -47,16 +47,16 @@ main() ->
 % - (house, _, work) tags are dependent on nothing.
 % - end_timeslice are dependent on themselves and all remaining.
 % - (house, _, load) tags are dependent on themselves, but not on each other.
-dependencies() ->
+dependencies(NumHouseIDs) ->
 	EndTimesliceDeps =
 			[{end_timeslice, {house, Id, load}}
-				|| Id <- lists:seq(1,?HOUSE_ID_MAX)]
+				|| Id <- lists:seq(0,NumHouseIDs-1)]
 			++ [{{house, Id, load}, end_timeslice}
-				|| Id <- lists:seq(1,?HOUSE_ID_MAX)]
+				|| Id <- lists:seq(0,NumHouseIDs-1)]
 			++ [{end_timeslice, end_timeslice}],
 	HouseSelfDeps =
 			[{{house, Id, load}, {house, Id, load}}
-				|| Id <- lists:seq(1,?HOUSE_ID_MAX)],
+				|| Id <- lists:seq(0,NumHouseIDs-1)],
 	maps:from_list(EndTimesliceDeps ++ HouseSelfDeps).
 
 
@@ -80,9 +80,9 @@ dependencies() ->
 
 -define(INITIAL_TIME,0). % We hope the initial time will be overridden
 
-% -spec init_state() -> state(). %% TODO: Why does this fail?
+-spec init_state() -> state(). %% TODO: Why does this fail?
 init_state() ->
-	{?INITIAL_TIME, ?INITIAL_TIME, {{0,0}, map:new()}}.
+	{?INITIAL_TIME, ?INITIAL_TIME, {{{0,0},maps:new()}, maps:new()}}.
 
 %% To update the state we need two helper functions, to update totals, and to update a complete load summary. We also need a function to reset the load summary.
 -spec update_totals(totals(), integer()) -> totals().
@@ -92,9 +92,11 @@ update_totals({Sum, Count}, NewVal) ->
 -spec update_load_summary(past_load_summary(), integer(), time_of_day()) -> past_load_summary().
 update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
 	NewTotals = update_totals(Totals, NewVal),
-	NewTotalsByTimeOfDay = map:update_with(
+	NewTotalsByTimeOfDay = maps:update_with(
 		TimeOfDay,
-		fun (T) -> update_totals(T, NewVal) end, %% TODO: Why does this bother the dialyzer?
+		fun (T) ->
+			update_totals(T, NewVal)
+		end,
 		update_totals({0,0}, NewVal),
 		TotalsByTimeOfDay
 	),
@@ -105,10 +107,12 @@ update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
 -spec update_household_load_summary(household_load_summary(), integer(), time_of_day(), integer()) -> household_load_summary().
 update_household_load_summary({Totals, TotalsByPlug}, NewVal, TimeOfDay, PlugID) ->
 	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
-	NewTotalsByPlug = map:update_with(
+	NewTotalsByPlug = maps:update_with(
 		PlugID,
-		fun (T) -> update_load_summary(T, NewVal, TimeOfDay) end,
-		update_load_summary({{0,0}, map:new()}, NewVal, TimeOfDay),
+		fun (T) ->
+			update_load_summary(T, NewVal, TimeOfDay)
+		end,
+		update_load_summary({{0,0}, maps:new()}, NewVal, TimeOfDay),
 		TotalsByPlug
 	),
 	{NewTotals, NewTotalsByPlug}.
@@ -116,10 +120,12 @@ update_household_load_summary({Totals, TotalsByPlug}, NewVal, TimeOfDay, PlugID)
 -spec update_house_load_summary(house_load_summary(), integer(), time_of_day(), integer(), integer()) -> house_load_summary().
 update_house_load_summary({Totals, TotalsByHousehold}, NewVal, TimeOfDay, HouseholdID, PlugID) ->
 	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
-	NewTotalsByHousehold = map:update_with(
+	NewTotalsByHousehold = maps:update_with(
 		HouseholdID,
-		fun (T) -> update_household_load_summary(T, NewVal, TimeOfDay, PlugID) end,
-		update_household_load_summary({{0,0}, map:new()}, NewVal, TimeOfDay, PlugID),
+		fun (T) ->
+			update_household_load_summary(T, NewVal, TimeOfDay, PlugID)
+		end,
+		update_household_load_summary({{{0,0},maps:new()}, maps:new()}, NewVal, TimeOfDay, PlugID),
 		TotalsByHousehold
 	),
 	{NewTotals, NewTotalsByHousehold}.
@@ -127,32 +133,35 @@ update_house_load_summary({Totals, TotalsByHousehold}, NewVal, TimeOfDay, Househ
 -spec update_global_load_summary(global_load_summary(), integer(), time_of_day(), integer(), integer(), integer()) -> global_load_summary().
 update_global_load_summary({Totals, TotalsByHouse}, NewVal, TimeOfDay, HouseID, HouseholdID, PlugID) ->
 	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
-	NewTotalsByHouse = map:update_with(
+	NewTotalsByHouse = maps:update_with(
 		HouseID,
-		fun (T) -> update_house_load_summary(T, NewVal, TimeOfDay, HouseholdID, PlugID) end,
-		update_house_load_summary({{0,0}, map:new()}, NewVal, TimeOfDay, HouseholdID, PlugID),
+		fun (T) ->
+			update_house_load_summary(T, NewVal, TimeOfDay, HouseholdID, PlugID)
+		end,
+		update_house_load_summary({{{0,0},maps:new()}, maps:new()}, NewVal, TimeOfDay, HouseholdID, PlugID),
 		TotalsByHouse
 	),
 	{NewTotals, NewTotalsByHouse}.
 
 %% Resetting the totals (do NOT reset totals by time of day)
-%% TODO: Why does the dialyzer complain :(
 
 -spec reset_household_load_summary(household_load_summary()) -> household_load_summary().
 reset_household_load_summary({_Totals, TotalsByPlug}) ->
-	{{0,map:new()}, TotalsByPlug}.
+	{{{0,0},maps:new()}, TotalsByPlug}.
 -spec reset_house_load_summary(house_load_summary()) -> house_load_summary().
 reset_house_load_summary({_Totals, TotalsByHousehold}) ->
-	{{0,map:new()},map:map(
+	{{{0,0},maps:new()},maps:map(
 		fun (_HouseholdID, HouseholdSummary) ->
-			reset_household_load_summary(HouseholdSummary) end,
+			reset_household_load_summary(HouseholdSummary)
+		end,
 		TotalsByHousehold
 	)}.
 -spec reset_global_load_summary(global_load_summary()) -> global_load_summary().
 reset_global_load_summary({_Totals, TotalsByHouse}) ->
-	{{0,map:new()},map:map(
+	{{{0,0},maps:new()},maps:map(
 		fun (_HouseID, HouseSummary) ->
-			reset_house_load_summary(HouseSummary) end,
+			reset_house_load_summary(HouseSummary)
+		end,
 		TotalsByHouse
 	)}.
 
@@ -286,38 +295,48 @@ sequential() ->
     util:sink().
 
 sequential_conf(SinkPid) ->
-    %% TODO: Quantify over all houses
-    Tags = [hour, {house,0}],
+    %% TODO: Make this parameterizable
+    Tags = [
+				end_timeslice,
+				{house,0,work},
+				{house,1,work},
+				{house,0,load},
+				{house,1,load}
+			],
 
     %% Architecture
-    Rates = [{node(), hour, 10},
-    	     {node(), {house,0}, 1000}],
+    Rates = [
+				{node(), end_timeslice, 1},
+				{node(), {house,0,work}, 1000},
+				{node(), {house,1,work}, 1000},
+				{node(), {house,0,load}, 1000},
+				{node(), {house,1,load}, 1000}
+			],
     Topology =
     	conf_gen:make_topology(Rates, SinkPid),
 
     %% Computation
     StateTypesMap = 
-    	#{'state0' => {sets:from_list(Tags), fun update/3}},
+    	#{'state' => {sets:from_list(Tags), fun update/3}},
     SplitsMerges = [],
-    Dependencies = dependencies(),
-    InitState = {'state0', init_state()},
+    Dependencies = dependencies(2),
+    InitState = {'state', init_state()},
     Specification = 
     	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
-    HouseGen = make_house_generator(0, node(), 100, 1377986401000, 1377986405000),
-    %% io:format("Messages:~n~p~n", [producer:generator_to_list(HouseGen)]),
-    %% create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
+	BeginSimulationTime = 1377986401000,
+	EndSimulationTime = 1377986405000,
+    HouseGen = make_house_generator(0, node(), 100, BeginSimulationTime, EndSimulationTime),
+
+	%% TODO: Konstantinos
 
     SinkPid ! finished.
 
 
--type house_tag() :: {'house', integer()}.
--type payload() :: {integer(), integer(), float(), integer(), integer(), integer()}.
--type impl_event() :: impl_message(house_tag(), payload()).
-
+-type impl_event() :: impl_message(measurement_tag(), measurement_payload()).
 
 %% Makes a generator for that house, and adds heartbeats
 -spec make_house_generator(integer(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
@@ -328,7 +347,7 @@ make_house_generator(HouseId, NodeName, Period, From, Until) ->
     					    {{{house,HouseId}, NodeName}, Period}, From, Until).
     
 %% NOTE: This adjusts the timestamps to be ms instead of seconds
-% -spec parse_house_csv_line(string()) -> impl_event(). %% TODO: Why does this fail?
+-spec parse_house_csv_line(string()) -> impl_event(). %% TODO: Why does this fail?
 parse_house_csv_line(Line) ->
     TrimmedLine = string:trim(Line),
     [SId, STs, SValue, SProp, SPlug, SHousehold, SHouse] = 
@@ -336,11 +355,15 @@ parse_house_csv_line(Line) ->
     Id = list_to_integer(SId),
     Ts = 1000 * list_to_integer(STs),
     Value = util:list_to_number(SValue),
-    Prop = list_to_integer(SProp),
+    Prop = 
+		case SProp of % Measurement type
+			"0" -> work; % See DEBS 2014 specification
+			"1" -> load % See DEBS 2014 specification
+		end,
     Plug = list_to_integer(SPlug),
     Household = list_to_integer(SHousehold),
     House = list_to_integer(SHouse),
     %% WARNING: This should return the producer node
     Node = node(),
-    {{{house, House, Prop}, {Ts, Id, Value, Plug, Household}}, Node, Ts}.
+    {{{house, House, Prop}, {Household, Plug, Id, Ts, Value}}, Node, Ts}.
     
