@@ -67,7 +67,11 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     # ax1.plot(inds, ten_latencies, '-o', label='10th percentile latency', color=color)
     # ax1.plot(inds, ninety_latencies, '-o', label='90th percentile latency', color=color)
     ax1.tick_params(axis='y', labelcolor=color)
-
+    # ax1.set_ylim(top=max(ninety_latencies) * 1.1)
+    # ax1.set_ylim(top=50)
+    # ax1.set_yscale("log")
+    ax1.set_ylim(bottom=0)
+    
     
     ## Plot all throughputs
     ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
@@ -81,6 +85,7 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     # ax2.plot(inds, ten_throughputs, '-o', label='10th percentile throughput', color=color)
     # ax2.plot(inds, ninety_throughputs, '-o', label='90th percentile throughput', color=color)
     ax2.tick_params(axis='y', labelcolor=color)
+    ax2.set_ylim(bottom=0)
     
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     # plt.legend(loc='best')
