@@ -68,26 +68,50 @@ dependencies(NumHouseIDs) ->
 % Summary for an individual plug, household, house, etc.: (1) total in the previous slice, and (2) total in each time of day
 -type past_load_summary() :: {totals(), total_by_time_of_day()}.
 
-%% The state will be several nested maps of load summaries.
--type plugid_load_summary() :: past_load_summary().
--type household_load_summary() :: {past_load_summary(), #{plug_id() := plugid_load_summary()}}.
--type house_load_summary() :: {past_load_summary(), #{household_id() := household_load_summary()}}.
--type global_load_summary() :: {past_load_summary(), #{house_id() := global_load_summary()}}.
+%% The state will be several maps of load summaries.
+-type load_summary_map(KeyType) :: #{KeyType := past_load_summary()}.
+-type house_load_summary() ::
+	load_summary_map(house_id()).
+-type household_load_summary() ::
+	load_summary_map({house_id(),household_id()}).
+-type plug_load_summary() ::
+	load_summary_map({house_id(),household_id(),plug_id()}).
+-type all_load_summaries() ::
+	{
+		past_load_summary(),
+		house_load_summary(),
+		household_load_summary(),
+		plug_load_summary()
+	}.
 %% Complete state includes load summaries overall, for each house, for each household, and for each plug. We also include the time overall and the time of day for each plug.
--type state() :: {time_overall(), time_of_day(), global_load_summary()}.
+-type state() :: {
+					time_overall(),
+					time_of_day(),
+					all_load_summaries()
+				}.
 
 %% ========== Sequential Specification ==========
 
 -define(INITIAL_TIME,0). % We hope the initial time will be overridden
 
--spec init_state() -> state(). %% TODO: Why does this fail?
-init_state() ->
-	{?INITIAL_TIME, ?INITIAL_TIME, {{{0,0},maps:new()}, maps:new()}}.
+-spec init_state(time_of_day()) -> state().
+init_state(InitialTime) ->
+	{InitialTime, InitialTime, {
+		new_load_summary(),
+		maps:new(),
+		maps:new(),
+		maps:new()
+	}}.
 
-%% To update the state we need two helper functions, to update totals, and to update a complete load summary. We also need a function to reset the load summary.
+%% To update the state we need some helper functions: to update totals, and to update a complete load summary. Also to update a map of load summaries.
+%% For totals and load_summary values, we write an update function and a new function. Also, a reset function for load summaries (which resets the first coordinate only).
 -spec update_totals(totals(), integer()) -> totals().
 update_totals({Sum, Count}, NewVal) ->
 	{Sum + NewVal, Count + 1}.
+
+-spec new_totals() -> totals().
+new_totals() ->
+	{0, 0}.
 
 -spec update_load_summary(past_load_summary(), integer(), time_of_day()) -> past_load_summary().
 update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
@@ -97,79 +121,44 @@ update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
 		fun (T) ->
 			update_totals(T, NewVal)
 		end,
-		update_totals({0,0}, NewVal),
+		update_totals(new_totals(), NewVal),
 		TotalsByTimeOfDay
 	),
 	{NewTotals, NewTotalsByTimeOfDay}.
 
-%% I lied, we need more helper functions. One for each level of nesting.
+-spec new_load_summary() -> past_load_summary().
+new_load_summary() ->
+	{new_totals(), maps:new()}.
 
--spec update_household_load_summary(household_load_summary(), integer(), time_of_day(), integer()) -> household_load_summary().
-update_household_load_summary({Totals, TotalsByPlug}, NewVal, TimeOfDay, PlugID) ->
-	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
-	NewTotalsByPlug = maps:update_with(
-		PlugID,
-		fun (T) ->
-			update_load_summary(T, NewVal, TimeOfDay)
-		end,
-		update_load_summary({{0,0}, maps:new()}, NewVal, TimeOfDay),
-		TotalsByPlug
-	),
-	{NewTotals, NewTotalsByPlug}.
+-spec reset_load_summary(past_load_summary()) -> past_load_summary().
+reset_load_summary({Totals, TotalsByTimeOfDay}) ->
+	{new_totals(), TotalsByTimeOfDay}.
 
--spec update_house_load_summary(house_load_summary(), integer(), time_of_day(), integer(), integer()) -> house_load_summary().
-update_house_load_summary({Totals, TotalsByHousehold}, NewVal, TimeOfDay, HouseholdID, PlugID) ->
-	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
-	NewTotalsByHousehold = maps:update_with(
-		HouseholdID,
-		fun (T) ->
-			update_household_load_summary(T, NewVal, TimeOfDay, PlugID)
+-spec update_load_summary_map(load_summary_map(KeyType), KeyType, integer(), time_of_day()) -> load_summary_map(KeyType).
+update_load_summary_map(LoadSummaryMap, Key, NewVal, TimeOfDay) ->
+	maps:update_with(
+		Key,
+		fun (LoadSummary) ->
+			update_load_summary(LoadSummary, NewVal, TimeOfDay)
 		end,
-		update_household_load_summary({{{0,0},maps:new()}, maps:new()}, NewVal, TimeOfDay, PlugID),
-		TotalsByHousehold
-	),
-	{NewTotals, NewTotalsByHousehold}.
+		update_load_summary(new_load_summary(), NewVal, TimeOfDay),
+		LoadSummaryMap
+	).
 
--spec update_global_load_summary(global_load_summary(), integer(), time_of_day(), integer(), integer(), integer()) -> global_load_summary().
-update_global_load_summary({Totals, TotalsByHouse}, NewVal, TimeOfDay, HouseID, HouseholdID, PlugID) ->
-	NewTotals = update_load_summary(Totals, NewVal, TimeOfDay),
-	NewTotalsByHouse = maps:update_with(
-		HouseID,
-		fun (T) ->
-			update_house_load_summary(T, NewVal, TimeOfDay, HouseholdID, PlugID)
+-spec reset_load_summary_map(load_summary_map(KeyType)) -> load_summary_map(KeyType).
+reset_load_summary_map(LoadSummaryMap) ->
+	maps:map(
+		fun (_Key, LoadSummary) ->
+			reset_load_summary(LoadSummary)
 		end,
-		update_house_load_summary({{{0,0},maps:new()}, maps:new()}, NewVal, TimeOfDay, HouseholdID, PlugID),
-		TotalsByHouse
-	),
-	{NewTotals, NewTotalsByHouse}.
-
-%% Resetting the totals (do NOT reset totals by time of day)
-
--spec reset_household_load_summary(household_load_summary()) -> household_load_summary().
-reset_household_load_summary({_Totals, TotalsByPlug}) ->
-	{{{0,0},maps:new()}, TotalsByPlug}.
--spec reset_house_load_summary(house_load_summary()) -> house_load_summary().
-reset_house_load_summary({_Totals, TotalsByHousehold}) ->
-	{{{0,0},maps:new()},maps:map(
-		fun (_HouseholdID, HouseholdSummary) ->
-			reset_household_load_summary(HouseholdSummary)
-		end,
-		TotalsByHousehold
-	)}.
--spec reset_global_load_summary(global_load_summary()) -> global_load_summary().
-reset_global_load_summary({_Totals, TotalsByHouse}) ->
-	{{{0,0},maps:new()},maps:map(
-		fun (_HouseID, HouseSummary) ->
-			reset_house_load_summary(HouseSummary)
-		end,
-		TotalsByHouse
-	)}.
+		LoadSummaryMap
+	).
 
 %% Also we need to write the code which does the power prediction after each timeslice
 
 %% TODO: Write this.
--spec output_predictions(global_load_summary(),time_of_day(),pid()) -> ok.
-output_predictions(_GlobalTotals,_NewTimeOfDay,_SinkPID) ->
+-spec output_predictions(all_load_summaries(),time_of_day(),pid()) -> ok.
+output_predictions(_AllLoadSummaries,_NewTimeOfDay,_SinkPID) ->
 	ok.
 
 %% Convert a time to a time of day
@@ -193,23 +182,55 @@ update(
 			{house, HouseID, load},
 			{HouseholdID, PlugID, _MeasID, _MeasTS, MeasVal}
 		},
-		{TimeOverall, TimeOfDay, GlobalSummary},
+		{TimeOverall, TimeOfDay, {
+			LS_Global, % LS = Load Summary
+			LS_ByHouse,
+			LS_ByHousehold,
+			LS_ByPlug
+		}},
 		_SinkPID
 	) ->
-	{TimeOverall, TimeOfDay, update_global_load_summary(
-		GlobalSummary,
-		MeasVal,
-		TimeOfDay,
-		HouseID,
-		HouseholdID,
-		PlugID
-	)};
-update({'end_timeslice', TimeValue}, {TimeOverall, TimeOfDay, GlobalTotals}, SinkPID) ->
-	NewTimeOfDay = get_time_of_day(TimeValue),
-	output_predictions(GlobalTotals,NewTimeOfDay,SinkPID),
-	NewGlobalTotals = reset_global_load_summary(GlobalTotals),
-	{TimeValue, NewTimeOfDay, NewGlobalTotals}.
-
+	{TimeOverall, TimeOfDay, {
+		update_load_summary(LS_Global, MeasVal, TimeOfDay),
+		update_load_summary_map(
+			LS_ByHouse,
+			HouseID,
+			MeasVal,
+			TimeOfDay
+		),
+		update_load_summary_map(
+			LS_ByHousehold,
+			{HouseID, HouseholdID},
+			MeasVal,
+			TimeOfDay
+		),
+		update_load_summary_map(
+			LS_ByPlug,
+			{HouseID, HouseholdID, PlugID},
+			MeasVal,
+			TimeOfDay
+		)
+	}};
+update(
+		{'end_timeslice', TimeValue},
+		{TimeOverall, TimeOfDay, {
+			LS_Global,
+			LS_ByHouse,
+			LS_ByHousehold,
+			LS_ByPlug
+		}},
+		_SinkPID
+	) ->
+	{
+		TimeValue,
+		get_time_of_day(TimeValue),
+		{
+			reset_load_summary(LS_Global),
+			reset_load_summary_map(LS_ByHouse),
+			reset_load_summary_map(LS_ByHousehold),
+			reset_load_summary_map(LS_ByPlug)
+		}
+	}.
 
 %% ========== Parallelization Primitives ==========
 
@@ -304,6 +325,10 @@ sequential_conf(SinkPid) ->
 				{house,1,load}
 			],
 
+	%% Some Garbage
+	BeginSimulationTime = 1377986401000,
+	EndSimulationTime = 1377986405000,
+
     %% Architecture
     Rates = [
 				{node(), end_timeslice, 1},
@@ -320,15 +345,13 @@ sequential_conf(SinkPid) ->
     	#{'state' => {sets:from_list(Tags), fun update/3}},
     SplitsMerges = [],
     Dependencies = dependencies(2),
-    InitState = {'state', init_state()},
+    InitState = {'state', init_state(BeginSimulationTime)},
     Specification = 
     	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
-	BeginSimulationTime = 1377986401000,
-	EndSimulationTime = 1377986405000,
     HouseGen = make_house_generator(0, node(), 100, BeginSimulationTime, EndSimulationTime),
 
 	%% TODO: Konstantinos
