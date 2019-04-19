@@ -47,16 +47,16 @@ main() ->
 % - (house, _, work) tags are dependent on nothing.
 % - end_timeslice are dependent on themselves and all remaining.
 % - (house, _, load) tags are dependent on themselves, but not on each other.
-dependencies() ->
+dependencies(NumHouseIDs) ->
 	EndTimesliceDeps =
 			[{end_timeslice, {house, Id, load}}
-				|| Id <- lists:seq(1,?HOUSE_ID_MAX)]
+				|| Id <- lists:seq(0,NumHouseIDs-1)]
 			++ [{{house, Id, load}, end_timeslice}
-				|| Id <- lists:seq(1,?HOUSE_ID_MAX)]
+				|| Id <- lists:seq(0,NumHouseIDs-1)]
 			++ [{end_timeslice, end_timeslice}],
 	HouseSelfDeps =
 			[{{house, Id, load}, {house, Id, load}}
-				|| Id <- lists:seq(1,?HOUSE_ID_MAX)],
+				|| Id <- lists:seq(0,NumHouseIDs-1)],
 	maps:from_list(EndTimesliceDeps ++ HouseSelfDeps).
 
 
@@ -295,30 +295,43 @@ sequential() ->
     util:sink().
 
 sequential_conf(SinkPid) ->
-    %% TODO: Quantify over all houses
-    Tags = [hour, {house,0}],
+    %% TODO: Make this parameterizable
+    Tags = [
+				end_timeslice,
+				{house,0,work},
+				{house,1,work},
+				{house,0,load},
+				{house,1,load}
+			],
 
     %% Architecture
-    Rates = [{node(), hour, 10},
-    	     {node(), {house,0}, 1000}],
+    Rates = [
+				{node(), end_timeslice, 1},
+				{node(), {house,0,work}, 1000},
+				{node(), {house,1,work}, 1000},
+				{node(), {house,0,load}, 1000},
+				{node(), {house,1,load}, 1000}
+			],
     Topology =
     	conf_gen:make_topology(Rates, SinkPid),
 
     %% Computation
     StateTypesMap = 
-    	#{'state0' => {sets:from_list(Tags), fun update/3}},
+    	#{'state' => {sets:from_list(Tags), fun update/3}},
     SplitsMerges = [],
-    Dependencies = dependencies(),
-    InitState = {'state0', init_state()},
+    Dependencies = dependencies(2),
+    InitState = {'state', init_state()},
     Specification = 
     	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
     %% Set up where will the input arrive
-    HouseGen = make_house_generator(0, node(), 100, 1377986401000, 1377986405000),
-    %% io:format("Messages:~n~p~n", [producer:generator_to_list(HouseGen)]),
-    %% create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
+	BeginSimulationTime = 1377986401000,
+	EndSimulationTime = 1377986405000,
+    HouseGen = make_house_generator(0, node(), 100, BeginSimulationTime, EndSimulationTime),
+
+	%% TODO: Konstantinos
 
     SinkPid ! finished.
 
