@@ -147,7 +147,7 @@ greedy_big_conf(SinkPid) ->
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
+    producer:make_producers(InputStreams, ConfTree, Topology, steady_timestamp, LoggerInitFun),
 
     SinkPid ! finished.
 
@@ -263,7 +263,7 @@ greedy_local_conf(SinkPid) ->
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
+    producer:make_producers(InputStreams, ConfTree, Topology, steady_timestamp, LoggerInitFun),
 
     SinkPid ! finished,
     ok.
@@ -391,7 +391,7 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, timestamp_based, LoggerInitFun),
+    producer:make_producers(InputStreams, ConfTree, Topology, steady_timestamp, LoggerInitFun),
 
     SinkPid ! finished,
     ok.
