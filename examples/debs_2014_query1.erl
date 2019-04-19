@@ -4,7 +4,10 @@
 	 sequential/0,
 	 distributed/0,
 	 sequential_conf/1,
-	 distributed_conf/1
+	 distributed_conf/1,
+	 
+	 make_house_generator/6,
+	 make_end_timeslice_stream/5
 	]).
 
 -include_lib("eunit/include/eunit.hrl").
@@ -36,8 +39,9 @@ main() ->
 
 % Finally, the input event tags and input events:
 -type event_tag() :: measurement_tag() | end_timeslice().
+-type end_timeslice_message() :: message(end_timeslice(), time_overall()).
 -type event() :: message(measurement_tag(), measurement_payload())
-		| message(end_timeslice(), time_overall()).
+		| end_timeslice_message().
 
 %% ========== Tag Dependencies ==========
 
@@ -351,9 +355,14 @@ sequential_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
 
-    %% Set up where will the input arrive
-    HouseGen = make_house_generator(0, node(), 100, BeginSimulationTime, EndSimulationTime),
+    %% Prepare the producers input
+    Houses = [{0, node()}, {1, node()}],
+    ProducerInit = 
+	make_producer_init(Houses, node(), 100, 5000, 1000, 
+			   BeginSimulationTime, EndSimulationTime, 10),
 
+    %% Log the input times of b messages
+    producer:make_producers(ProducerInit, ConfTree, Topology, constant),
 	%% TODO: Konstantinos
 
     SinkPid ! finished.
@@ -361,13 +370,57 @@ sequential_conf(SinkPid) ->
 
 -type impl_event() :: impl_message(measurement_tag(), measurement_payload()).
 
+-spec make_producer_init([{house_id(), node()}], node(), integer(), 
+			 integer(), integer(), integer(), integer(), integer()) 
+			-> [{msg_generator_init(), {measurement_tag(), node()}, integer()}].	 
+make_producer_init(Houses, EndTimesliceNode, MeasurementHeartbeatPeriod, EndTimeslicePeriod, 
+		   EndTimesliceHeartbeatPeriod, BeginTime, EndTime, RateMult) ->
+    HousesProducerInit =
+	lists:flatmap(
+	  fun(House) ->
+		  make_house_producer_init(House, MeasurementHeartbeatPeriod, 
+					   BeginTime, EndTime, RateMult)
+	  end, Houses),
+    TimesliceStream = 
+	{fun ?MODULE:make_end_timeslice_stream/5, 
+	 [EndTimesliceNode, BeginTime, EndTime, 
+	  EndTimeslicePeriod, EndTimesliceHeartbeatPeriod]},
+    TimesliceInit = 
+	{TimesliceStream, {end_timeslice, EndTimesliceNode}, RateMult},
+    [TimesliceInit|HousesProducerInit].
+
+-spec make_house_producer_init({house_id(), node()}, integer(), integer(), integer(), integer()) 
+			      -> [{msg_generator_init(), {measurement_tag(), node()}, integer()}].	 
+make_house_producer_init({HouseId, Node}, MeasurementHeartbeatPeriod, BeginTime, EndTime, RateMult) ->
+    WorkGenInit = 
+	{fun ?MODULE:make_house_generator/6, 
+	 [HouseId, work, Node, 100, BeginTime, EndTime]},
+    LoadGenInit = 
+	{fun ?MODULE:make_house_generator/6, 
+	 [HouseId, work, Node, 100, BeginTime, EndTime]},
+    [{WorkGenInit, {{house, HouseId, work}, Node}, RateMult},
+     {LoadGenInit, {{house, HouseId, load}, Node}, RateMult}].
+
+
+
+-spec make_end_timeslice_stream(node(), integer(), integer(), integer(), integer()) -> msg_generator().
+make_end_timeslice_stream(Node, From, To, Step, HeartbeatPeriod) ->
+    Timeslices 
+	= [{{end_timeslice, T}, Node, T} 
+	   || T <- lists:seq(From, To, Step)]
+	++ [{heartbeat, {{end_timeslice, Node}, To + 1}}],
+    TimeslicesWithHeartbeats = 
+	producer:interleave_heartbeats(Timeslices, {{end_timeslice, Node}, HeartbeatPeriod}, To + 2),
+    producer:list_generator(TimeslicesWithHeartbeats).
+
+
 %% Makes a generator for that house, and adds heartbeats
--spec make_house_generator(integer(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
-make_house_generator(HouseId, NodeName, Period, From, Until) ->
-    Filename = io_lib:format("sample_debs_house_~w", [HouseId]),
+-spec make_house_generator(integer(), atom(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
+make_house_generator(HouseId, WorkLoad, NodeName, Period, From, Until) ->
+    Filename = io_lib:format("sample_debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),	    
     %% producer:file_generator(Filename, fun parse_house_csv_line/1).
     producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
-    					    {{{house,HouseId}, NodeName}, Period}, From, Until).
+    					    {{{house,HouseId, WorkLoad}, NodeName}, Period}, From, Until).
     
 %% NOTE: This adjusts the timestamps to be ms instead of seconds
 -spec parse_house_csv_line(string()) -> impl_event(). %% TODO: Why does this fail?
