@@ -83,6 +83,9 @@ dependencies(NumHouseIDs) ->
                                plug_load_summary()
                               }.
 
+%% The state will also include WEIGHTS for a linear model for load prediction.
+-type weights() :: [float()].
+
 %% Complete state includes load summaries overall, for each house, for each household, and for each plug. We also include the time overall and the time of day for each plug.
 -type state() :: {time_overall(),
 				  time_of_day(),
@@ -118,6 +121,8 @@ add_totals({Sum1, Count1}, {Sum2, Count2}) ->
     {Sum1 + Sum2, Count1 + Count2}.
 
 -spec get_average(totals()) -> float().
+get_average({Sum,0}) ->
+    0.0; % Default
 get_average({Sum,Count}) ->
     Sum / Count.
 
@@ -155,6 +160,12 @@ add_load_summaries({Totals1, Map1}, {Totals2, Map2}) ->
     )),
     {NewTotals, NewMap}.
 
+-spec get_ls_averages(past_load_summary(), time_of_day()) -> [float()].
+get_ls_averages({Totals, TotalsByTimeOfDay},TimeOfDay) ->
+    Avg1 = get_average(Totals),
+    Avg2 = get_average(maps:get(TimeOfDay,TotalsByTimeOfDay,new_totals())),
+    [Avg1, Avg2].
+
 -spec update_load_summary_map(load_summary_map(KeyType), KeyType, integer(), time_of_day()) -> load_summary_map(KeyType).
 update_load_summary_map(LoadSummaryMap, Key, NewVal, TimeOfDay) ->
     maps:update_with(
@@ -174,12 +185,42 @@ reset_load_summary_map(LoadSummaryMap) ->
 
 %% Also we need to write the code which does the power prediction after each timeslice
 
+-spec predict_plug_load(all_load_summaries(), weights(), time_of_day(), {house_id(), household_id(), plug_id()}) -> float().
+predict_plug_load(AllLoadSummaries, Weights, NewTimeOfDay, IDs) ->
+    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
+    {HouseID, HouseholdID, PlugID} = IDs,
+    LS_House = maps:get(HouseID, LS_ByHouse, new_load_summary()),
+    LS_Household = maps:get({HouseID,HouseholdID},
+                             LS_ByHousehold,
+                             new_load_summary()),
+    LS_Plug = maps:get({HouseID,HouseholdID,PlugID}, 
+                        LS_ByPlug,
+                        new_load_summary()),
 
+    %% 8 averages total. Sum product with the weights for a prediction
+    Avgs = get_ls_averages(LS_Global, NewTimeOfDay)
+           ++ get_ls_averages(LS_House, NewTimeOfDay)
+           ++ get_ls_averages(LS_Household, NewTimeOfDay)
+           ++ get_ls_averages(LS_Plug, NewTimeOfDay),
+
+    Prediction = lists:sum(lists:zipwith(fun (X, Y) -> X * Y end, Avgs, Weights)),
+    Prediction.
+
+-spec predict_house_load(all_load_summaries(), weights(), time_of_day(), house_id()) -> float().
+predict_house_load(AllLoadSummaries, Weights, NewTimeOfDay, HouseID) ->
+    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
+    LS_House = maps:get(HouseID,LS_ByHouse,new_load_summary()),
+
+    %% 8 averages total. Sum product with the weights for a prediction
+    Avgs = get_ls_averages(LS_Global, NewTimeOfDay)
+           ++ get_ls_averages(LS_House, NewTimeOfDay),
+
+    Prediction = lists:sum(lists:zipwith(fun (X, Y) -> X * Y end, Avgs, Weights)),
+    Prediction.
 
 % TODO: Write this.
 -spec output_predictions(all_load_summaries(),time_of_day(),pid()) -> ok.
 output_predictions(AllLoadSummaries,NewTimeOfDay,SinkPID) ->
-
     ok.
 
 %% Convert a time to a time of day
@@ -212,7 +253,7 @@ update({{{house, load}, HouseID}, Payload}, State, SinkPid) ->
      {update_load_summary(LS_Global, MeasVal, TimeOfDay),
       update_load_summary_map(LS_ByHouse, HouseID, MeasVal, TimeOfDay),
       update_load_summary_map(LS_ByHousehold, {HouseID, HouseholdID}, MeasVal, TimeOfDay),
-      update_load_summary_map(LS_ByPlug,{HouseID, HouseholdID, PlugID}, MeasVal, TimeOfDay)
+      update_load_summary_map(LS_ByPlug, {HouseID, HouseholdID, PlugID}, MeasVal, TimeOfDay)
      }};
 update({'end_timeslice', TimeValue}, {TimeOverall, TimeOfDay, AllLoadSummaries}, SinkPid) ->
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} =
