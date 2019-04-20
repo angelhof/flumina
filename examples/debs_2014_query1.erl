@@ -377,14 +377,16 @@ sequential_conf(SinkPid) ->
     %% Computation
     StateTypesMap = 
         #{'state' => {sets:from_list(Tags), fun update/3}},
-    SplitsMerges = [],
+    SplitsMerges =
+        [{{'state', 'state', 'state'}, {fun fork/2, fun join/2}}],
     Dependencies = dependencies(2),
     io:format("Dependencies: ~p~n", [Dependencies]),
     InitState = {'state', init_state(BeginSimulationTime)},
     Specification = 
         conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
+    ConfTree = conf_gen:generate(Specification, Topology, 
+                                 [{optimizer, optimizer_greedy}]),
 
     %% Prepare the producers input
     Houses = [{0, node()}, {1, node()}],
