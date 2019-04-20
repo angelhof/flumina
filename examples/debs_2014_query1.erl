@@ -33,7 +33,7 @@ main() ->
 -type measurement_timestamp() :: integer().
 -type measurement_value() :: float().
 -type time_overall() :: integer(). % Time of the current slice of input msgs
--type measurement_tag() :: {house, house_id(), measurement_type()}.
+-type measurement_tag() :: {{house, measurement_type()}, house_id()}.
 -type measurement_payload() :: {household_id(), plug_id(), measurement_id(), measurement_timestamp(), measurement_value()}.
 -type end_timeslice() :: 'end-timeslice'.
 
@@ -55,16 +55,15 @@ dependencies(NumHouseIDs) ->
     DepsList =
         [{end_timeslice, 
           [end_timeslice] ++
-              [{house, Id, load}
+              [{{house, load}, Id}
                || Id <- lists:seq(0,NumHouseIDs-1)]}]
-        ++ [{{house, Id, load}, [end_timeslice, {house, Id, load}]}
+        ++ [{{{house, load}, Id}, [end_timeslice, {{house, load}, Id}]}
             || Id <- lists:seq(0,NumHouseIDs-1)],
     maps:from_list(DepsList).
 
-
 %% ========== State Type ==========
 
--type totals() :: {integer(), integer()}. % Total, count
+-type totals() :: {float(), integer()}. % Total, count
 -type time_of_day() :: integer(). % Will be computed as a modulo of the time_overall
 -type total_by_time_of_day() :: #{time_of_day() := totals()}.
 % Summary for an individual plug, household, house, etc.: (1) total in the previous slice, and (2) total in each time of day
@@ -112,11 +111,15 @@ update_totals({Sum, Count}, NewVal) ->
 
 -spec new_totals() -> totals().
 new_totals() ->
-    {0, 0}.
+    {0.0, 0}.
 
 -spec add_totals(totals(), totals()) -> totals().
 add_totals({Sum1, Count1}, {Sum2, Count2}) ->
     {Sum1 + Sum2, Count1 + Count2}.
+
+-spec get_average(totals()) -> float().
+get_average({Sum,Count}) ->
+    Sum / Count.
 
 -spec update_load_summary(past_load_summary(), integer(), time_of_day()) -> past_load_summary().
 update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
@@ -171,9 +174,12 @@ reset_load_summary_map(LoadSummaryMap) ->
 
 %% Also we need to write the code which does the power prediction after each timeslice
 
-%% TODO: Write this.
+
+
+% TODO: Write this.
 -spec output_predictions(all_load_summaries(),time_of_day(),pid()) -> ok.
-output_predictions(_AllLoadSummaries,_NewTimeOfDay,_SinkPID) ->
+output_predictions(AllLoadSummaries,NewTimeOfDay,SinkPID) ->
+
     ok.
 
 %% Convert a time to a time of day
@@ -190,9 +196,9 @@ get_time_of_day(TimeOverall) ->
 %% Finally, this is the function to actually update the state.
 
 -spec update(event(), state(), pid()) -> state().
-update({{house, _HouseId, work}, _Payload}, State, _SinkPid) ->
+update({{{house, work}, _HouseId}, _Payload}, State, _SinkPid) ->
     State;
-update({{house, HouseID, load}, Payload}, State, SinkPid) ->
+update({{{house, load}, HouseID}, Payload}, State, SinkPid) ->
     {HouseholdID, PlugID, _MeasID, _MeasTS, MeasVal} = Payload,
     {TimeOverall, TimeOfDay, AllLoadSummaries} = State,
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
@@ -312,8 +318,8 @@ sequential_conf(SinkPid) ->
     %% TODO: Make this parameterizable
     Tags = 
         [end_timeslice,
-         {house,0,load},
-         {house,1,load}],
+         {{house,load},0},
+         {{house,load},1}],
 
     %% Some Garbage
     BeginSimulationTime = 1377986401000,
@@ -321,8 +327,8 @@ sequential_conf(SinkPid) ->
 
     %% Architecture
     Rates = [{node(), end_timeslice, 1},
-             {node(), {house,0,load}, 1000},
-             {node(), {house,1,load}, 1000}
+             {node(), {{house,load},0}, 1000},
+             {node(), {{house,load},1}, 1000}
             ],
     Topology =
         conf_gen:make_topology(Rates, SinkPid),
@@ -381,7 +387,7 @@ make_house_producer_init({HouseId, Node}, WorkLoad, MeasurementHeartbeatPeriod, 
               GenInit =
                   {fun ?MODULE:make_house_generator/6, 
                    [HouseId, WorkOrLoad, Node, MeasurementHeartbeatPeriod, BeginTime, EndTime]},
-              {GenInit, {{house, HouseId, WorkOrLoad}, Node}, RateMult}
+              {GenInit, {{{house, WorkOrLoad}, HouseId}, Node}, RateMult}
       end, WorkLoad).
 
 
@@ -403,7 +409,7 @@ make_house_generator(HouseId, WorkLoad, NodeName, Period, From, Until) ->
     Filename = io_lib:format("sample_debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),         
     %% producer:file_generator(Filename, fun parse_house_csv_line/1).
     producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
-                                            {{{house,HouseId, WorkLoad}, NodeName}, Period}, From, Until).
+                                            {{{{house, WorkLoad},HouseId}, NodeName}, Period}, From, Until).
     
 %% NOTE: This adjusts the timestamps to be ms instead of seconds
 -spec parse_house_csv_line(string()) -> impl_event(). %% TODO: Why does this fail?
@@ -424,5 +430,5 @@ parse_house_csv_line(Line) ->
     House = list_to_integer(SHouse),
     %% WARNING: This should return the producer node
     Node = node(),
-    {{{house, House, Prop}, {Household, Plug, Id, Ts, Value}}, Node, Ts}.
+    {{{{house, Prop}, House}, {Household, Plug, Id, Ts, Value}}, Node, Ts}.
     

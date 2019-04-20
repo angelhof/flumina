@@ -279,12 +279,12 @@ specification_tags(TagSet) ->
 %% This assumes that the specification tag is the first element of the 
 %% implementation tag tuple, (if the implementation tag is a tuple)
 -spec specification_tag(impl_tag()) -> tag().
-specification_tag({Tag, Node}) when is_atom(Tag) ->
-    Tag;
+specification_tag({Tag, _Node}) ->
+    Tag.
 %% WARNING: NOT SURE ABOUT THIS NOW THAT WE HAVE 
 %%          MOVED IMPLEMENTATION TAGS TO BE INDICATED BY NODE
-specification_tag({{Tag, Id}, Node}) when is_atom(Tag) ->
-    Tag.
+% specification_tag({{Tag, Id}, Node}) when is_atom(Tag) ->
+%     Tag.
 
 
 %% ==========================================================================
