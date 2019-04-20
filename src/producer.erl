@@ -366,7 +366,13 @@ interleave_heartbeats(Stream, {ImplTag, Period}, Until) ->
 -spec interleave_heartbeats([gen_message_or_heartbeat()], {impl_tag(), integer()}, timestamp(), timestamp()) 
 			   -> [gen_message_or_heartbeat()].
 interleave_heartbeats(Stream, {ImplTag, Period}, From, Until) ->
-    interleave_heartbeats(Stream, ImplTag, From, Period, [], Until).
+    case Period of
+	0 -> 
+	    Stream;
+	_ ->
+	    interleave_heartbeats(Stream, ImplTag, From, Period, [], Until)
+    end.
+
 
 -spec interleave_heartbeats([gen_message_or_heartbeat()], impl_tag(), 
 			    timestamp(), integer(), [gen_message_or_heartbeat()], timestamp()) 
@@ -433,7 +439,12 @@ interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, Until) ->
 				     -> msg_generator().
 interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, From, Until) ->
     AccGen = fun() -> done end,
-    interleave_heartbeats_generator(StreamGen, ImplTag, From, Period, AccGen, Until).
+    case Period of
+	0 -> 
+	    StreamGen;
+	_ ->
+	    interleave_heartbeats_generator(StreamGen, ImplTag, From, Period, AccGen, Until)
+    end.
 
 
 -spec interleave_heartbeats_generator(msg_generator(), impl_tag(), timestamp(), 
@@ -452,7 +463,7 @@ interleave_heartbeats_generator(MsgGen, {Tag, Node} = ImplTag, NextHeartbeat, Pe
 	    %% Generate the new heartbeats
 	    {HeartbeatsToSend, NewNextHeartbeat} = 
 		maybe_generate_heartbeats(Ts, NextHeartbeat, ImplTag, Period),
-	    io:format("To Send: ~p~n", [HeartbeatsToSend]),
+	    %% io:format("To Send: ~p~n", [HeartbeatsToSend]),
 	    NewAccMsgGen = 
 	        append_gens(AccMsgGen, list_generator(HeartbeatsToSend ++ [Msg])),
 	    interleave_heartbeats_generator(RestMsgGen, ImplTag, NewNextHeartbeat, Period, NewAccMsgGen, Until)
@@ -475,8 +486,8 @@ append_gens(MsgGen1, MsgGen2) ->
     
 -spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 			        message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
-send_message_or_heartbeat({heartbeat, Hearbeat}, SendTo, MessageLoggerInitFun) ->
-    SendTo ! {iheartbeat, Hearbeat};
+send_message_or_heartbeat({heartbeat, Heartbeat}, SendTo, MessageLoggerInitFun) ->
+    SendTo ! {iheartbeat, Heartbeat};
 send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
     ok = MessageLoggerInitFun(Msg),
     SendTo ! {imsg, Msg}.
