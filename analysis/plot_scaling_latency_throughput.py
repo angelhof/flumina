@@ -13,7 +13,9 @@ def plot_scaleup_node_rate(dirname, prefix, rate_multiplier, ratio_ab, heartbeat
 
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_multiplier, ratio_ab, heartbeat_rate, a_node, optimizer)
                 for a_node in a_nodes_numbers]
-
+    
+    # print dirnames
+    
     output_name = '%s_rate-%d_ab-%d_heart-%d_%s' % (prefix, rate_multiplier,
                                                     ratio_ab, heartbeat_rate, optimizer)
     common_plot_scaleup(dirname, dirnames, a_nodes_numbers, 'number of nodes', output_name)
