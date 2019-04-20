@@ -172,7 +172,7 @@ output_predictions(_AllLoadSummaries,_NewTimeOfDay,_SinkPID) ->
 
 -spec get_time_of_day(time_overall()) -> time_of_day().
 get_time_of_day(TimeOverall) ->
-	NanosecondOfDay = util:mod(TimeOverall,?NANOSECONDS_IN_A_DAY),
+	NanosecondOfDay = util:intmod(TimeOverall,?NANOSECONDS_IN_A_DAY),
 	HourOfDay = util:intdiv(NanosecondOfDay,?NANOSECONDS_IN_AN_HOUR),
 	HourOfDay.
 
@@ -238,24 +238,16 @@ update(
 
 %% ========== Parallelization Primitives ==========
 
+%% To fork the state: split the maps by key. Fork the global load summary by preserving the sum (fork (x,y) -> (x,y), (0,0)).
 
-% -spec init_state() -> state().
-% init_state() -> {0,0}.
+
+% -spec fork(split_preds(), state()) -> {state(), state()}.
+% fork(SplitPreds, {TimeOverall, TimeOfDay, AllLoadSummaries}) ->
 % 
-% -spec update(events(), state(), pid()) -> state().
-% update({'#', 'none'}, {_Total, Max}, SinkPid) ->
-%     SinkPid ! {Max},
-%     {0,0};
-% update({{Tag,_ImpID}, 'none'}, {Total, Max}, _SinkPid) ->
-%     case Tag of
-%         'i' ->
-%             NewTotal = Total + 1;
-%         'd' ->
-%             NewTotal = Total - 1
-%     end,
-%     NewMax = max(NewTotal,Max),
-%     {NewTotal,NewMax}.
-% 
+
+
+
+
 % %% Parallelization Primitives
 % -spec fork(split_preds(), state()) -> {state(), state()}.
 % fork(_, {Total, Max}) ->

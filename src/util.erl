@@ -15,9 +15,10 @@
 	 list_to_number/1,
 	 do_n_times/2,
 	 do_n_times/3,
-	 floor/1,
-	 mod/2,
-	 intdiv/2]).
+	 intfloor/1,
+	 intmod/2,
+	 intdiv/2,
+	 split_map/2]).
 
 -include("type_definitions.hrl").
 
@@ -136,7 +137,7 @@ list_to_number(List) ->
 
 do_n_times(N, Fun) ->
     fun (X) -> 
-	    do_n_times(0, X, Fun) 
+	    do_n_times(N, X, Fun)
     end.
 
 do_n_times(0, Init, Fun) ->
@@ -146,20 +147,41 @@ do_n_times(N, Init, Fun) when N > 0 ->
 
 %%% Integer Division etc.
 
-floor(X) when X < 0 ->
+intfloor(X) when X < 0 ->
     T = trunc(X),
     case X - T == 0 of
         true -> T;
         false -> T - 1
     end;
-
-floor(X) -> 
+intfloor(X) -> 
     trunc(X) .
 
 intdiv(A, B) ->
-    floor(A / B).
+    intfloor(A / B).
 
-mod(X,Y) when X > 0 -> X rem Y;
-mod(X,Y) when X < 0 -> Y + X rem Y;
-mod(0,Y) -> 0.
+intmod(X,Y) when X > 0 -> X rem Y;
+intmod(X,Y) when X < 0 -> Y + X rem Y;
+intmod(0,Y) -> 0.
 
+%%% Map util
+
+-spec split_map(#{KeyType := ValType}, fun((KeyType) -> boolean())) -> {#{KeyType := ValType}, #{KeyType := ValType}}.
+split_map(MyMap, PartitionFun) ->
+	MyIter = maps:iterator(MyMap),
+	split_map_rec(MyIter, maps:new(), maps:new(), PartitionFun).
+
+-spec split_map_rec(maps:iterator(), #{KeyType := ValType}, #{KeyType := ValType}, fun((KeyType) -> boolean())) -> {#{KeyType := ValType}, #{KeyType := ValType}}.
+split_map_rec(MyIter, Map1SoFar, Map2SoFar, PartitionFun) ->
+	Next = maps:next(MyIter),
+	case Next of
+		none -> {Map1SoFar, Map2SoFar};
+		{Key, Value, NextIter} ->
+			case (PartitionFun(Key)) of
+				true ->
+					NewMap1 = maps:update(Key, Value, Map1SoFar),
+					split_map_rec(NextIter, NewMap1, Map2SoFar, PartitionFun);
+				false ->
+					NewMap2 = maps:update(Key, Value, Map2SoFar),
+					split_map_rec(NextIter, Map1SoFar, NewMap2, PartitionFun)
+			end
+	end.
