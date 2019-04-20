@@ -78,19 +78,17 @@ dependencies(NumHouseIDs) ->
         load_summary_map({house_id(),household_id()}).
 -type plug_load_summary() ::
         load_summary_map({house_id(),household_id(),plug_id()}).
--type all_load_summaries() ::
-        {
-                past_load_summary(),
-                house_load_summary(),
-                household_load_summary(),
-                plug_load_summary()
-        }.
+-type all_load_summaries() :: {past_load_summary(),
+							   house_load_summary(),
+							   household_load_summary(),
+                               plug_load_summary()
+                              }.
+
 %% Complete state includes load summaries overall, for each house, for each household, and for each plug. We also include the time overall and the time of day for each plug.
--type state() :: {
-                                        time_overall(),
-                                        time_of_day(),
-                                        all_load_summaries()
-                                }.
+-type state() :: {time_overall(),
+				  time_of_day(),
+				  all_load_summaries()
+                 }.
 
 %% ========== Sequential Specification ==========
 
@@ -107,6 +105,7 @@ init_state(InitialTime) ->
 
 %% To update the state we need some helper functions: to update totals, and to update a complete load summary. Also to update a map of load summaries.
 %% For totals and load_summary values, we write an update function and a new function. Also, a reset function for load summaries (which resets the first coordinate only).
+%% The functions to add totals and load summaries won't be used until later (for joining state).
 -spec update_totals(totals(), integer()) -> totals().
 update_totals({Sum, Count}, NewVal) ->
     {Sum + NewVal, Count + 1}.
@@ -114,6 +113,10 @@ update_totals({Sum, Count}, NewVal) ->
 -spec new_totals() -> totals().
 new_totals() ->
     {0, 0}.
+
+-spec add_totals(totals(), totals()) -> totals().
+add_totals({Sum1, Count1}, {Sum2, Count2}) ->
+    {Sum1 + Sum2, Count1 + Count2}.
 
 -spec update_load_summary(past_load_summary(), integer(), time_of_day()) -> past_load_summary().
 update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
@@ -135,6 +138,19 @@ new_load_summary() ->
 -spec reset_load_summary(past_load_summary()) -> past_load_summary().
 reset_load_summary({Totals, TotalsByTimeOfDay}) ->
     {new_totals(), TotalsByTimeOfDay}.
+
+-spec add_load_summaries(past_load_summary(), past_load_summary()) -> past_load_summary().
+add_load_summaries({Totals1, Map1}, {Totals2, Map2}) ->
+    NewTotals = add_totals(Totals1, Totals2),
+    Keys = maps:keys(maps:merge(Map1, Map2)),
+    NewMap = maps:from_list(lists:map(
+        fun (Key) ->
+            add_totals(maps:get(Key, Map1, new_totals()),
+                       maps:get(Key, Map2, new_totals()))
+        end,
+        Keys
+    )),
+    {NewTotals, NewMap}.
 
 -spec update_load_summary_map(load_summary_map(KeyType), KeyType, integer(), time_of_day()) -> load_summary_map(KeyType).
 update_load_summary_map(LoadSummaryMap, Key, NewVal, TimeOfDay) ->
@@ -211,23 +227,35 @@ update({'end_timeslice', TimeValue}, {TimeOverall, TimeOfDay, AllLoadSummaries},
 
 %% To fork the state: split the maps by key. Fork the global load summary by preserving the sum (fork (x,y) -> (x,y), (0,0)).
 
+-spec fork(split_preds(), state()) -> {state(), state()}.
+fork(SplitPreds, State) ->
+    {TimeOverall, TimeOfDay, AllLoadSummaries} = State,
+    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
+    {Pred1, _Pred2} = SplitPreds,
 
-% -spec fork(split_preds(), state()) -> {state(), state()}.
-% fork(SplitPreds, {TimeOverall, TimeOfDay, AllLoadSummaries}) ->
-% 
+    {Global1, Global2}           = {LS_Global, new_load_summary()},
+    {ByHouse1, ByHouse2}         = util:split_map(LS_ByHouse, Pred1),
+    {ByHousehold1, ByHousehold2} = util:split_map(LS_ByHousehold, Pred1),
+    {ByPlug1, ByPlug2}           = util:split_map(LS_ByPlug, Pred1),
 
+    All1 = {Global1, ByHouse1, ByHousehold1, ByPlug1},
+    All2 = {Global2, ByHouse2, ByHousehold2, ByPlug2},
+    {{TimeOverall, TimeOfDay, All1}, {TimeOverall, TimeOfDay, All2}}.
 
+-spec join(state(), state()) -> state().
+join(State1, State2) ->
+    {TimeOverall, TimeOfDay, All1} = State1,
+    {_TimeOverall, _TimeOfDay, All2} = State2,
+    {Global1, ByHouse1, ByHousehold1, ByPlug1} = All1,
+    {Global2, ByHouse2, ByHousehold2, ByPlug2} = All2,
 
+    Global = add_load_summaries(Global1, Global2),
+    ByHouse = maps:merge(ByHouse1, ByHouse2),
+    ByHousehold = maps:merge(ByHousehold1, ByHousehold2),
+    ByPlug = maps:merge(ByPlug1, ByPlug2),
 
-% %% Parallelization Primitives
-% -spec fork(split_preds(), state()) -> {state(), state()}.
-% fork(_, {Total, Max}) ->
-%     {{Total, Max}, {0, 0}}.
-% 
-% -spec join(state(), state()) -> state().
-% join({X1, Y1}, {X2, _Y2}) -> % Y2 not used
-%     X = X1 + X2,
-%     {X, max(Y1,X)}.
+    All = {Global, ByHouse, ByHousehold, ByPlug},
+    {TimeOverall, TimeOfDay, All}.
 
 %% ============================
 %% ===== Experiment Setup =====

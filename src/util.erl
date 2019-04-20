@@ -185,3 +185,9 @@ split_map_rec(MyIter, Map1SoFar, Map2SoFar, PartitionFun) ->
 					split_map_rec(NextIter, Map1SoFar, NewMap2, PartitionFun)
 			end
 	end.
+
+%% Not needed -- the below is exactly what std library maps:merge() does.
+% -spec merge_maps(#{KeyType := ValType}, #{KeyType := ValType}) -> #{KeyType := ValType}.
+% merge_maps(Map1, Map2) ->
+%     maps:from_list(maps:to_list(Map1) ++ maps:to_list(Map2)).
+
