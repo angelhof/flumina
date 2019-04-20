@@ -52,16 +52,14 @@ main() ->
 % - end_timeslice are dependent on themselves and all remaining.
 % - (house, _, load) tags are dependent on themselves, but not on each other.
 dependencies(NumHouseIDs) ->
-	EndTimesliceDeps =
-			[{end_timeslice, {house, Id, load}}
-				|| Id <- lists:seq(0,NumHouseIDs-1)]
-			++ [{{house, Id, load}, end_timeslice}
-				|| Id <- lists:seq(0,NumHouseIDs-1)]
-			++ [{end_timeslice, end_timeslice}],
-	HouseSelfDeps =
-			[{{house, Id, load}, {house, Id, load}}
-				|| Id <- lists:seq(0,NumHouseIDs-1)],
-	maps:from_list(EndTimesliceDeps ++ HouseSelfDeps).
+    DepsList =
+	[{end_timeslice, 
+	  [end_timeslice] ++
+	      [{house, Id, load}
+	       || Id <- lists:seq(0,NumHouseIDs-1)]}]
+	++ [{{house, Id, load}, [end_timeslice, {house, Id, load}]}
+	    || Id <- lists:seq(0,NumHouseIDs-1)],
+    maps:from_list(DepsList).
 
 
 %% ========== State Type ==========
@@ -179,62 +177,38 @@ get_time_of_day(TimeOverall) ->
 %% Finally, this is the function to actually update the state.
 
 -spec update(event(), state(), pid()) -> state().
-update({{house, _HouseId, work}, _Payload}, State, _SinkPID) ->
+update({{house, _HouseId, work}, _Payload}, State, _SinkPid) ->
 	State;
-update(
-		{
-			{house, HouseID, load},
-			{HouseholdID, PlugID, _MeasID, _MeasTS, MeasVal}
-		},
-		{TimeOverall, TimeOfDay, {
-			LS_Global, % LS = Load Summary
-			LS_ByHouse,
-			LS_ByHousehold,
-			LS_ByPlug
-		}},
-		_SinkPID
-	) ->
-	{TimeOverall, TimeOfDay, {
-		update_load_summary(LS_Global, MeasVal, TimeOfDay),
-		update_load_summary_map(
-			LS_ByHouse,
-			HouseID,
-			MeasVal,
-			TimeOfDay
-		),
-		update_load_summary_map(
-			LS_ByHousehold,
-			{HouseID, HouseholdID},
-			MeasVal,
-			TimeOfDay
-		),
-		update_load_summary_map(
-			LS_ByPlug,
-			{HouseID, HouseholdID, PlugID},
-			MeasVal,
-			TimeOfDay
-		)
-	}};
-update(
-		{'end_timeslice', TimeValue},
-		{TimeOverall, TimeOfDay, {
-			LS_Global,
-			LS_ByHouse,
-			LS_ByHousehold,
-			LS_ByPlug
-		}},
-		_SinkPID
-	) ->
-	{
-		TimeValue,
-		get_time_of_day(TimeValue),
-		{
-			reset_load_summary(LS_Global),
-			reset_load_summary_map(LS_ByHouse),
-			reset_load_summary_map(LS_ByHousehold),
-			reset_load_summary_map(LS_ByPlug)
-		}
-	}.
+update({{house, HouseID, load}, Payload}, State, SinkPid) ->
+    {HouseholdID, PlugID, _MeasID, _MeasTS, MeasVal} = Payload,
+    {TimeOverall, TimeOfDay, AllLoadSummaries} = State,
+    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
+
+    %% Note: to debug you have to send the messages to the sink
+    %% because the stdout of the workers is not shown on the shell
+    %% SinkPid ! {message_load, Payload},
+
+    %% New State
+    {TimeOverall, TimeOfDay, 
+     {update_load_summary(LS_Global, MeasVal, TimeOfDay),
+      update_load_summary_map(LS_ByHouse, HouseID, MeasVal, TimeOfDay),
+      update_load_summary_map(LS_ByHousehold, {HouseID, HouseholdID}, MeasVal, TimeOfDay),
+      update_load_summary_map(LS_ByPlug,{HouseID, HouseholdID, PlugID}, MeasVal, TimeOfDay)
+     }};
+update({'end_timeslice', TimeValue}, {TimeOverall, TimeOfDay, AllLoadSummaries}, SinkPid) ->
+    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} =
+	AllLoadSummaries,
+
+    SinkPid ! {TimeValue, get_time_of_day(TimeValue), LS_Global, LS_ByHouse, LS_ByHousehold},
+
+    {TimeValue,
+     get_time_of_day(TimeValue),
+     {reset_load_summary(LS_Global),
+      reset_load_summary_map(LS_ByHouse),
+      reset_load_summary_map(LS_ByHousehold),
+      reset_load_summary_map(LS_ByPlug)
+     }
+    }.
 
 %% ========== Parallelization Primitives ==========
 
@@ -315,32 +289,24 @@ sequential() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, sequential_conf, [SinkName]),
-    %% The initial and final values could also be gotten in an 
-    %% automatic way.
     util:sink().
 
 sequential_conf(SinkPid) ->
     %% TODO: Make this parameterizable
-    Tags = [
-				end_timeslice,
-				{house,0,work},
-				{house,1,work},
-				{house,0,load},
-				{house,1,load}
-			],
+    Tags = [end_timeslice,
+	    {house,0,load},
+	    {house,1,load}
+	   ],
 
-	%% Some Garbage
-	BeginSimulationTime = 1377986401000,
-	EndSimulationTime = 1377986405000,
+    %% Some Garbage
+    BeginSimulationTime = 1377986401000,
+    EndSimulationTime   = 1377986427000,
 
     %% Architecture
-    Rates = [
-				{node(), end_timeslice, 1},
-				{node(), {house,0,work}, 1000},
-				{node(), {house,1,work}, 1000},
-				{node(), {house,0,load}, 1000},
-				{node(), {house,1,load}, 1000}
-			],
+    Rates = [{node(), end_timeslice, 1},
+	     {node(), {house,0,load}, 1000},
+	     {node(), {house,1,load}, 1000}
+	    ],
     Topology =
     	conf_gen:make_topology(Rates, SinkPid),
 
@@ -349,6 +315,7 @@ sequential_conf(SinkPid) ->
     	#{'state' => {sets:from_list(Tags), fun update/3}},
     SplitsMerges = [],
     Dependencies = dependencies(2),
+    io:format("Dependencies: ~p~n", [Dependencies]),
     InitState = {'state', init_state(BeginSimulationTime)},
     Specification = 
     	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
@@ -358,27 +325,26 @@ sequential_conf(SinkPid) ->
     %% Prepare the producers input
     Houses = [{0, node()}, {1, node()}],
     ProducerInit = 
-	make_producer_init(Houses, node(), 100, 5000, 1000, 
-			   BeginSimulationTime, EndSimulationTime, 10),
+	make_producer_init(Houses, [load], node(), 0, 1000, 1000, 
+			   BeginSimulationTime, EndSimulationTime, 100000),
 
     %% Log the input times of b messages
     producer:make_producers(ProducerInit, ConfTree, Topology, constant),
-	%% TODO: Konstantinos
 
     SinkPid ! finished.
 
 
 -type impl_event() :: impl_message(measurement_tag(), measurement_payload()).
 
--spec make_producer_init([{house_id(), node()}], node(), integer(), 
+-spec make_producer_init([{house_id(), node()}], ['work' | 'load'], node(), integer(), 
 			 integer(), integer(), integer(), integer(), integer()) 
 			-> [{msg_generator_init(), {measurement_tag(), node()}, integer()}].	 
-make_producer_init(Houses, EndTimesliceNode, MeasurementHeartbeatPeriod, EndTimeslicePeriod, 
+make_producer_init(Houses, WorkLoad, EndTimesliceNode, MeasurementHeartbeatPeriod, EndTimeslicePeriod, 
 		   EndTimesliceHeartbeatPeriod, BeginTime, EndTime, RateMult) ->
     HousesProducerInit =
 	lists:flatmap(
 	  fun(House) ->
-		  make_house_producer_init(House, MeasurementHeartbeatPeriod, 
+		  make_house_producer_init(House, WorkLoad, MeasurementHeartbeatPeriod, 
 					   BeginTime, EndTime, RateMult)
 	  end, Houses),
     TimesliceStream = 
@@ -389,17 +355,17 @@ make_producer_init(Houses, EndTimesliceNode, MeasurementHeartbeatPeriod, EndTime
 	{TimesliceStream, {end_timeslice, EndTimesliceNode}, RateMult},
     [TimesliceInit|HousesProducerInit].
 
--spec make_house_producer_init({house_id(), node()}, integer(), integer(), integer(), integer()) 
+-spec make_house_producer_init({house_id(), node()}, ['work' | 'load'], integer(), 
+			       integer(), integer(), integer()) 
 			      -> [{msg_generator_init(), {measurement_tag(), node()}, integer()}].	 
-make_house_producer_init({HouseId, Node}, MeasurementHeartbeatPeriod, BeginTime, EndTime, RateMult) ->
-    WorkGenInit = 
-	{fun ?MODULE:make_house_generator/6, 
-	 [HouseId, work, Node, 100, BeginTime, EndTime]},
-    LoadGenInit = 
-	{fun ?MODULE:make_house_generator/6, 
-	 [HouseId, work, Node, 100, BeginTime, EndTime]},
-    [{WorkGenInit, {{house, HouseId, work}, Node}, RateMult},
-     {LoadGenInit, {{house, HouseId, load}, Node}, RateMult}].
+make_house_producer_init({HouseId, Node}, WorkLoad, MeasurementHeartbeatPeriod, BeginTime, EndTime, RateMult) ->
+    lists:map(
+      fun(WorkOrLoad) ->
+	      GenInit =
+		  {fun ?MODULE:make_house_generator/6, 
+		   [HouseId, WorkOrLoad, Node, MeasurementHeartbeatPeriod, BeginTime, EndTime]},
+	      {GenInit, {{house, HouseId, WorkOrLoad}, Node}, RateMult}
+      end, WorkLoad).
 
 
 
@@ -407,10 +373,10 @@ make_house_producer_init({HouseId, Node}, MeasurementHeartbeatPeriod, BeginTime,
 make_end_timeslice_stream(Node, From, To, Step, HeartbeatPeriod) ->
     Timeslices 
 	= [{{end_timeslice, T}, Node, T} 
-	   || T <- lists:seq(From, To, Step)]
-	++ [{heartbeat, {{end_timeslice, Node}, To + 1}}],
+	   || T <- lists:seq(From, To, Step)],
+	%% ++ [{heartbeat, {{end_timeslice, Node}, To + 1}}],
     TimeslicesWithHeartbeats = 
-	producer:interleave_heartbeats(Timeslices, {{end_timeslice, Node}, HeartbeatPeriod}, To + 2),
+    	producer:interleave_heartbeats(Timeslices, {{end_timeslice, Node}, HeartbeatPeriod}, From, To + 2),
     producer:list_generator(TimeslicesWithHeartbeats).
 
 
