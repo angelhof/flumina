@@ -128,13 +128,18 @@ get_average({Sum,Count}) ->
 
 -spec update_load_summary(past_load_summary(), integer(), time_of_day()) -> past_load_summary().
 update_load_summary({Totals, TotalsByTimeOfDay}, NewVal, TimeOfDay) ->
+    % %%% DEBUG
+    % {_, _} = Totals,
+    % %%% END DEBUG
     NewTotals = update_totals(Totals, NewVal),
     NewTotalsByTimeOfDay = 
         maps:update_with(
           TimeOfDay,
           fun (T) ->
+                  % {sink, node()} ! ['DEBUG0', 'totals', T, 'value', NewVal],
                   update_totals(T, NewVal)
           end,
+          % ({sink, node()} ! ['DEBUG1', new_totals(), NewVal],
           update_totals(new_totals(), NewVal),
           TotalsByTimeOfDay),
     {NewTotals, NewTotalsByTimeOfDay}.
@@ -148,16 +153,20 @@ reset_load_summary({Totals, TotalsByTimeOfDay}) ->
     {new_totals(), TotalsByTimeOfDay}.
 
 -spec add_load_summaries(past_load_summary(), past_load_summary()) -> past_load_summary().
-add_load_summaries({Totals1, Map1}, {Totals2, Map2}) ->
+add_load_summaries({Totals1, Map1}, {Totals2, Map2}) ->    
+    % {sink, node()} ! ['DEBUG add_load_summaries', {Totals1, Map1}, {Totals2, Map2}],
     NewTotals = add_totals(Totals1, Totals2),
     Keys = maps:keys(maps:merge(Map1, Map2)),
+    % {sink, node()} ! ['DEBUG6', Map1, Map2, maps:merge(Map1, Map2), Keys],
     NewMap = maps:from_list(lists:map(
         fun (Key) ->
-            add_totals(maps:get(Key, Map1, new_totals()),
-                       maps:get(Key, Map2, new_totals()))
+            Val = add_totals(maps:get(Key, Map1, new_totals()),
+                             maps:get(Key, Map2, new_totals())),
+            {Key, Val}
         end,
         Keys
     )),
+    % {sink, node()} ! ['DEBUG add_load_summaries Result:', {NewTotals, NewMap}],
     {NewTotals, NewMap}.
 
 -spec get_ls_averages(past_load_summary(), time_of_day()) -> [float()].
@@ -171,8 +180,10 @@ update_load_summary_map(LoadSummaryMap, Key, NewVal, TimeOfDay) ->
     maps:update_with(
       Key,
       fun (LoadSummary) ->
+              % {sink, node()} ! ['DEBUG2', Key, LoadSummary, NewVal, TimeOfDay],
               update_load_summary(LoadSummary, NewVal, TimeOfDay)
       end,
+      % ({sink, node()} ! ['DEBUG3', new_load_summary(), NewVal, TimeOfDay],
       update_load_summary(new_load_summary(), NewVal, TimeOfDay),
       LoadSummaryMap).
 
@@ -291,6 +302,7 @@ fork(SplitPreds, State) ->
 
 -spec join(state(), state()) -> state().
 join(State1, State2) ->
+    % {sink, node()} ! ['DEBUG: Joining States', State1, State2],
     {TimeOverall, TimeOfDay, All1} = State1,
     {_TimeOverall, _TimeOfDay, All2} = State2,
     {Global1, ByHouse1, ByHousehold1, ByPlug1} = All1,
@@ -302,6 +314,7 @@ join(State1, State2) ->
     ByPlug = maps:merge(ByPlug1, ByPlug2),
 
     All = {Global, ByHouse, ByHousehold, ByPlug},
+    % {sink, node()} ! ['Join Result:', {TimeOverall, TimeOfDay, All}],
     {TimeOverall, TimeOfDay, All}.
 
 %% ============================
@@ -386,7 +399,7 @@ sequential_conf(SinkPid) ->
         conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, 
-                                 [{optimizer, optimizer_greedy}]),
+                                 [{optimizer, optimizer_sequential}]),
 
     %% Prepare the producers input
     Houses = [{0, node()}, {1, node()}],
@@ -449,7 +462,7 @@ make_end_timeslice_stream(Node, From, To, Step, HeartbeatPeriod) ->
 %% Makes a generator for that house, and adds heartbeats
 -spec make_house_generator(integer(), atom(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
 make_house_generator(HouseId, WorkLoad, NodeName, Period, From, Until) ->
-    Filename = io_lib:format("sample_debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),         
+    Filename = io_lib:format("data/sample_debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),         
     %% producer:file_generator(Filename, fun parse_house_csv_line/1).
     producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
                                             {{{{house, WorkLoad},HouseId}, NodeName}, Period}, From, Until).

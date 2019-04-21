@@ -178,10 +178,10 @@ split_map_rec(MyIter, Map1SoFar, Map2SoFar, PartitionFun) ->
 		{Key, Value, NextIter} ->
 			case (PartitionFun(Key)) of
 				true ->
-					NewMap1 = maps:update(Key, Value, Map1SoFar),
+					NewMap1 = maps:put(Key, Value, Map1SoFar),
 					split_map_rec(NextIter, NewMap1, Map2SoFar, PartitionFun);
 				false ->
-					NewMap2 = maps:update(Key, Value, Map2SoFar),
+					NewMap2 = maps:put(Key, Value, Map2SoFar),
 					split_map_rec(NextIter, Map1SoFar, NewMap2, PartitionFun)
 			end
 	end.
