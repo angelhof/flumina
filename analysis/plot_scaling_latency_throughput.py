@@ -18,7 +18,7 @@ def plot_scaleup_node_rate(dirname, prefix, rate_multiplier, ratio_ab, heartbeat
     
     output_name = '%s_rate-%d_ab-%d_heart-%d_%s' % (prefix, rate_multiplier,
                                                     ratio_ab, heartbeat_rate, optimizer)
-    common_plot_scaleup(dirname, dirnames, a_nodes_numbers, 'number of nodes', output_name)
+    common_plot_scaleup(dirname, dirnames, a_nodes_numbers, 'Number of nodes', output_name)
 
 def plot_scaleup_rate(dirname, prefix, rate_multipliers, ratio_ab, heartbeat_rate, a_nodes_number, optimizer):
 
@@ -27,7 +27,7 @@ def plot_scaleup_rate(dirname, prefix, rate_multipliers, ratio_ab, heartbeat_rat
 
     output_name = '%s_ab-%d_heart-%d_as-%d_%s' % (prefix, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
     
-    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'rate multiplier', output_name)
+    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', output_name)
 
     
 def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
@@ -70,7 +70,7 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     # ax1.plot(inds, ninety_latencies, '-o', label='90th percentile latency', color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     # ax1.set_ylim(top=max(ninety_latencies) * 1.1)
-    # ax1.set_ylim(top=50)
+    # ax1.set_ylim(top=200)
     # ax1.set_yscale("log")
     ax1.set_ylim(bottom=0)
     
@@ -78,7 +78,7 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     ## Plot all throughputs
     ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
     color = 'tab:blue'
-    ax2.set_ylabel('throughput (#msgs/ms', color=color)  # we already handled the x-label with ax1
+    ax2.set_ylabel('throughput (#messages/ms)', color=color)  # we already handled the x-label with ax1
     ## Errorbar alternative
     ax2.errorbar(inds, avg_throughputs, [ten_throughputs_diff, ninety_throughputs_diff],
                  linestyle='-', marker='o', label='mean throughput', color=color)
@@ -92,7 +92,8 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     # plt.legend(loc='best')
     plt.xticks(inds, xticks)
-    plt.title('Median, 10th, 90th, percentile Latency and Throughput')
+    plt.title('Latency and Throughput (Median, 10th, and 90th percentile) ')
+    plt.tight_layout()
     plt.savefig(os.path.join('plots', output_name + ".png"))
     plt.show()
     

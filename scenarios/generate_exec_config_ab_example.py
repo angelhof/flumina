@@ -131,7 +131,11 @@ rate_multipliers = [15]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [2, 5, 10, 20, 30]
-a_nodes_numbers = range(2, 40, 2)
+## Note:
+## Ideally we want to plot up to 38 (for rate multiplier 15), but I cannot get the server to behave and give us
+## steady results for those, so I will give results up to 32
+# a_nodes_numbers = range(2, 40, 2)
+a_nodes_numbers = range(2, 33, 2)
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
