@@ -257,7 +257,7 @@ update({{{house, load}, HouseID}, Payload}, State, SinkPid) ->
 
     %% Note: to debug you have to send the messages to the sink
     %% because the stdout of the workers is not shown on the shell
-    %% SinkPid ! {message_load, Payload},
+    SinkPid ! {message_load, Payload},
 
     %% New State
     {TimeOverall, TimeOfDay, 
@@ -399,7 +399,7 @@ sequential_conf(SinkPid) ->
         conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, 
-                                 [{optimizer, optimizer_sequential}]),
+                                 [{optimizer, optimizer_greedy}]),
 
     %% Prepare the producers input
     Houses = [{0, node()}, {1, node()}],
@@ -426,9 +426,11 @@ make_producer_init(Houses, WorkLoad, EndTimesliceNode, MeasurementHeartbeatPerio
                   make_house_producer_init(House, WorkLoad, MeasurementHeartbeatPeriod, 
                                            BeginTime, EndTime, RateMult)
           end, Houses),
+    %% NOTE: Offset the timeslice messages to be strictly larger or
+    %%       smaller than house messages.
     TimesliceStream = 
         {fun ?MODULE:make_end_timeslice_stream/5, 
-         [EndTimesliceNode, BeginTime, EndTime, 
+         [EndTimesliceNode, BeginTime + 500, EndTime + 500, 
           EndTimeslicePeriod, EndTimesliceHeartbeatPeriod]},
     TimesliceInit = 
         {TimesliceStream, {end_timeslice, EndTimesliceNode}, RateMult},
