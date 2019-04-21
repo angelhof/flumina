@@ -92,11 +92,14 @@ def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_num
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
 # rate_multipliers = [5, 10, 20, 40, 50]
-rate_multipliers = range(2, 50, 2)
+# rate_multipliers = range(2, 50, 2)
+# rate_multipliers = range(10, 50, 2)
+rate_multipliers = range(10, 35, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [4]
-a_nodes_numbers = [8]
+# a_nodes_numbers = [8]
+a_nodes_numbers = [18]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)

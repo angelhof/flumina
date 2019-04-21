@@ -45,8 +45,8 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     ten_latencies_diff = [ l - ml for l, ml in zip(avg_latencies, ten_latencies)]
     ninety_latencies_diff = [ ml - l for l, ml in zip(avg_latencies, ninety_latencies)]
     
-    # avg_throughputs = [np.mean(ths) for ts, ths in throughputs]
-    avg_throughputs = [np.percentile(ths, 50) for ts, ths in throughputs]
+    avg_throughputs = [np.mean(ths) for ts, ths in throughputs]
+    # avg_throughputs = [np.percentile(ths, 50) for ts, ths in throughputs]
     ten_throughputs = [np.percentile(ths, 10) for ts, ths in throughputs]
     ninety_throughputs = [np.percentile(ths, 90) for ts, ths in throughputs]
     ten_throughputs_diff = [ l - ml for l, ml in zip(avg_throughputs, ten_throughputs)]
@@ -63,14 +63,15 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     ax1.set_ylabel('latency (ms)', color=color)
     ## Errorbar alternative
     ax1.errorbar(inds, avg_latencies, [ten_latencies_diff, ninety_latencies_diff],
-                 linestyle='-', marker='o', label='mean latency', color=color)
+                 linestyle='-', marker='o', label='mean latency', color=color,
+                 capthick=1, capsize=4)
     ## All plots alternative
     # ax1.plot(inds, avg_latencies, '-o', label='mean latency', color=color)
     # ax1.plot(inds, ten_latencies, '-o', label='10th percentile latency', color=color)
     # ax1.plot(inds, ninety_latencies, '-o', label='90th percentile latency', color=color)
     ax1.tick_params(axis='y', labelcolor=color)
     # ax1.set_ylim(top=max(ninety_latencies) * 1.1)
-    # ax1.set_ylim(top=200)
+    # ax1.set_ylim(top=100)
     # ax1.set_yscale("log")
     ax1.set_ylim(bottom=0)
     
@@ -80,10 +81,10 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     color = 'tab:blue'
     ax2.set_ylabel('throughput (#messages/ms)', color=color)  # we already handled the x-label with ax1
     ## Errorbar alternative
-    ax2.errorbar(inds, avg_throughputs, [ten_throughputs_diff, ninety_throughputs_diff],
-                 linestyle='-', marker='o', label='mean throughput', color=color)
+    # ax2.errorbar(inds, avg_throughputs, [ten_throughputs_diff, ninety_throughputs_diff],
+    #              linestyle='-', marker='o', label='mean throughput', color=color)
     ## All plots alternative
-    # ax2.plot(inds, avg_throughputs, '-o', label='mean throughput', color=color)
+    ax2.plot(inds, avg_throughputs, '-o', label='mean throughput', color=color)
     # ax2.plot(inds, ten_throughputs, '-o', label='10th percentile throughput', color=color)
     # ax2.plot(inds, ninety_throughputs, '-o', label='90th percentile throughput', color=color)
     ax2.tick_params(axis='y', labelcolor=color)
@@ -92,7 +93,7 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name):
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     # plt.legend(loc='best')
     plt.xticks(inds, xticks)
-    plt.title('Latency and Throughput (Median, 10th, and 90th percentile) ')
+    plt.title('Mean Throughput and Median Latency (10th - 90th percentile) ')
     plt.tight_layout()
     plt.savefig(os.path.join('plots', output_name + ".png"))
     plt.show()
