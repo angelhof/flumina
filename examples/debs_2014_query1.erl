@@ -96,9 +96,10 @@ dependencies(NumHouseIDs) ->
 
 -define(INITIAL_TIME,0). % We hope the initial time will be overridden
 
--spec init_state(time_of_day()) -> state().
+-spec init_state(time_overall()) -> state().
 init_state(InitialTime) ->
-    {InitialTime, InitialTime, 
+    {InitialTime,
+     get_time_of_day(InitialTime),
      {new_load_summary(),
       maps:new(),
       maps:new(),
@@ -247,7 +248,7 @@ update({{{house, load}, HouseID}, Payload}, State, SinkPid) ->
 
     %% Note: to debug you have to send the messages to the sink
     %% because the stdout of the workers is not shown on the shell
-    SinkPid ! {message_load, Payload},
+    % SinkPid ! {message_load, Payload},
 
     %% New State
     {TimeOverall, TimeOfDay, 
@@ -288,9 +289,9 @@ fork(SplitPreds, State) ->
 
     All1 = {Global1, ByHouse1, ByHousehold1, ByPlug1},
     All2 = {Global2, ByHouse2, ByHousehold2, ByPlug2},
-    {sink, node()} ! ['DEBUG:   Split State', LS_Global, LS_ByHouse],
-    {sink, node()} ! ['DEBUG: Split Result1', Global1, ByHouse1],
-    {sink, node()} ! ['DEBUG: Split Result2', Global2, ByHouse2],
+    % {sink, node()} ! ['DEBUG:   Split State', LS_Global, LS_ByHouse],
+    % {sink, node()} ! ['DEBUG: Split Result1', Global1, ByHouse1],
+    % {sink, node()} ! ['DEBUG: Split Result2', Global2, ByHouse2],
     {{TimeOverall, TimeOfDay, All1}, {TimeOverall, TimeOfDay, All2}}.
 
 -spec join(state(), state()) -> state().
@@ -306,9 +307,9 @@ join(State1, State2) ->
     ByPlug = maps:merge(ByPlug1, ByPlug2),
 
     All = {Global, ByHouse, ByHousehold, ByPlug},
-    {sink, node()} ! ['DEBUG: Join State1', Global1, ByHouse1],
-    {sink, node()} ! ['DEBUG: Join State2', Global2, ByHouse2],
-    {sink, node()} ! ['DEBUG: Join Result', Global, ByHouse],
+    % {sink, node()} ! ['DEBUG: Join State1', Global1, ByHouse1],
+    % {sink, node()} ! ['DEBUG: Join State2', Global2, ByHouse2],
+    % {sink, node()} ! ['DEBUG: Join Result', Global, ByHouse],
     {TimeOverall, TimeOfDay, All}.
 
 %% ============================
@@ -393,7 +394,7 @@ sequential_conf(SinkPid) ->
         conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, 
-                                 [{optimizer, optimizer_greedy}]),
+                                 [{optimizer, optimizer_sequential}]),
 
     %% Prepare the producers input
     Houses = [{0, node()}, {1, node()}],

@@ -148,11 +148,7 @@ do_n_times(N, Init, Fun) when N > 0 ->
 %%% Integer Division etc.
 
 intfloor(X) when X < 0 ->
-    T = trunc(X),
-    case X - T == 0 of
-        true -> T;
-        false -> T - 1
-    end;
+    (-1) * trunc((-1) * X);
 intfloor(X) -> 
     trunc(X) .
 
@@ -160,7 +156,7 @@ intdiv(A, B) ->
     intfloor(A / B).
 
 intmod(X,Y) when X > 0 -> X rem Y;
-intmod(X,Y) when X < 0 -> Y + X rem Y;
+intmod(X,Y) when X < 0 -> Y + (X rem Y);
 intmod(0,Y) -> 0.
 
 %%% Map util
