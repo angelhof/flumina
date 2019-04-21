@@ -87,12 +87,15 @@ dependencies(NumHouseIDs) ->
                               }.
 
 %% The state will also include WEIGHTS for a linear model for load prediction.
+% These include 4 House weights and 8 plug weights.
 -type weights() :: [float()].
+-type all_weights() :: {weights(), weights()}.
 
 %% Complete state includes load summaries overall, for each house, for each household, and for each plug. We also include the time overall and the time of day for each plug.
 -type state() :: {time_overall(),
 				  time_of_day(),
-				  all_load_summaries()
+				  all_load_summaries(),
+                  all_weights()
                  }.
 
 %% ========== Sequential Specification ==========
@@ -107,6 +110,9 @@ init_state(InitialTime) ->
       maps:new(),
       maps:new(),
       maps:new()
+     },
+     {lists:duplicate(4, 1 / 4), % 4 equal weights to predict house load
+      lists:duplicate(8, 1 / 8)  % 8 equal weights to predict plug load
      }}.
 
 %% To update the state we need some helper functions: to update totals, and to update a complete load summary. Also to update a map of load summaries.
@@ -216,16 +222,36 @@ predict_house_load(AllLoadSummaries, Weights, NewTimeOfDay, HouseID) ->
     {LS_Global, LS_ByHouse, _LS_ByHousehold, _LS_ByPlug} = AllLoadSummaries,
     LS_House = maps:get(HouseID,LS_ByHouse,new_load_summary()),
 
-    %% 8 averages total. Sum product with the weights for a prediction
+    %% 4 averages total. Sum product with the weights for a prediction
     Avgs = get_ls_averages(LS_Global, NewTimeOfDay)
            ++ get_ls_averages(LS_House, NewTimeOfDay),
 
     Prediction = lists:sum(lists:zipwith(fun (X, Y) -> X * Y end, Avgs, Weights)),
     Prediction.
 
-% TODO: Write this.
--spec output_predictions(all_load_summaries(),time_of_day(),pid()) -> ok.
-output_predictions(AllLoadSummaries,NewTimeOfDay,SinkPID) ->
+-spec output_predictions(all_load_summaries(), all_weights(), time_of_day(), pid()) -> ok.
+output_predictions(AllLoadSummaries, AllWeights, NewTimeOfDay, SinkPID) ->
+    {_LS_Global, LS_ByHouse, _LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
+    {HouseWeights, PlugWeights} = AllWeights,
+    Houses = maps:keys(LS_ByHouse),
+    HouseHouseholdPlugs = maps:keys(LS_ByPlug),
+
+    %% Output the predicted load for each house
+    lists:foreach(
+        fun (House) ->
+            SinkPID ! {'house prediction', House,
+                       predict_house_load(AllLoadSummaries, HouseWeights,
+                                          NewTimeOfDay, House)}
+        end, Houses),
+    %% Output the predicted load for each plug
+    lists:foreach(
+        fun ({House, Household, Plug}) ->
+            SinkPID ! {'    plug prediction', Plug,
+                       predict_plug_load(AllLoadSummaries, PlugWeights,
+                                          NewTimeOfDay,
+                                          {House, Household, Plug})}
+        end, HouseHouseholdPlugs),
+
     ok.
 
 %% Convert a time to a time of day
@@ -246,7 +272,7 @@ update({{{house, work}, _HouseId}, _Payload}, State, _SinkPid) ->
     State;
 update({{{house, load}, HouseID}, Payload}, State, _SinkPid) ->
     {HouseholdID, PlugID, _MeasID, _MeasTS, MeasVal} = Payload,
-    {TimeOverall, TimeOfDay, AllLoadSummaries} = State,
+    {TimeOverall, TimeOfDay, AllLoadSummaries, AllWeights} = State,
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
 
     %% Note: to debug you have to send the messages to the sink
@@ -254,26 +280,33 @@ update({{{house, load}, HouseID}, Payload}, State, _SinkPid) ->
     % {sink, node()} ! {message_load, Payload},
 
     %% New State
-    {TimeOverall, TimeOfDay, 
+    {TimeOverall, TimeOfDay,
      {update_load_summary(LS_Global, MeasVal, TimeOfDay),
       update_load_summary_map(LS_ByHouse, HouseID, MeasVal, TimeOfDay),
       update_load_summary_map(LS_ByHousehold, {HouseID, HouseholdID}, MeasVal, TimeOfDay),
       update_load_summary_map(LS_ByPlug, {HouseID, HouseholdID, PlugID}, MeasVal, TimeOfDay)
-     }};
-update({'end_timeslice', TimeValue}, {_TimeOverall, _TimeOfDay, AllLoadSummaries}, SinkPid) ->
-    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} =
-        AllLoadSummaries,
+     }, AllWeights};
+update({'end_timeslice', TimeValue}, State, SinkPid) ->
+    {_TimeOverall, _TimeOfDay, AllLoadSummaries, AllWeights} = State,
+    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
 
-    SinkPid ! {TimeValue, get_time_of_day(TimeValue), LS_Global, LS_ByHouse, LS_ByHousehold},
+    %% New Timeslice
+    NewTimeOfDay = get_time_of_day(TimeValue),
 
-    {TimeValue,
-     get_time_of_day(TimeValue),
-     {reset_load_summary(LS_Global),
-      reset_load_summary_map(LS_ByHouse),
-      reset_load_summary_map(LS_ByHousehold),
-      reset_load_summary_map(LS_ByPlug)
-     }
-    }.
+    %% Output: the load prediction for each house and each plug
+    output_predictions(AllLoadSummaries, AllWeights, NewTimeOfDay, SinkPid),
+
+    %% Output the state (comment out if desired)
+    % SinkPid ! {TimeValue, get_time_of_day(TimeValue), LS_Global, LS_ByHouse, LS_ByHousehold},
+
+    %% New State
+    NewGlobal      = reset_load_summary(LS_Global),
+    NewByHouse     = reset_load_summary_map(LS_ByHouse),
+    NewByHousehold = reset_load_summary_map(LS_ByHousehold),
+    NewByPlug      = reset_load_summary_map(LS_ByPlug),
+    {TimeValue, NewTimeOfDay,
+     {NewGlobal, NewByHouse, NewByHousehold, NewByPlug},
+     AllWeights}.
 
 %% ========== Parallelization Primitives ==========
 
@@ -281,10 +314,11 @@ update({'end_timeslice', TimeValue}, {_TimeOverall, _TimeOfDay, AllLoadSummaries
 
 -spec fork(split_preds(), state()) -> {state(), state()}.
 fork(SplitPreds, State) ->
-    {TimeOverall, TimeOfDay, AllLoadSummaries} = State,
+    {TimeOverall, TimeOfDay, AllLoadSummaries, AllWeights} = State,
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
     {Pred1, _Pred2} = SplitPreds,
 
+    %% Split the load summaries
     {Global1, Global2} = {LS_Global, new_load_summary()},
     {ByHouse1, ByHouse2} =
         util:split_map(
@@ -307,28 +341,37 @@ fork(SplitPreds, State) ->
 
     All1 = {Global1, ByHouse1, ByHousehold1, ByPlug1},
     All2 = {Global2, ByHouse2, ByHousehold2, ByPlug2},
+
+    %% Split the weights -- set the second to nothing (it's unused)
+    Weights1 = AllWeights,
+    Weights2 = {[], []},
+
     % {sink, node()} ! ['DEBUG:   Fork State', LS_Global, LS_ByHouse],
     % {sink, node()} ! ['DEBUG: Fork Result1', Global1, ByHouse1],
     % {sink, node()} ! ['DEBUG: Fork Result2', Global2, ByHouse2],
-    {{TimeOverall, TimeOfDay, All1}, {TimeOverall, TimeOfDay, All2}}.
+    {{TimeOverall, TimeOfDay, All1, Weights1},
+     {TimeOverall, TimeOfDay, All2, Weights2}}.
 
 -spec join(state(), state()) -> state().
 join(State1, State2) ->
-    {TimeOverall, TimeOfDay, All1} = State1,
-    {_TimeOverall, _TimeOfDay, All2} = State2,
+    {TimeOverall, TimeOfDay, All1, Weights1} = State1,
+    {_TimeOverall, _TimeOfDay, All2, _Weights2} = State2,
     {Global1, ByHouse1, ByHousehold1, ByPlug1} = All1,
     {Global2, ByHouse2, ByHousehold2, ByPlug2} = All2,
 
-    Global = add_load_summaries(Global1, Global2),
-    ByHouse = maps:merge(ByHouse1, ByHouse2),
+    Global      = add_load_summaries(Global1, Global2),
+    ByHouse     = maps:merge(ByHouse1, ByHouse2),
     ByHousehold = maps:merge(ByHousehold1, ByHousehold2),
-    ByPlug = maps:merge(ByPlug1, ByPlug2),
+    ByPlug      = maps:merge(ByPlug1, ByPlug2),
+
+    %% Join the weights -- use the first and ignore the second
+    Weights = Weights1,
 
     All = {Global, ByHouse, ByHousehold, ByPlug},
     % {sink, node()} ! ['DEBUG: Join State1', Global1, ByHouse1],
     % {sink, node()} ! ['DEBUG: Join State2', Global2, ByHouse2],
     % {sink, node()} ! ['DEBUG: Join Result', Global, ByHouse],
-    {TimeOverall, TimeOfDay, All}.
+    {TimeOverall, TimeOfDay, All, Weights}.
 
 %% ============================
 %% ===== Experiment Setup =====
