@@ -1,10 +1,13 @@
 -module(debs_2014_query1).
 
 -export([main/0,
-         sequential/0,
-         distributed/0,
-         sequential_conf/1,
-         distributed_conf/1,
+         experiment_sequential/0,
+         experiment_greedy/0,
+         setup_experiment/1,
+         run_experiment/2,
+
+         experiment_distributed/0,
+         run_experiment_distributed/2,
          
          make_house_generator/6,
          make_end_timeslice_stream/5
@@ -14,7 +17,7 @@
 -include("type_definitions.hrl").
 
 main() ->
-    sequential().
+    experiment_sequential().
 
 %% =====================================
 %% ===== Computation Specification =====
@@ -38,10 +41,10 @@ main() ->
 -type end_timeslice() :: 'end-timeslice'.
 
 % Finally, the input event tags and input events:
--type event_tag() :: measurement_tag() | end_timeslice().
+% -type event_tag() :: measurement_tag() | end_timeslice().
+-type measurement_message() :: message(measurement_tag(), measurement_payload()).
 -type end_timeslice_message() :: message(end_timeslice(), time_overall()).
--type event() :: message(measurement_tag(), measurement_payload())
-                | end_timeslice_message().
+-type event() :: measurement_message() | end_timeslice_message().
 
 %% ========== Tag Dependencies ==========
 
@@ -122,7 +125,7 @@ add_totals({Sum1, Count1}, {Sum2, Count2}) ->
     {Sum1 + Sum2, Count1 + Count2}.
 
 -spec get_average(totals()) -> float().
-get_average({Sum,0}) ->
+get_average({_Sum,0}) ->
     0.0; % Default
 get_average({Sum,Count}) ->
     Sum / Count.
@@ -145,7 +148,7 @@ new_load_summary() ->
     {new_totals(), maps:new()}.
 
 -spec reset_load_summary(past_load_summary()) -> past_load_summary().
-reset_load_summary({Totals, TotalsByTimeOfDay}) ->
+reset_load_summary({_Totals, TotalsByTimeOfDay}) ->
     {new_totals(), TotalsByTimeOfDay}.
 
 -spec add_load_summaries(past_load_summary(), past_load_summary()) -> past_load_summary().
@@ -210,7 +213,7 @@ predict_plug_load(AllLoadSummaries, Weights, NewTimeOfDay, IDs) ->
 
 -spec predict_house_load(all_load_summaries(), weights(), time_of_day(), house_id()) -> float().
 predict_house_load(AllLoadSummaries, Weights, NewTimeOfDay, HouseID) ->
-    {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
+    {LS_Global, LS_ByHouse, _LS_ByHousehold, _LS_ByPlug} = AllLoadSummaries,
     LS_House = maps:get(HouseID,LS_ByHouse,new_load_summary()),
 
     %% 8 averages total. Sum product with the weights for a prediction
@@ -241,14 +244,14 @@ get_time_of_day(TimeOverall) ->
 -spec update(event(), state(), pid()) -> state().
 update({{{house, work}, _HouseId}, _Payload}, State, _SinkPid) ->
     State;
-update({{{house, load}, HouseID}, Payload}, State, SinkPid) ->
+update({{{house, load}, HouseID}, Payload}, State, _SinkPid) ->
     {HouseholdID, PlugID, _MeasID, _MeasTS, MeasVal} = Payload,
     {TimeOverall, TimeOfDay, AllLoadSummaries} = State,
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
 
     %% Note: to debug you have to send the messages to the sink
     %% because the stdout of the workers is not shown on the shell
-    % SinkPid ! {message_load, Payload},
+    % {sink, node()} ! {message_load, Payload},
 
     %% New State
     {TimeOverall, TimeOfDay, 
@@ -257,7 +260,7 @@ update({{{house, load}, HouseID}, Payload}, State, SinkPid) ->
       update_load_summary_map(LS_ByHousehold, {HouseID, HouseholdID}, MeasVal, TimeOfDay),
       update_load_summary_map(LS_ByPlug, {HouseID, HouseholdID, PlugID}, MeasVal, TimeOfDay)
      }};
-update({'end_timeslice', TimeValue}, {TimeOverall, TimeOfDay, AllLoadSummaries}, SinkPid) ->
+update({'end_timeslice', TimeValue}, {_TimeOverall, _TimeOfDay, AllLoadSummaries}, SinkPid) ->
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} =
         AllLoadSummaries,
 
@@ -282,16 +285,31 @@ fork(SplitPreds, State) ->
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
     {Pred1, _Pred2} = SplitPreds,
 
-    {Global1, Global2}           = {LS_Global, new_load_summary()},
-    {ByHouse1, ByHouse2}         = util:split_map(LS_ByHouse, Pred1),
-    {ByHousehold1, ByHousehold2} = util:split_map(LS_ByHousehold, Pred1),
-    {ByPlug1, ByPlug2}           = util:split_map(LS_ByPlug, Pred1),
+    {Global1, Global2} = {LS_Global, new_load_summary()},
+    {ByHouse1, ByHouse2} =
+        util:split_map(
+            LS_ByHouse,
+            fun (HouseID) ->
+                Pred1({{house, load}, HouseID})
+            end),
+    {ByHousehold1, ByHousehold2} =
+        util:split_map(
+            LS_ByHousehold,
+            fun ({HouseID, _HouseholdID}) ->
+                Pred1({{house, load}, HouseID})
+            end),
+    {ByPlug1, ByPlug2} =
+        util:split_map(
+            LS_ByPlug,
+            fun ({HouseID, _HouseholdID, _PlugID}) ->
+                Pred1({{house, load}, HouseID})
+            end),
 
     All1 = {Global1, ByHouse1, ByHousehold1, ByPlug1},
     All2 = {Global2, ByHouse2, ByHousehold2, ByPlug2},
-    % {sink, node()} ! ['DEBUG:   Split State', LS_Global, LS_ByHouse],
-    % {sink, node()} ! ['DEBUG: Split Result1', Global1, ByHouse1],
-    % {sink, node()} ! ['DEBUG: Split Result2', Global2, ByHouse2],
+    % {sink, node()} ! ['DEBUG:   Fork State', LS_Global, LS_ByHouse],
+    % {sink, node()} ! ['DEBUG: Fork Result1', Global1, ByHouse1],
+    % {sink, node()} ! ['DEBUG: Fork Result2', Global2, ByHouse2],
     {{TimeOverall, TimeOfDay, All1}, {TimeOverall, TimeOfDay, All2}}.
 
 -spec join(state(), state()) -> state().
@@ -322,13 +340,13 @@ join(State1, State2) ->
 %% is correct. Normally we would typecheck the specification of
 %% the computation but for now we can assume that it is correct.
 
-distributed() ->
+experiment_distributed() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, distributed_conf, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, run_experiment_distributed, [SinkName, optimizer_greedy]),
     util:sink().
 
-distributed_conf(SinkPid) ->
+run_experiment_distributed(SinkPid, _Optimizer) ->
     %% Architecture
     %% Rates = [{node(), minute, 10},
     %%       {node(), {a,1}, 1000},
@@ -350,20 +368,26 @@ distributed_conf(SinkPid) ->
     %% Specification = 
     %%  conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    %% ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_greedy}]),
+    %% ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, Optimizer}]),
 
     %% %% Set up where will the input arrive
     %% create_producers(fun minute_markers_input/0, minute, ConfTree, Topology),
 
     SinkPid ! finished.
 
-sequential() ->
+experiment_sequential() ->
+    setup_experiment(optimizer_sequential).
+
+experiment_greedy() ->
+    setup_experiment(optimizer_greedy).
+
+setup_experiment(Optimizer) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, sequential_conf, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, run_experiment, [SinkName, Optimizer]),
     util:sink().
 
-sequential_conf(SinkPid) ->
+run_experiment(SinkPid, Optimizer) ->
     %% TODO: Make this parameterizable
     Tags = 
         [end_timeslice,
@@ -394,7 +418,7 @@ sequential_conf(SinkPid) ->
         conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, 
-                                 [{optimizer, optimizer_sequential}]),
+                                 [{optimizer, Optimizer}]),
 
     %% Prepare the producers input
     Houses = [{0, node()}, {1, node()}],
@@ -407,8 +431,6 @@ sequential_conf(SinkPid) ->
 
     SinkPid ! finished.
 
-
--type impl_event() :: impl_message(measurement_tag(), measurement_payload()).
 
 -spec make_producer_init([{house_id(), node()}], ['work' | 'load'], node(), integer(), 
                          integer(), integer(), integer(), integer(), integer()) 
@@ -465,7 +487,7 @@ make_house_generator(HouseId, WorkLoad, NodeName, Period, From, Until) ->
                                             {{{{house, WorkLoad},HouseId}, NodeName}, Period}, From, Until).
     
 %% NOTE: This adjusts the timestamps to be ms instead of seconds
--spec parse_house_csv_line(string()) -> impl_event(). %% TODO: Why does this fail?
+-spec parse_house_csv_line(string()) -> impl_message(measurement_tag(), measurement_payload()).
 parse_house_csv_line(Line) ->
     TrimmedLine = string:trim(Line),
     [SId, STs, SValue, SProp, SPlug, SHousehold, SHouse] = 
