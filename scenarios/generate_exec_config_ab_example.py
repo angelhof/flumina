@@ -6,7 +6,7 @@ import shutil
 ## TODO: Find a better way to import other python files
 sys.path.append(os.path.relpath("./scripts"))
 sys.path.append(os.path.relpath("./analysis"))
-from lib import copy_logs_from_to
+from lib import copy_logs_from_to, move_ns3_logs
 from plot_scaling_latency_throughput import plot_scaleup_rate, plot_scaleup_node_rate
 
 
@@ -40,11 +40,35 @@ from plot_scaling_latency_throughput import plot_scaleup_rate, plot_scaleup_node
 ## a implementation tag, and that is 1000000 messages. The rate multiplier
 ## 1 corresponds to 1 message per millisecond.
 
+class NS3Conf:
+    def __init__(self, total_time="60", data_rate="100Mbps", delay="2ms", tracing=False):
+        self.total_time = total_time
+        self.data_rate = data_rate
+        self.delay = delay
+        self.tracing = tracing
+
+    def generate_args(self, file_prefix):
+        args = ("--TotalTime={} "
+                "--ns3::CsmaChannel::DataRate={} "
+                "--ns3::CsmaChannel::Delay={} "
+                "--Tracing={} "
+                "--FilenamePrefix={} ")
+        return args.format(self.total_time,
+                           self.data_rate,
+                           self.delay,
+                           'true' if self.tracing else 'false',
+                           file_prefix)
+
 
 def format_node(node_name):
     return "'%s@%s.local'" % (node_name, node_name)
 
-def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer):
+def remove_prefix(text, prefix):
+    if text.startswith(prefix):
+        return text[len(prefix):]
+    return text
+
+def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, run_ns3=False, ns3_conf=NS3Conf()):
     a_nodes_names = ['a%dnode' % (node) for node in range(1,a_node_numbers+1)]
     exec_a_nodes = [format_node(node_name) for node_name in a_nodes_names]
     exec_b_node = format_node("main")
@@ -54,7 +78,16 @@ def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers,
     exec_suffix = ' -s erlang halt'
     exec_string = exec_prefix + args + exec_suffix
     print exec_string
-    subprocess.check_call(["ns3/simulate.sh", "-m", "main", "-e", exec_string] + a_nodes_names)
+    simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
+    if run_ns3:
+        file_prefix = "ab_example_{}_{}_{}_{}_{}".format(
+            rate_multiplier, ratio_ab,
+            heartbeat_rate, a_node_numbers,
+            remove_prefix(optimizer, "optimizer_"))
+        ns3_args = ns3_conf.generate_args(file_prefix)
+        simulator_args.extend(["-n", ns3_args])
+    simulator_args.extend(a_nodes_names)
+    subprocess.check_call(simulator_args)
 
     ## 1st argument is the name of the folder to gather the logs
     dir_prefix = 'multi_run_ab_experiment'
@@ -70,9 +103,11 @@ def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers,
 
     copy_logs_from_to(log_folders, to_dir_path)
     ## TODO: Make this runnable for the ns3 script
+    if run_ns3:
+        move_ns3_logs(file_prefix, to_dir_path)
     
 
-def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers):
+def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False):
     ## Find a better way to do this than
     ## indented for loops :'(
     for rate_m in rate_multipliers:
@@ -80,7 +115,7 @@ def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_num
             for heartbeat_rate in heartbeat_rates:
                 for a_node in a_nodes_numbers:
                     for optimizer in optimizers:
-                        run_configuration(rate_m, ratio_ab, heartbeat_rate, a_node, optimizer)
+                        run_configuration(rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3)
 
 
 ## Experiment 1
@@ -143,8 +178,8 @@ optimizers = ["optimizer_greedy"]
 
 # run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
 dirname = os.path.join('archive')
-plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
-                       rate_multipliers[0], ratios_ab[0], heartbeat_rates[0], a_nodes_numbers, optimizers[0])
+#plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
+#                       rate_multipliers[0], ratios_ab[0], heartbeat_rates[0], a_nodes_numbers, optimizers[0])
 
 ## An issue with the above experiment is that when setting up 50 nodes, and trying to run
 ## them all, the nodes don't connect. It might be because they all try to make ? or it is
@@ -154,11 +189,15 @@ plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
 ## A claim that we can make for the first two experiments is that the system scales well
 ## both when increasing the rate, as well as when increasing the 
 
+## Test experiment
+## ===============
+## This is just to test if the experiments work
+
 rate_multipliers = [10]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 a_nodes_numbers = [2]
 optimizers = ["optimizer_greedy"]
 
-# run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+#run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
 

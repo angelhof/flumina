@@ -24,6 +24,21 @@ def copy_logs_from_to(from_dirs, to_dir_path):
 
     print "Copied logs in:", to_dir_path
 
+# Moves ns3 log files to the directory to_dir. Does not
+# remove to_dir if it exists so that it can be combined
+# with the previous function which does remove to_dir.
+def move_ns3_logs(file_prefix, to_dir):
+    ns3_dir = os.environ.get('NS3_HOME')
+    if ns3_dir is not None:
+        files = [
+            os.path.join(ns3_dir, f)
+            for f in os.listdir(ns3_dir)
+            if f.startswith(file_prefix)
+        ]
+        for f in files:
+            shutil.move(f, to_dir)
+
+
 ##
 ## Latency parsing and preprocessing
 ##
