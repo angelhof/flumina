@@ -141,7 +141,7 @@ then
 
   cd ${NS3_HOME}
 
-  ./waf --run "scratch/tap-vm ${ns3Args} ${nodes[*]}" &
+  ./waf --run "scratch/tap-vm ${ns3Args} --MainNode=${nodes[*]}" &
   wafPid=$!
   echo ${wafPid} > ${workdir}/var/run/ns3.pid
   cd ${workdir}

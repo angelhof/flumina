@@ -18,7 +18,7 @@ simulTime=60 # seconds
 delay="6560ns"
 dataRate="100Mbps"
 
-ns3Args="--TotalTime=${simulTime} --ns3::CsmaChannel::DataRate=${dataRate} --ns3::CsmaChannel::Delay=${delay}"
+ns3Args="--TotalTime=${simulTime} --ns3::CsmaChannel::DataRate=${dataRate} --ns3::CsmaChannel::Delay=${delay} --Tracing=true --FilenamePrefix=ab_complex"
 
 ./ns3/simulate.sh -m "${B}" \
   -e "${erlArgs}" \
