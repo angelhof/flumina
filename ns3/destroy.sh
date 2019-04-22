@@ -3,7 +3,7 @@
 nodes=()
 while (( "$#" ))
 do
-  nodes+="${1}"
+  nodes+=("${1}")
   shift
 done
 
