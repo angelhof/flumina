@@ -23,6 +23,7 @@ from erlang:21.0-alpine
 
 RUN mkdir /proto
 COPY --from=builder /proto/ebin /proto/ebin
+COPY data /proto/data
 COPY docker/erlnode/wrapper.sh /proto/wrapper.sh
 RUN chmod +x /proto/wrapper.sh
 WORKDIR /proto
