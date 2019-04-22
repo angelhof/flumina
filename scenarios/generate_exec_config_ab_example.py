@@ -107,7 +107,7 @@ def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers,
         move_ns3_logs(file_prefix, to_dir_path)
     
 
-def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False):
+def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf()):
     ## Find a better way to do this than
     ## indented for loops :'(
     for rate_m in rate_multipliers:
@@ -115,7 +115,7 @@ def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_num
             for heartbeat_rate in heartbeat_rates:
                 for a_node in a_nodes_numbers:
                     for optimizer in optimizers:
-                        run_configuration(rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3)
+                        run_configuration(rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf)
 
 
 ## Experiment 1
@@ -197,7 +197,7 @@ rate_multipliers = [10]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 a_nodes_numbers = [2]
-optimizers = ["optimizer_greedy"]
+optimizers = ["optimizer_sequential"]
 
-#run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
+#run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("120", "100Mbps", "2ms"))
 
