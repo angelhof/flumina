@@ -503,7 +503,7 @@ run_experiment(SinkPid, Optimizer, NodeNames, EndtimeslicePeriodSeconds,
                                  LogOptions ++ [{optimizer, Optimizer}]),
 
     %% Prepare the producers input
-    Houses = [{Id, node()} 
+    Houses = [{Id, HouseNodeName} 
               || {Id, HouseNodeName} <- lists:zip(lists:seq(0, NumHouses - 1), HouseNodeNames)],
     ProducerInit = 
         make_producer_init(Houses, [load], MainNodeName, 
