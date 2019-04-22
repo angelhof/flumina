@@ -114,7 +114,7 @@ def run_realistic_configuration(rate_multiplier, num_houses, optimizer, run_ns3=
     exec_main_node = format_node("main")
     exec_nodes_string = ",".join([exec_main_node] + exec_house_nodes)
     exec_prefix = '-noshell -run util exec debs_2014_query1. setup_experiment. '
-    end_timeslice_period = 600
+    end_timeslice_period = 3600
     end_timeslice_heartbeat_period = 60
     args = '[%s,[%s],%d,%d,%d,%s].' % (optimizer, exec_nodes_string, end_timeslice_period,
                                        end_timeslice_heartbeat_period, rate_multiplier,
@@ -257,8 +257,8 @@ optimizers = ["optimizer_sequential"]
 ## Realistic Experiment
 ## ===============
 
-rate_multipliers = [300]
-num_houses = [5]
+rate_multipliers = [720]
+num_houses = [20]
 optimizers = ["optimizer_greedy"]
 
-# run_realistic_configurations(rate_multipliers, num_houses, optimizers, run_ns3=True, ns3_conf=NS3Conf("60", "100Mbps", "2ms"))
+#run_realistic_configurations(rate_multipliers, num_houses, optimizers, run_ns3=True, ns3_conf=NS3Conf("90", "1Gbps", "6560ns"))

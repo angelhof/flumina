@@ -15,8 +15,8 @@ then
 fi
 
 NAME=$1
-SIDE_A=side-int-$NAME
-SIDE_B=side-ext-$NAME
+SIDE_A=int-$NAME
+SIDE_B=ext-$NAME
 PID=$(cat ./var/run/$NAME.pid)
 BRIDGE=br-$NAME
 INDEX=$2
