@@ -146,7 +146,7 @@ then
   echo ${wafPid} > ${workdir}/var/run/ns3.pid
   cd ${workdir}
 
-  sleep 25
+  sleep 5
 
   # Set up the device containers -- this unblocks the nodes
 
