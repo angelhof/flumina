@@ -3,8 +3,8 @@
 -export([main/0,
          experiment_sequential/0,
          experiment_greedy/0,
-         setup_experiment/1,
-         run_experiment/2,
+         setup_experiment/6,
+         run_experiment/7,
 
          experiment_distributed/0,
          run_experiment_distributed/2,
@@ -236,7 +236,6 @@ output_predictions(AllLoadSummaries, AllWeights, NewTimeOfDay, SinkPID) ->
     Houses = maps:keys(LS_ByHouse),
     HouseHouseholdPlugs = maps:keys(LS_ByPlug),
 
-    %% Output the predicted load for each house
     lists:foreach(
         fun (House) ->
             SinkPID ! {'house prediction', House,
@@ -286,12 +285,15 @@ update({{{house, load}, HouseID}, Payload}, State, _SinkPid) ->
       update_load_summary_map(LS_ByHousehold, {HouseID, HouseholdID}, MeasVal, TimeOfDay),
       update_load_summary_map(LS_ByPlug, {HouseID, HouseholdID, PlugID}, MeasVal, TimeOfDay)
      }, AllWeights};
-update({'end_timeslice', TimeValue}, State, SinkPid) ->
+update({end_timeslice, TimeValue}, State, SinkPid) ->
     {_TimeOverall, _TimeOfDay, AllLoadSummaries, AllWeights} = State,
     {LS_Global, LS_ByHouse, LS_ByHousehold, LS_ByPlug} = AllLoadSummaries,
 
     %% New Timeslice
     NewTimeOfDay = get_time_of_day(TimeValue),
+
+    %% Output: for latency
+    SinkPid ! {output, {{end_timeslice, TimeValue}, NewTimeOfDay}},
 
     %% Output: the load prediction for each house and each plug
     output_predictions(AllLoadSummaries, AllWeights, NewTimeOfDay, SinkPid),
@@ -419,33 +421,60 @@ run_experiment_distributed(SinkPid, _Optimizer) ->
     SinkPid ! finished.
 
 experiment_sequential() ->
-    setup_experiment(optimizer_sequential).
+    NumHouses = 5,
+    NodeNames = [node() || _ <- lists:seq(0, NumHouses)],
+    setup_experiment(optimizer_sequential, NodeNames, 60, 10, 20, log_latency_throughput).
 
 experiment_greedy() ->
-    setup_experiment(optimizer_greedy).
-
-setup_experiment(Optimizer) ->
+    NumHouses = 5,
+    NodeNames = [node() || _ <- lists:seq(0, NumHouses)],
+    setup_experiment(optimizer_greedy, NodeNames, 60, 10, 20, log_latency_throughput).
+    
+setup_experiment(Optimizer, NodeNames, EndtimeslicePeriodSeconds,
+                 EndtimesliceHeartbeatPeriodSeconds, RateMultiplier, DoLog) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, run_experiment, [SinkName, Optimizer]),
-    util:sink().
+    _ExecPid = spawn_link(?MODULE, run_experiment, 
+                          [SinkName, Optimizer, NodeNames, EndtimeslicePeriodSeconds,
+                           EndtimesliceHeartbeatPeriodSeconds, RateMultiplier, DoLog]),
+    case DoLog of
+        log_latency_throughput ->
+            LoggerInitFun = 
+                fun() ->
+                        log_mod:initialize_message_logger_state("sink", sets:from_list([output]))
+                end,
+            util:sink(LoggerInitFun);
+        no_log ->
+            util:sink()
+    end.
 
-run_experiment(SinkPid, Optimizer) ->
-    %% TODO: Make this parameterizable
-    Tags = 
-        [end_timeslice,
-         {{house,load},0},
-         {{house,load},1}],
+
+run_experiment(SinkPid, Optimizer, NodeNames, EndtimeslicePeriodSeconds,
+               EndtimesliceHeartbeatPeriodSeconds, RateMultiplier, DoLog) ->
+    
+    io:format("Args:~n~p~n", [[SinkPid, Optimizer, NodeNames, EndtimeslicePeriodSeconds,
+                               EndtimesliceHeartbeatPeriodSeconds, RateMultiplier, DoLog]]),
+
+    %% We assume that the first node name is the main node
+    [MainNodeName|HouseNodeNames] = NodeNames,
+
+    %% We assume that there is one node for each house and one for main
+    NumHouses = length(HouseNodeNames),
+
+    HouseTags = [{{house, load}, Id} || Id <- lists:seq(0, NumHouses - 1)],
+    Tags = [end_timeslice|HouseTags],
 
     %% Some Garbage
     BeginSimulationTime = 1377986401000,
-    EndSimulationTime   = 1377986427000,
+    %% EndSimulationTime   = 1377986427000,
+    %% Arbitrarily long end simulation time
+    EndSimulationTime   = 1380000000000,
 
     %% Architecture
-    Rates = [{node(), end_timeslice, 1},
-             {node(), {{house,load},0}, 1000},
-             {node(), {{house,load},1}, 1000}
-            ],
+    %% TODO: Make this parametrizable (the nodes)
+    HouseRates = [{HouseNodeName, HTag, 1000} 
+                  || {HTag, HouseNodeName} <- lists:zip(HouseTags, HouseNodeNames)],
+    Rates = [{MainNodeName, end_timeslice, 1}|HouseRates],
     Topology =
         conf_gen:make_topology(Rates, SinkPid),
 
@@ -454,30 +483,56 @@ run_experiment(SinkPid, Optimizer) ->
         #{'state' => {sets:from_list(Tags), fun update/3}},
     SplitsMerges =
         [{{'state', 'state', 'state'}, {fun fork/2, fun join/2}}],
-    Dependencies = dependencies(2),
+    Dependencies = dependencies(NumHouses),
     io:format("Dependencies: ~p~n", [Dependencies]),
     InitState = {'state', init_state(BeginSimulationTime)},
     Specification = 
         conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
+
+    %% Maybe setup logging
+    LogOptions =
+        case DoLog of
+            log_latency_throughput ->
+                LogTriple = log_mod:make_num_log_triple(),
+                [{log_triple, LogTriple}];
+            no_log ->
+                []
+        end,        
     ConfTree = conf_gen:generate(Specification, Topology, 
-                                 [{optimizer, Optimizer}]),
+                                 LogOptions ++ [{optimizer, Optimizer}]),
 
     %% Prepare the producers input
-    Houses = [{0, node()}, {1, node()}],
+    Houses = [{Id, HouseNodeName} 
+              || {Id, HouseNodeName} <- lists:zip(lists:seq(0, NumHouses - 1), HouseNodeNames)],
     ProducerInit = 
-        make_producer_init(Houses, [load], node(), 0, 1000, 1000, 
-                           BeginSimulationTime, EndSimulationTime, 100000),
+        make_producer_init(Houses, [load], MainNodeName, 
+                           0,         % House heartbeats 
+                           EndtimeslicePeriodSeconds * 1000,              % End TImeslice period in ms
+                           EndtimesliceHeartbeatPeriodSeconds * 1000,     % End timeslice heartbeat period in ms
+                           BeginSimulationTime, EndSimulationTime, 
+                           RateMultiplier),                               % Rate multiplier (10 roughly means 10 * c * NumHouses messages per second
 
-    %% Log the input times of b messages
-    producer:make_producers(ProducerInit, ConfTree, Topology, constant),
+    LoggerInitFun =
+        case DoLog of
+            log_latency_throughput ->
+                _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+                fun() ->
+                        log_mod:initialize_message_logger_state("producer", sets:from_list([end_timeslice]))
+                end;
+            no_log ->
+                fun log_mod:no_message_logger/0
+        end,
+
+    producer:make_producers(ProducerInit, ConfTree, Topology, steady_timestamp, 
+                            LoggerInitFun, BeginSimulationTime),
 
     SinkPid ! finished.
 
 
 -spec make_producer_init([{house_id(), node()}], ['work' | 'load'], node(), integer(), 
                          integer(), integer(), integer(), integer(), integer()) 
-                        -> [{msg_generator_init(), {measurement_tag(), node()}, integer()}].     
+                        -> producer_init(measurement_tag()).     
 make_producer_init(Houses, WorkLoad, EndTimesliceNode, MeasurementHeartbeatPeriod, EndTimeslicePeriod, 
                    EndTimesliceHeartbeatPeriod, BeginTime, EndTime, RateMult) ->
     HousesProducerInit =
@@ -498,7 +553,7 @@ make_producer_init(Houses, WorkLoad, EndTimesliceNode, MeasurementHeartbeatPerio
 
 -spec make_house_producer_init({house_id(), node()}, ['work' | 'load'], integer(), 
                                integer(), integer(), integer()) 
-                              -> [{msg_generator_init(), {measurement_tag(), node()}, integer()}].       
+                              -> producer_init(measurement_tag()).       
 make_house_producer_init({HouseId, Node}, WorkLoad, MeasurementHeartbeatPeriod, BeginTime, EndTime, RateMult) ->
     lists:map(
       fun(WorkOrLoad) ->
@@ -524,7 +579,7 @@ make_end_timeslice_stream(Node, From, To, Step, HeartbeatPeriod) ->
 %% Makes a generator for that house, and adds heartbeats
 -spec make_house_generator(integer(), atom(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
 make_house_generator(HouseId, WorkLoad, NodeName, Period, From, Until) ->
-    Filename = io_lib:format("data/sample_debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),         
+    Filename = io_lib:format("data/test_debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),         
     %% producer:file_generator(Filename, fun parse_house_csv_line/1).
     producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
                                             {{{{house, WorkLoad},HouseId}, NodeName}, Period}, From, Until).

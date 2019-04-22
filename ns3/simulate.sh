@@ -111,6 +111,7 @@ do
       --hostname "${node}.local" \
       -v "${workdir}/var/conf/${node}":/conf \
       -v "${workdir}/var/log/${node}":/proto/logs \
+      -v "${workdir}/data":/proto/data \
       erlnode
 
     docker inspect --format '{{ .State.Pid }}' "${node}.local" > ${workdir}/var/run/${node}.pid
