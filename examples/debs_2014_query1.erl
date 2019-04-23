@@ -296,7 +296,7 @@ update({end_timeslice, TimeValue}, State, SinkPid) ->
     SinkPid ! {output, {{end_timeslice, TimeValue}, NewTimeOfDay}},
 
     %% Output: the load prediction for each house and each plug
-    output_predictions(AllLoadSummaries, AllWeights, NewTimeOfDay, SinkPid),
+    %output_predictions(AllLoadSummaries, AllWeights, NewTimeOfDay, SinkPid),
 
     %% Output the state (comment out if desired)
     % SinkPid ! {TimeValue, get_time_of_day(TimeValue), LS_Global, LS_ByHouse, LS_ByHousehold},
@@ -468,7 +468,8 @@ run_experiment(SinkPid, Optimizer, NodeNames, EndtimeslicePeriodSeconds,
     BeginSimulationTime = 1377986401000,
     %% EndSimulationTime   = 1377986427000,
     %% Arbitrarily long end simulation time
-    EndSimulationTime   = 1380000000000,
+    %EndSimulationTime   = 1380000000000,
+    EndSimulationTime   = 1380578399000,
 
     %% Architecture
     %% TODO: Make this parametrizable (the nodes)
@@ -579,7 +580,7 @@ make_end_timeslice_stream(Node, From, To, Step, HeartbeatPeriod) ->
 %% Makes a generator for that house, and adds heartbeats
 -spec make_house_generator(integer(), atom(), node(), integer(), timestamp(), timestamp()) -> msg_generator().
 make_house_generator(HouseId, WorkLoad, NodeName, Period, From, Until) ->
-    Filename = io_lib:format("data/test_debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),         
+    Filename = io_lib:format("data/debs_house_~w_~s", [HouseId, atom_to_list(WorkLoad)]),         
     %% producer:file_generator(Filename, fun parse_house_csv_line/1).
     producer:file_generator_with_heartbeats(Filename, fun parse_house_csv_line/1, 
                                             {{{{house, WorkLoad},HouseId}, NodeName}, Period}, From, Until).
