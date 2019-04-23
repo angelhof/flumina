@@ -60,6 +60,7 @@
 //
 #include <cstdint>
 #include <ctime>
+#include <csignal>
 #include <iostream>
 #include <iomanip>
 #include <fstream>
@@ -206,6 +207,10 @@ void Statistics::PrintTimeSeries(std::ostream& os) const {
   }
 }
 
+void handle_sigterm(int sig) {
+  Simulator::Stop();
+}
+
 int 
 main (int argc, char *argv[])
 {
@@ -309,6 +314,7 @@ main (int argc, char *argv[])
   // Run the simulation for TotalTime seconds to give the user time to play around
   //
   NS_LOG_UNCOND ("Running simulation in csma mode");
+  std::signal(SIGTERM, handle_sigterm);
   Simulator::Stop (Seconds (TotalTime));
   Simulator::Run ();
   Simulator::Destroy ();
