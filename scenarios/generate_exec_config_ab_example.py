@@ -68,7 +68,7 @@ def remove_prefix(text, prefix):
         return text[len(prefix):]
     return text
 
-def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, run_ns3=False, ns3_conf=NS3Conf()):
+def run_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, run_ns3=False, ns3_conf=NS3Conf()):
     a_nodes_names = ['a%dnode' % (node) for node in range(1,a_node_numbers+1)]
     exec_a_nodes = [format_node(node_name) for node_name in a_nodes_names]
     exec_b_node = format_node("main")
@@ -80,23 +80,20 @@ def run_configuration(rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers,
     print exec_string
     simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
     if run_ns3:
-        file_prefix = "ab_example_{}_{}_{}_{}_{}".format(
-            rate_multiplier, ratio_ab,
-            heartbeat_rate, a_node_numbers,
-            remove_prefix(optimizer, "optimizer_"))
+        file_prefix = "ns3_log"
         ns3_args = ns3_conf.generate_args(file_prefix)
         simulator_args.extend(["-n", ns3_args])
     simulator_args.extend(a_nodes_names)
     subprocess.check_call(simulator_args)
 
     ## 1st argument is the name of the folder to gather the logs
-    dir_prefix = 'multi_run_ab_experiment'
+    dir_prefix = 'ab_exp'
     nodes = ['main'] + a_nodes_names
-    conf_string = '%s_%s_%s_%s_%s' % (rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
+    conf_string = '%d_%s_%s_%s_%s_%s' % (experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
     
     ## Make the directory to save the current logs
     ## TODO: Also add a timestamp?
-    dir_name = dir_prefix + '_' + conf_string
+    dir_name = dir_prefix + conf_string
     to_dir_path = os.path.join('archive', dir_name)
 
     log_folders = [os.path.join('var', 'log', node) for node in nodes]
@@ -160,7 +157,7 @@ def run_realistic_configurations(rate_multiplier, num_houses, optimizers, run_ns
             for optimizer in optimizers:
                 run_realistic_configuration(rate_m, house_node, optimizer, run_ns3, ns3_conf)
 
-def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf()):
+def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf()):
     ## Find a better way to do this than
     ## indented for loops :'(
     for rate_m in rate_multipliers:
@@ -168,7 +165,7 @@ def run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_num
             for heartbeat_rate in heartbeat_rates:
                 for a_node in a_nodes_numbers:
                     for optimizer in optimizers:
-                        run_configuration(rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf)
+                        run_configuration(experiment, rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf)
 
 
 ## Experiment 1
@@ -190,9 +187,9 @@ heartbeat_rates = [10]
 a_nodes_numbers = [18]
 optimizers = ["optimizer_greedy"]
 
-# run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
+run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("100", "1Gbps", "5000ns"))
 
-dirname = os.path.join('archive')
+#dirname = os.path.join('archive')
 # plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
 #                   rate_multipliers, ratios_ab[0], heartbeat_rates[0], a_nodes_numbers[0], optimizers[0])
 
@@ -229,8 +226,9 @@ heartbeat_rates = [10]
 a_nodes_numbers = range(2, 33, 2)
 optimizers = ["optimizer_greedy"]
 
-# run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers)
-dirname = os.path.join('archive')
+run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("100", "1Gbps", "5000ns"))
+
+    #dirname = os.path.join('archive')
 #plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
 #                       rate_multipliers[0], ratios_ab[0], heartbeat_rates[0], a_nodes_numbers, optimizers[0])
 
@@ -242,17 +240,49 @@ dirname = os.path.join('archive')
 ## A claim that we can make for the first two experiments is that the system scales well
 ## both when increasing the rate, as well as when increasing the 
 
+## Experiment 3
+## ============
+## In this experiment we vary the a-to-b ratio.
+## Should we enable passing pairs of (ratio_ab, heartbeat_rate)?
+rate_multipliers = [20]
+ratios_ab = [10, 20, 50, 100, 200, 500, 1000]
+heartbeat_rates = [10]
+a_nodes_numbers = [2]
+optimizers = ["optimizer_greedy"]
+
+run_configurations(
+    3, rate_multipliers, ratios_ab, heartbeat_rates,
+    a_nodes_numbers, opimizers,
+    run_ns3=True, ns3_conf=NS3Conf("100", "1Gbps", "5000ns")
+)
+
+## Experiment 4
+## ============
+## In this experiment we compare the greedy vs. sequential optimizer.
+## Perhaps it makes sense to make the network slightly worse this time.
+rate_multipliers = [20]
+ratios_ab = [1000]
+heartbeat_rates = [10]
+a_nodes_numbers = [2]
+optimizers = ["optimizer_greedy", "optimizer_sequential"]
+
+run_configurations(
+    4, rate_multipliers, ratios_ab, heartbeat_rates,
+    a_nodes_numbers, opimizers,
+    run_ns3=True, ns3_conf=NS3Conf("100", "10Mbps", "5000ns")
+)
+
 ## Test experiment
 ## ===============
 ## This is just to test if the experiments work
 
-rate_multipliers = [10]
+rate_multipliers = [20]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 a_nodes_numbers = [2]
 optimizers = ["optimizer_sequential"]
 
-#run_configurations(rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("120", "100Mbps", "2ms"))
+#run_configurations(0, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("80", "10Mbps", "5000ns"))
 
 ## Realistic Experiment
 ## ===============
