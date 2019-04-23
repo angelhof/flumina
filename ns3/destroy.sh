@@ -7,6 +7,13 @@ do
   shift
 done
 
+# Explicitly destroy int and ext device pairs
+
+for node in ${nodes[@]}
+do
+  ${NET_UTILS}/ip link delete int-${node}
+done
+
 # Stop the containers
 
 echo "Stopping docker containers..."

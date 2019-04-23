@@ -111,7 +111,7 @@ do
       --hostname "${node}.local" \
       -v "${workdir}/var/conf/${node}":/conf \
       -v "${workdir}/var/log/${node}":/proto/logs \
-      -v "${workdir}/data":/proto/data \
+      -v "${HOME}/data":/proto/data \
       erlnode
 
     docker inspect --format '{{ .State.Pid }}' "${node}.local" > ${workdir}/var/run/${node}.pid
@@ -180,7 +180,14 @@ else
   docker wait "${main}.local"
 fi
 
-log "Destroying the simulation context... "
+log "Destroying the simulation context..."
+
+# Destroy the int and ext peer devices
+
+for node in ${nodes[@]}
+do
+  ${NET_UTILS}/ip link delete int-${node}
+done
 
 # Stop the containers
 
