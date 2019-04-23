@@ -573,6 +573,7 @@ make_end_timeslice_stream(Node, From, To, Step, HeartbeatPeriod) ->
     %% ++ [{heartbeat, {{end_timeslice, Node}, To + 1}}],
     TimeslicesWithHeartbeats = 
         producer:interleave_heartbeats(Timeslices, {{end_timeslice, Node}, HeartbeatPeriod}, From, To + 2),
+    {sink, Node} ! {end_timeslice_length, length(TimeslicesWithHeartbeats)},
     producer:list_generator(TimeslicesWithHeartbeats).
 
 
