@@ -1,12 +1,12 @@
 #!/bin/sh
 
-LOG=/proto/logs/wrapper.log
-
 # Read the configuration
 
 NODE=$(cat /conf/node)
 ARGS=$(cat /conf/args)
 NS3=$(cat /conf/ns3)
+
+LOG=/proto/logs/wrapper-${NODE}.log
 
 if [ "${NS3}" -eq "1" ]
 then
@@ -34,5 +34,5 @@ echo -e "Starting the node\n\tNODE=${NODE}\n\tARGS=${ARGS}" >> ${LOG}
   -pa ebin \
   ${ARGS} >> ${LOG} 2>&1
 
-echo "Exiting" >> ${LOG}
+echo "Exiting the wrapper" >> ${LOG}
 
