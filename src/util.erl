@@ -60,6 +60,8 @@ sink_loop(LoggerFun) ->
 	    sink_loop(LoggerFun)
     after 
 	15000 ->
+            Wait = 15000,
+            io:format("Didn't receive anything for ~p seconds~n", [Wait]),
 	    ok
     end.
 

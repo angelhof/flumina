@@ -30,7 +30,7 @@
 %%    so that it always finds a possible configuration tree if it exists.
 %%    It is supposed to give a warning when there doesn't exist a split
 %%    to derive the configuration tree.
-%%          
+%%
 -spec generate_setup_tree(specification(), topology()) -> temp_setup_tree().
 generate_setup_tree(Specification, Topology) ->
     Dependencies = conf_gen:get_dependencies(Specification),
@@ -46,7 +46,7 @@ generate_setup_tree(Specification, Topology) ->
     io:format("Sorted Tags: ~p~n", [SortedImplTags]),
     
     %% TODO: Rename to iterative greedy disconnect
-    TagsRootTree = iterative_greedy_split(SortedImplTags, NodesRates, TagsVertices, DepGraph),
+    TagsRootTree = iterative_greedy_disconnect(SortedImplTags, NodesRates, TagsVertices, DepGraph),
     io:format("Tags root tree: ~n~p~n", [TagsRootTree]),
     
     %% Now we have to run the DP algorithm that given a root tree
@@ -443,9 +443,9 @@ union_root_tree({{HTags, Node}, Children}) ->
 %%          but it returns the "optimal" greedy tree.
 %% MORE IMPORTANT WARNING: It deletes the original graph
 %% 
--spec iterative_greedy_split(impl_tags(), nodes_rates(), tag_vertices(), digraph:graph()) -> tag_root_tree().
-iterative_greedy_split(ImplTags, NodesRates, TagsVertices, Graph) ->
-    {TopTags, TagsCCs} = best_greedy_split(ImplTags, TagsVertices, Graph),
+-spec iterative_greedy_disconnect(impl_tags(), nodes_rates(), tag_vertices(), digraph:graph()) -> tag_root_tree().
+iterative_greedy_disconnect(ImplTags, NodesRates, TagsVertices, Graph) ->
+    {TopTags, TagsCCs} = best_greedy_disconnect(ImplTags, TagsVertices, Graph),
     %% WARNING: Naive sorting of Tags based on rates. A better way would be
     %%          to keep the rates and use them to sort here. Or keep the rates
     %%          for each tag in a map
@@ -460,7 +460,7 @@ iterative_greedy_split(ImplTags, NodesRates, TagsVertices, Graph) ->
 	  fun(SortedTagsCC) ->
 		  Vertices = [maps:get(Tag, TagsVertices) || Tag <- SortedTagsCC],
 		  Subgraph = digraph_utils:subgraph(Graph, Vertices),
-		  iterative_greedy_split(SortedTagsCC, NodesRates, TagsVertices, Subgraph)
+		  iterative_greedy_disconnect(SortedTagsCC, NodesRates, TagsVertices, Subgraph)
 	  end, SortedTagsCCs),
 
     %% WARNING: Delete the graph because the ETS is not garbage collected
@@ -470,14 +470,14 @@ iterative_greedy_split(ImplTags, NodesRates, TagsVertices, Graph) ->
 
 %% This function returns the minimal set of tags that disconnects
 %% the dependency graph.
--spec best_greedy_split(impl_tags(), tag_vertices(), digraph:graph()) -> {impl_tags(), [impl_tags()]}.
-best_greedy_split(ImplTags, TagsVertices, Graph) ->
-    best_greedy_split(ImplTags, TagsVertices, Graph, []).
+-spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph()) -> {impl_tags(), [impl_tags()]}.
+best_greedy_disconnect(ImplTags, TagsVertices, Graph) ->
+    best_greedy_disconnect(ImplTags, TagsVertices, Graph, []).
 
--spec best_greedy_split(impl_tags(), tag_vertices(), digraph:graph(), impl_tags()) -> {impl_tags(), [impl_tags()]}.
-best_greedy_split([], _TagsVertices, _Graph, Acc) ->
+-spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph(), impl_tags()) -> {impl_tags(), [impl_tags()]}.
+best_greedy_disconnect([], _TagsVertices, _Graph, Acc) ->
     {Acc, []};
-best_greedy_split([ImplTag|ImplTags], TagsVertices, Graph, Acc) ->
+best_greedy_disconnect([ImplTag|ImplTags], TagsVertices, Graph, Acc) ->
     Vertex = maps:get(ImplTag, TagsVertices),
     case does_disconnect(Vertex, Graph) of
 	{disconnected, Components} ->
@@ -486,7 +486,7 @@ best_greedy_split([ImplTag|ImplTags], TagsVertices, Graph, Acc) ->
 		 || Component <- Components],
 	    {[ImplTag|Acc], TagCCs};
 	still_connected ->
-	    best_greedy_split(ImplTags, TagsVertices, Graph, [ImplTag|Acc])
+	    best_greedy_disconnect(ImplTags, TagsVertices, Graph, [ImplTag|Acc])
     end.
 
 -spec does_disconnect(digraph:vertex(), digraph:graph()) -> 
