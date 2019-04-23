@@ -30,7 +30,7 @@
 %%    so that it always finds a possible configuration tree if it exists.
 %%    It is supposed to give a warning when there doesn't exist a split
 %%    to derive the configuration tree.
-%%          
+%%
 -spec generate_setup_tree(specification(), topology()) -> temp_setup_tree().
 generate_setup_tree(Specification, Topology) ->
     Dependencies = conf_gen:get_dependencies(Specification),
