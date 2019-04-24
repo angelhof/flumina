@@ -447,43 +447,43 @@ interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, Until) ->
 -spec interleave_heartbeats_generator(msg_generator(), {impl_tag(), integer()}, timestamp(), timestamp()) 
 				     -> msg_generator().
 interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, From, Until) ->
-    AccGen = fun() -> done end,
     case Period of
 	0 -> 
 	    StreamGen;
 	_ ->
-	    interleave_heartbeats_generator(StreamGen, ImplTag, From, Period, AccGen, Until)
+	    interleave_heartbeats_generator(StreamGen, ImplTag, From, Period, Until)
     end.
 
 
 -spec interleave_heartbeats_generator(msg_generator(), impl_tag(), timestamp(), 
-			    integer(), msg_generator(), timestamp()) 
+			    integer(), timestamp()) 
 			   -> msg_generator().
-interleave_heartbeats_generator(MsgGen, {Tag, Node} = ImplTag, NextHeartbeat, Period, AccMsgGen, Until) ->
+interleave_heartbeats_generator(MsgGen, {Tag, Node} = ImplTag, NextHeartbeat, Period, Until) ->
     case MsgGen() of
 	done ->
 	    %% Generate the final heartbeats to send
 	    {FinalHeartbeatsToSend, _} = 
 		maybe_generate_heartbeats(Until, NextHeartbeat, ImplTag, Period),
 	    %% Output the messages until now and the final heartbeats
-	    append_gens(AccMsgGen, list_generator(FinalHeartbeatsToSend));
+	    list_generator(FinalHeartbeatsToSend);
 	{{{Tag, _V}, Node, Ts} = Msg, RestMsgGen} ->
 	    %% io:format("Msg: ~p~n", [{Tag, Ts, Payload}]),
 	    %% Generate the new heartbeats
 	    {HeartbeatsToSend, NewNextHeartbeat} = 
 		maybe_generate_heartbeats(Ts, NextHeartbeat, ImplTag, Period),
 	    %% io:format("To Send: ~p~n", [HeartbeatsToSend]),
-	    NewAccMsgGen = 
-	        append_gens(AccMsgGen, list_generator(HeartbeatsToSend ++ [Msg])),
-	    interleave_heartbeats_generator(RestMsgGen, ImplTag, NewNextHeartbeat, Period, NewAccMsgGen, Until)
+            append_gens(list_generator(HeartbeatsToSend ++ [Msg]), 
+                        fun() ->
+                                interleave_heartbeats_generator(RestMsgGen, ImplTag, 
+                                                                NewNextHeartbeat, Period, Until)
+                        end)
     end.
-	    
 	
--spec append_gens(msg_generator(), msg_generator()) -> msg_generator().
+-spec append_gens(msg_generator(), fun(() -> msg_generator())) -> msg_generator().
 append_gens(MsgGen1, MsgGen2) ->
     case MsgGen1() of
 	done ->
-	    MsgGen2;
+	    MsgGen2();
 	{Msg, NewMsgGen1} ->
 	    fun() ->
 		    {Msg, append_gens(NewMsgGen1, MsgGen2)}
