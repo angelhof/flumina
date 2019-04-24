@@ -41,7 +41,7 @@ from plot_scaling_latency_throughput import plot_scaleup_rate, plot_scaleup_node
 ## 1 corresponds to 1 message per millisecond.
 
 class NS3Conf:
-    def __init__(self, total_time="60", data_rate="100Mbps", delay="2ms", tracing=False):
+    def __init__(self, total_time="120", data_rate="1Gbps", delay="5000ns", tracing=False):
         self.total_time = total_time
         self.data_rate = data_rate
         self.delay = delay
@@ -112,7 +112,7 @@ def run_realistic_configuration(rate_multiplier, num_houses, optimizer, run_ns3=
     exec_nodes_string = ",".join([exec_main_node] + exec_house_nodes)
     exec_prefix = '-noshell -run util exec debs_2014_query1. setup_experiment. '
     end_timeslice_period = 3600
-    end_timeslice_heartbeat_period = 60
+    end_timeslice_heartbeat_period = 72
     args = '[%s,[%s],%d,%d,%d,%s].' % (optimizer, exec_nodes_string, end_timeslice_period,
                                        end_timeslice_heartbeat_period, rate_multiplier,
                                        'log_latency_throughput')
@@ -122,9 +122,7 @@ def run_realistic_configuration(rate_multiplier, num_houses, optimizer, run_ns3=
     simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
     ## Change this to run THE REALISTIC EXAMPLE
     if run_ns3:
-        file_prefix = "debs_2014_query1_{}_{}_{}".format(
-            rate_multiplier, num_houses,
-            remove_prefix(optimizer, "optimizer_"))
+        file_prefix = "ns3_log"
         ns3_args = ns3_conf.generate_args(file_prefix)
         simulator_args.extend(["-n", ns3_args])
     simulator_args.extend(house_nodes_names)
@@ -165,6 +163,11 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
             for heartbeat_rate in heartbeat_rates:
                 for a_node in a_nodes_numbers:
                     for optimizer in optimizers:
+                        # Heuristic to approximate the simulation time
+                        total_time = 3.0 + 1000.0 / rate_m + a_node / 3.0
+                        # Add 15% slack time and convert to int
+                        total_time = int(round(1.15 * total_time))
+                        ns3_conf.total_time = str(total_time)
                         run_configuration(experiment, rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf)
 
 
@@ -176,18 +179,13 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ##
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
-# rate_multipliers = [5, 10, 20, 40, 50]
-# rate_multipliers = range(2, 50, 2)
-# rate_multipliers = range(10, 50, 2)
 rate_multipliers = range(10, 35, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
-# a_nodes_numbers = [4]
-# a_nodes_numbers = [8]
 a_nodes_numbers = [18]
 optimizers = ["optimizer_greedy"]
 
-run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("100", "1Gbps", "5000ns"))
+#run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
 
 #dirname = os.path.join('archive')
 # plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
@@ -213,20 +211,16 @@ run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numb
 ## how well our system scales with the number of processors/cores
 ##
 ## NOTE: The rate should be reasonably high. Maybe 20 - 50?
-# rate_multipliers = [10]
 rate_multipliers = [15]
-# rate_multipliers = [20]
 ratios_ab = [1000]
 heartbeat_rates = [10]
-# a_nodes_numbers = [2, 5, 10, 20, 30]
 ## Note:
 ## Ideally we want to plot up to 38 (for rate multiplier 15), but I cannot get the server to behave and give us
 ## steady results for those, so I will give results up to 32
-# a_nodes_numbers = range(2, 40, 2)
 a_nodes_numbers = range(2, 33, 2)
 optimizers = ["optimizer_greedy"]
 
-run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("100", "1Gbps", "5000ns"))
+#run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
 
     #dirname = os.path.join('archive')
 #plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
@@ -244,51 +238,59 @@ run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numb
 ## ============
 ## In this experiment we vary the a-to-b ratio.
 ## Should we enable passing pairs of (ratio_ab, heartbeat_rate)?
-rate_multipliers = [20]
+rate_multipliers = [15]
 ratios_ab = [10, 20, 50, 100, 200, 500, 1000]
 heartbeat_rates = [10]
-a_nodes_numbers = [2]
+a_nodes_numbers = [5]
 optimizers = ["optimizer_greedy"]
 
-run_configurations(
-    3, rate_multipliers, ratios_ab, heartbeat_rates,
-    a_nodes_numbers, opimizers,
-    run_ns3=True, ns3_conf=NS3Conf("100", "1Gbps", "5000ns")
-)
+#run_configurations(
+#    3, rate_multipliers, ratios_ab, heartbeat_rates,
+#    a_nodes_numbers, optimizers, run_ns3=True
+#)
 
 ## Experiment 4
 ## ============
 ## In this experiment we compare the greedy vs. sequential optimizer.
 ## Perhaps it makes sense to make the network slightly worse this time.
-rate_multipliers = [20]
+#
+## Note: This experiment was also run with the "greedy hybrid" optimizer,
+## where the optimizer is greedy, but the configuration tree is mapped
+## to the main node. This requires a change in the source code
+## (src/optimizer_greedy.erl). Konstantinos knows what needs to be
+## changed.
+rate_multipliers = [15]
 ratios_ab = [1000]
 heartbeat_rates = [10]
-a_nodes_numbers = [2]
+a_nodes_numbers = [4]
 optimizers = ["optimizer_greedy", "optimizer_sequential"]
 
-run_configurations(
-    4, rate_multipliers, ratios_ab, heartbeat_rates,
-    a_nodes_numbers, opimizers,
-    run_ns3=True, ns3_conf=NS3Conf("100", "10Mbps", "5000ns")
-)
+#run_configurations(
+#    4, rate_multipliers, ratios_ab, heartbeat_rates,
+#    a_nodes_numbers, optimizers, run_ns3=True
+##    run_ns3=True, ns3_conf=NS3Conf(data_rate="100Mbps")
+#)
 
-## Test experiment
-## ===============
-## This is just to test if the experiments work
+## Experiment 5
+## ============
+## Varying the heartbeat ratio.
+rate_multipliers = [15]
+ratios_ab = [10000]
+heartbeat_rates = [1, 2, 5, 10, 100, 1000, 10000]
+a_nodes_numbers = [5]
+optimizers = ["optimizer_greedy"]
 
-rate_multipliers = [20]
-ratios_ab = [1000]
-heartbeat_rates = [10]
-a_nodes_numbers = [2]
-optimizers = ["optimizer_sequential"]
+#run_configurations(
+#    5, rate_multipliers, ratios_ab, heartbeat_rates,
+#    a_nodes_numbers, optimizers, run_ns3=True
+#)
 
-#run_configurations(0, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True, ns3_conf=NS3Conf("80", "10Mbps", "5000ns"))
 
 ## Realistic Experiment
 ## ===============
 
-rate_multipliers = [720]
+rate_multipliers = [360]
 num_houses = [20]
 optimizers = ["optimizer_greedy"]
 
-#run_realistic_configurations(rate_multipliers, num_houses, optimizers, run_ns3=True, ns3_conf=NS3Conf("90", "1Gbps", "6560ns"))
+#run_realistic_configurations(rate_multipliers, num_houses, optimizers, run_ns3=True, ns3_conf=NS3Conf(total_time="7500"))
