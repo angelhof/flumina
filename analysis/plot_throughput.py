@@ -8,14 +8,18 @@ import numpy as np
 sys.path.append(os.path.relpath("./scripts"))
 from lib import *
 
-## 1st argument should be the throughput filename
-filename = sys.argv[1]
-    
-## The plot shows messages per millisecond
-xi, yi = read_preprocess_throughput_data(filename)
-
 fig, ax = plt.subplots()
-ax.plot(xi, yi)
+ax.set_xlabel('Time (s)')
+ax.set_ylabel('Latency (ms)')
+
+colors = ['tab:blue', 'tab:red', 'tab:green']
+
+## Every argument is a log directory name; we plot them on the same plot
+for i, log_dir_name in enumerate(sys.argv[1:]):
+    ## The plot shows messages per millisecond
+    xi, yi = read_preprocess_throughput_data(log_dir_name)
+    xi = [ts / 1000.0 for ts in xi]
+    ax.plot(xi, yi, '-', color=colors[i], linewidth=1.0)
 plt.show()
 
 

@@ -99,6 +99,8 @@ def read_preprocess_latency_data(log_dir_name):
 
     ## Latencies and timestamps are per millisecond
     raw_timestamps = [ts for lat, ts in latency_pairs]
+    if not raw_timestamps:
+        print("{}: No raw timestamps!".format(log_dir_name))
     first_ts = raw_timestamps[0]
     timestamps = [(ts - first_ts) / 1000000.0 for ts in raw_timestamps]
     latencies = [lat / 1000000.0 for lat, ts in latency_pairs]
@@ -181,3 +183,29 @@ def read_preprocess_throughput_data(log_dir_name):
     xi = np.linspace(shifted_timestamps[0], shifted_timestamps[-1], 3 * len(timestamps))
     yi = np.interp(xi, shifted_timestamps[1:], throughput, yp)
     return (xi, yi)
+
+
+##
+## Network load parsing and preprocessing
+##
+
+def get_network_stats_file(log_dir):
+    files = [f for f in os.listdir(log_dir) if f.endswith('stats.txt')]
+    if len(files) == 0:
+        sys.exit('Network statistics file not found!')
+    elif len(files) >= 2:
+        sys.exit('Multiple network statistics files found!')
+    return os.path.join(log_dir, files[0])
+
+
+def get_network_data(log_dir):
+    stats_file = get_network_stats_file(log_dir)
+    with open(stats_file) as f:
+        first_line = f.readline()
+
+        # The first line says for example:
+        #
+        # Total IPv4 data: 459688780
+        #
+        # So the number starts at position 17
+        return int(first_line[17:])
