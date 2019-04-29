@@ -508,7 +508,7 @@ run_experiment(SinkPid, Optimizer, NodeNames, EndtimeslicePeriodSeconds,
               || {Id, HouseNodeName} <- lists:zip(lists:seq(0, NumHouses - 1), HouseNodeNames)],
     ProducerInit = 
         make_producer_init(Houses, [load], MainNodeName, 
-                           0,         % House heartbeats 
+                           10000,         % House heartbeats 
                            EndtimeslicePeriodSeconds * 1000,              % End TImeslice period in ms
                            EndtimesliceHeartbeatPeriodSeconds * 1000,     % End timeslice heartbeat period in ms
                            BeginSimulationTime, EndSimulationTime, 

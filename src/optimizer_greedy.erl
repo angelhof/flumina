@@ -84,7 +84,8 @@ root_tree_physical_mapping(TagRootTree, Topology) ->
     %%          to the node with the highest rate for the tags
     %%          handled by the root node.
     NodesRates = conf_gen:get_nodes_rates(Topology),
-    
+
+    %% opt_lib:map_physical_node_root_tree_constant(node(), TagRootTree).    
     opt_lib:map_physical_node_root_tree_max_rate(NodesRates, TagRootTree).
 
 
