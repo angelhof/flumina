@@ -65,9 +65,12 @@ There are two main improvements that can be done.
 As seen in Naiad, we might have to tune low level network parameters (or ERTS parameters)
 in order to tune the system to run well with very small tcp messages between the different erlang nodes.
 
-*** TODO Timestamp based producers might drift behind one another 
+*** TODO Improve producer timing accuracy, by waiting for a set amount of time every time
 
-Find a way to solve this problem. This problem also leads to high latency.
+Timestamp based producers might drift behind one another.
+
+This problem might be solvable if we wait with send after instead of with receive after, because
+then the producer will wait for a stable amount of time no matter how many messages it sends.
 
 *** TODO Implement the possibility to have separate sink pid for each node
 *** TODO Implement dynamic reconfiguration
