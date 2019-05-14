@@ -18,6 +18,13 @@
         of the file, or find by hand the latest and earliest timestamp of each 
         file and add it.
 
+*** TODO Start Erlang nodes programmaticaly using the slave module
+
+Instead of starting the erlang nodes when starting the docker
+containers, we can start the nodes programmatically, from inside
+Erlang, by using the slave module. This way, we will be sure that
+Erlang nodes have started, when the experiment starts running.
+
 *** TODO Make the abexample use a tags and not a1 a2 now that we have correct spec/impl
 
 This would actually make some experiments go wrong 
