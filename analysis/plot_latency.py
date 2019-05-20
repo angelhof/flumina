@@ -8,6 +8,7 @@ import numpy as np
 sys.path.append(os.path.relpath("./scripts"))
 from lib import *
 
+plt.rcParams.update({'font.size': 12})
 
 fig, ax = plt.subplots()
 ax.set_xlabel('Time (s)')
@@ -22,6 +23,8 @@ for i, log_dir_name in enumerate(sys.argv[1:]):
     timestamps = [ts / 1000.0 for ts in timestamps]
     #ax.plot(timestamps, latencies, symbols[i], color=colors[i], mfc='none', ms=4.0, markevery=0.05)
     ax.plot(timestamps, latencies, '.', color=colors[i])
+#ax.legend()
+plt.tight_layout()
 plt.show()
 
 

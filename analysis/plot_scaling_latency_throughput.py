@@ -16,28 +16,19 @@ def plot_scaleup_node_rate(dirname, prefix, rate_multiplier, ratio_ab, heartbeat
 
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_multiplier, ratio_ab, heartbeat_rate, a_node, optimizer)
                 for a_node in a_nodes_numbers]
-    
-    # print dirnames
-    
-    output_name = '%s_rate-%d_ab-%d_heart-%d_%s' % (prefix, rate_multiplier,
-                                                    ratio_ab, heartbeat_rate, optimizer)
-    common_plot_scaleup(dirname, dirnames, a_nodes_numbers, 'Number of nodes', output_name)
+    common_plot_scaleup(dirname, dirnames, a_nodes_numbers, 'Number of nodes', 'ab_varied_nodes')
 
 def plot_scaleup_rate(dirname, prefix, rate_multipliers, ratio_ab, heartbeat_rate, a_nodes_number, optimizer):
 
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_mult, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
                 for rate_mult in rate_multipliers]
-
-    output_name = '%s_ab-%d_heart-%d_as-%d_%s' % (prefix, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
-    
-    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', output_name)
+    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', 'ab_varied_rates')
 
 
 def plot_scaleup_ratioab(dirname, prefix, rate_multiplier, ratios_ab, heartbeat_rate, a_nodes_number, optimizer):
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_multiplier, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
                 for ratio_ab in ratios_ab]
-    output_name = '%s_rate-%d_heart-%d_as-%d_%s' % (prefix, rate_multiplier, heartbeat_rate, a_nodes_number, optimizer)
-    common_plot_scaleup(dirname, dirnames, ratios_ab, 'Rate_a / Rate_b', output_name, 'linear')
+    common_plot_scaleup(dirname, dirnames, ratios_ab, 'Rate_a / Rate_b', 'ab_varied_abratio', 'linear')
 
 
 def plot_scaleup_heartbeats(dirname, prefix, rate_multiplier, ratio_ab, heartbeat_rates, a_nodes_number, optimizer):
@@ -60,12 +51,12 @@ def plot_scaleup_heartbeats(dirname, prefix, rate_multiplier, ratio_ab, heartbea
     plt.xscale('log')
     plt.yscale('log')
     plt.xticks(network_data, ["" if item < 0.7 else "{0:.1f}".format(item) for item in network_data], rotation=-60)
+    ax.plot(network_data, ninety_latencies, '-^', label = '90th percentile', color = 'tab:red', linewidth=0.5)
     ax.plot(network_data, median_latencies, '-o', label = 'median', linewidth=0.5)
     ax.plot(network_data, ten_latencies, '-s', label = '10th percentile', color = 'tab:green', linewidth=0.5)
-    ax.plot(network_data, ninety_latencies, '-^', label = '90th percentile', color = 'tab:red', linewidth=0.5)
+    ax.legend()
     plt.tight_layout()
-    plt.savefig(os.path.join('plots', output_name + ".pdf"))
-    plt.show()
+    plt.savefig(os.path.join('plots', 'ab_varied_hbratio.pdf'))
 
 
 def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name, yscale='log'):
@@ -84,12 +75,13 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name, yscale='
     ax.set_xlabel('Throughput (msgs/ms)')
     ax.set_ylabel('Latency (ms)')
     plt.yscale(yscale)
+    ax.plot(mean_throughputs, ninety_latencies, '-^', label='90th percentile', color='tab:red', linewidth=0.5)
     ax.plot(mean_throughputs, median_latencies, '-o', label='median', linewidth=0.5)
     ax.plot(mean_throughputs, ten_latencies, '-s', label='10th percentile', color='tab:green', linewidth=0.5)
-    ax.plot(mean_throughputs, ninety_latencies, '-^', label='90th percentile', color='tab:red', linewidth=0.5)
+    ax.legend()
 
+    plt.tight_layout()
     plt.savefig(os.path.join('plots', output_name + ".pdf"))
-    plt.show()
 
 
 def common_plot_scaleup_old(dirname, dirnames, xticks, xlabel, output_name):
@@ -164,13 +156,15 @@ def common_plot_scaleup_old(dirname, dirnames, xticks, xlabel, output_name):
 
 
 if __name__ == '__main__':
+    plt.rcParams.update({'font.size': 14})
+
     # The full range of rates is range(10, 35, 2)
-    plot_scaleup_rate('archive', 'ab_exp1', range(10, 29, 2), 1000, 10, 18, 'optimizer_greedy')
+    plot_scaleup_rate('archive', 'ab_exp1', range(10, 27, 2), 1000, 10, 18, 'optimizer_greedy')
 
     # The full range of nodes is range(2, 33, 2)
-    plot_scaleup_node_rate('archive', 'ab_exp2', 15, 1000, 10, range(2, 31, 2), 'optimizer_greedy')
+    plot_scaleup_node_rate('archive', 'ab_exp2', 15, 1000, 10, range(2, 29, 2), 'optimizer_greedy')
 
-    #The full range of a-to-b ratios is [10, 20, 50, 100, 200, 500, 1000]
-    plot_scaleup_ratioab('archive', 'ab_exp3', 15, [50, 100, 200, 500, 1000], 10, 5, 'optimizer_greedy')
+    #The full range of a-to-b ratios is [10, 20, 25, 30, 35, 40, 50, 100, 200, 500, 1000]
+    plot_scaleup_ratioab('archive', 'ab_exp3', 15, [40, 50, 100, 200, 500, 1000], 10, 5, 'optimizer_greedy')
 
-    #plot_scaleup_heartbeats('archive', 'ab_exp5', 15, 10000, [1, 2, 5, 10, 100, 1000, 10000], 5, 'optimizer_greedy')
+    plot_scaleup_heartbeats('archive', 'ab_exp5', 15, 10000, [1, 2, 5, 10, 100, 1000, 10000], 5, 'optimizer_greedy')
