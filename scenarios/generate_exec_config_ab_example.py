@@ -289,6 +289,7 @@ optimizers = ["optimizer_greedy"]
 ## Realistic Experiment
 ## ===============
 
+
 rate_multipliers = [360]
 num_houses = [20]
 optimizers = ["optimizer_greedy"]
