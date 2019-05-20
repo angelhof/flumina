@@ -10,3 +10,4 @@ docker/read-only/*
 var/*
 archive/*
 
+.idea
