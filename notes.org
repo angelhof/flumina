@@ -25,6 +25,20 @@ containers, we can start the nodes programmatically, from inside
 Erlang, by using the slave module. This way, we will be sure that
 Erlang nodes have started, when the experiment starts running.
 
+
+*** TODO Setup a nice testing infrastructure
+
+Set up a clean and easy to use testing infrastructure, so that we can
+easily run different scenarios and tests on the server.
+
+Ideally, we would like to have a configuration file with the nodes and their
+rates, and the system should be able to run it.
+
+This requires a setup script that given a configuration file sets up
+the infrastructure that is given there (docker containers and nodes mostly).
+
+*** TODO Implement the redis example in Flumina
+
 *** TODO Make the abexample use a tags and not a1 a2 now that we have correct spec/impl
 
 This would actually make some experiments go wrong 
