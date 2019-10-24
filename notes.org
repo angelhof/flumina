@@ -33,13 +33,19 @@ In a sense, addind key to the tags allows us to create artificial implementation
 experiment.
 
 *** TODO Allow the configuration generator to search for a sequence of splits to satisfy a split
+
+*** TODO Clean up calls to functions in mailbox and node to use their state records
+
+Clean up all calls to functions in the mailbox and node to get the mailbox state if they need
+big part of its components
+
 *** TODO Organize state of each process to be in a record
 
 Also the data from data structures such as the configuration tree should be gotten via getter 
 functions and never explicitly. Otherwise it is difficult to add and remove fields.
 
   - [ ] node.erl
-  - [ ] mailbox.erl
+  - [X] mailbox.erl
   - [ ] producer.erl
 
 *** TODO Don't return redundant setup trees (Completeness of similarity relation)
@@ -273,6 +279,8 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+
+*** DONE Move mailbox to its own file
 *** DONE Separate timestamp and node id from the message, as it is never needed for the computation
 
 
