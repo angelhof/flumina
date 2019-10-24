@@ -58,6 +58,7 @@ exec:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)
 
 tests:
+	mkdir -p logs
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample test $(HALT)
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample test $(HALT)
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run smart_home_example test $(HALT)
