@@ -38,16 +38,7 @@ experiment.
 
 Clean up all calls to functions in the mailbox and node to get the mailbox state if they need
 big part of its components
-
-*** TODO Organize state of each process to be in a record
-
-Also the data from data structures such as the configuration tree should be gotten via getter 
-functions and never explicitly. Otherwise it is difficult to add and remove fields.
-
-  - [ ] node.erl
-  - [X] mailbox.erl
-  - [ ] producer.erl
-
+  
 *** TODO Don't return redundant setup trees (Completeness of similarity relation)
 
 This can be solved by finding the largest root tree similarity relation
@@ -279,6 +270,14 @@ At the moment the message predicate of a node is the same as its split predicate
 
 Test how easy it is implement complicated queries in our intermediate language.
 Try to push its expresiveness.
+
+*** DONE Organize state of each process to be in a record
+
+Also the data from data structures such as the configuration tree should be gotten via getter 
+functions and never explicitly. Otherwise it is difficult to add and remove fields.
+
+  - [X] node.erl
+  - [X] mailbox.erl
 
 *** DONE Move mailbox to its own file
 *** DONE Separate timestamp and node id from the message, as it is never needed for the computation

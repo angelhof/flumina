@@ -97,6 +97,23 @@
                 conf :: configuration()}).
 -type mailbox_state() :: #mb_st{}.
 
+%%
+%% Worker State
+%%
+
+-record(wr_funs, {upd = undefined :: update_fun(),
+                  spl = undefined :: split_fun(),
+                  mrg = undefined :: merge_fun()}).
+
+-record(wr_st, {state :: any(),
+                funs :: #wr_funs{},
+                log  :: num_log_triple(),
+                cp_pred :: checkpoint_predicate(),
+                output :: mailbox(),
+                child_preds :: children_predicates(),
+                conf :: configuration()}).
+-type worker_state() :: #wr_st{}.
+
 
 %%
 %% Configuration Generator

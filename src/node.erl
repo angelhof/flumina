@@ -1,14 +1,9 @@
 -module(node).
 
 -export([node/9,
-	 init_node/5,
-	 loop/7]).
+	 init_worker/5]).
 
 -include("type_definitions.hrl").
-
--record(funs, {upd = undefined :: update_fun(),
-	       spl = undefined :: split_fun(),
-	       mrg = undefined :: merge_fun()}).
 
 %% Initializes and spawns a node and its mailbox
 -spec node(State::any(), mailbox(), impl_message_predicate(), spec_functions(), 
@@ -18,7 +13,7 @@
 node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, 
      #options{log_triple = LogTriple, checkpoint = CheckFun}, Dependencies, 
      Output, Depth, ImplTags) ->
-    Funs = #funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
+    Funs = #wr_funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
 
     %% Only give the checkpoint function as argument if it is the
     %% root node of the tree (with depth =:= 0).
@@ -27,7 +22,7 @@ node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
 	    0 -> CheckFun;
 	    _ -> fun conf_gen:no_checkpoint/2
 	end,
-    NodePid = spawn_link(Node, ?MODULE, init_node, 
+    NodePid = spawn_link(Node, ?MODULE, init_worker, 
 			 [State, Funs, LogTriple, NodeCheckpointFun, Output]),
     _MailboxPid = spawn_link(Node, mailbox, init_mailbox, 
 			    [Name, Dependencies, Pred, NodePid, {master, node()}, ImplTags]),
@@ -41,9 +36,9 @@ node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
 %%
 %% Main Processing Node
 %%
--spec init_node(State::any(), #funs{}, num_log_triple(), 
+-spec init_worker(State::any(), #wr_funs{}, num_log_triple(), 
 		checkpoint_predicate(), mailbox()) -> no_return().
-init_node(State, Funs, LogTriple, CheckPred, Output) ->
+init_worker(State, Funs, LogTriple, CheckPred, Output) ->
     log_mod:init_debug_log(),
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
@@ -57,61 +52,76 @@ init_node(State, Funs, LogTriple, CheckPred, Output) ->
 	    Preds = configuration:find_children_preds(self(), ConfTree),
 	    SpecPreds = configuration:find_children_spec_preds(self(), ConfTree),
 	    ChildrenPredicates = {SpecPreds, Preds},
-	    loop(State, Funs, LogTriple, CheckPred, Output, ChildrenPredicates, ConfTree)
+            WorkerState = #wr_st{state = State,
+                                 funs = Funs,
+                                 log = LogTriple,
+                                 cp_pred = CheckPred,
+                                 output = Output,
+                                 child_preds = ChildrenPredicates,
+                                 conf = ConfTree},
+	    worker(WorkerState)
     end.
 
 
 %% This is the main loop that each node executes.
--spec loop(State::any(), #funs{}, num_log_triple(), checkpoint_predicate(), 
-	   mailbox(), children_predicates(), configuration()) -> no_return().
-loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun}, 
-     {LogFun, ResetFun, LogState} = LogTriple, CheckPred, Output, ChildrenPredicates, ConfTree) ->
+-spec worker(worker_state()) -> no_return().
+worker(WorkerState) ->
     receive
         {MsgOrMerge, _} = MessageMerge when MsgOrMerge =:= msg orelse MsgOrMerge =:= merge ->
+            ConfTree = WorkerState#wr_st.conf,
+            {LogFun, ResetFun, _} = WorkerState#wr_st.log,
 	    %% The mailbox has cleared this message so we don't need to check for pred
 	    {NewLogState, NewState} = 
 		case configuration:find_children_mbox_pids(self(), ConfTree) of
 		    [] ->
-			handle_message(MessageMerge, State, Output, UFun, LogTriple, ConfTree);
+			handle_message(MessageMerge, WorkerState);
 		    Children ->
 			{_IsMsgMerge, {{Tag, _Payload}, Node, Ts}} = MessageMerge,
 			ImplTag = {Tag, Node},
+                        LogTriple = WorkerState#wr_st.log,
+                        #wr_funs{mrg=MFun, spl=SFun} = WorkerState#wr_st.funs,
 			{LogState1, [State1, State2]} = 
 			    receive_states({ImplTag, Ts}, Children, LogTriple),
 			MergedState = MFun(State1, State2),
+                        MergedWorkerState = 
+                            WorkerState#wr_st{state=MergedState,
+                                              log={LogFun, ResetFun, LogState1}},
 			{LogState2, NewState0} = 
-			    handle_message(MessageMerge, MergedState, Output, UFun, 
-					   {LogFun, ResetFun, LogState1}, ConfTree),
-			{[SpecPred1, SpecPred2], _} = ChildrenPredicates, 
-			%% [Pred1, Pred2] = configuration:find_children_preds(self(), ConfTree),
-
+			    handle_message(MessageMerge, MergedWorkerState),
+			{[SpecPred1, SpecPred2], _} = WorkerState#wr_st.child_preds,
 			{NewState1, NewState2} = SFun({SpecPred1, SpecPred2}, NewState0),
 			[C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
 			{LogState2, NewState0}
 		end,
 	    %% Check whether to create a checkpoint 
+            CheckPred = WorkerState#wr_st.cp_pred,
 	    NewCheckPred = CheckPred(MessageMerge, NewState),
 	    %% Maybe log some information about the message
-	    FinalLogState = LogFun(MsgOrMerge, NewLogState),
-	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, 
-		 NewCheckPred, Output, ChildrenPredicates, ConfTree);
+	    FinalLogState = LogFun(MessageMerge, NewLogState),
+            NewWorkerState =
+                WorkerState#wr_st{state=NewState,
+                                  log={LogFun, ResetFun, FinalLogState},
+                                  cp_pred=NewCheckPred},
+	    worker(NewWorkerState);
 	{get_message_log, _ReplyTo} = GetLogMsg ->
 	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
 			      " -- Its erl_mailbox_size is: ~p~n", 
 			      [util:local_timestamp(),self(), node(), 
 			       erlang:process_info(self(), message_queue_len)]),
+            {LogFun, ResetFun, LogState} = WorkerState#wr_st.log,
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
-	    loop(State, Funs, {LogFun, ResetFun, NewLogState}, CheckPred, 
-		 Output, ChildrenPredicates, ConfTree)
+            NewWorkerState =
+                WorkerState#wr_st{log={LogFun, ResetFun, NewLogState}},
+	    worker(NewWorkerState)
     end.
 
--spec handle_message(gen_impl_message() | merge_request(), State::any(), mailbox(), 
-		     update_fun(), num_log_triple(), configuration()) 
+-spec handle_message(gen_impl_message() | merge_request(), worker_state()) 
 		    -> {num_log_state(), State::any()}.
-handle_message({msg, Msg}, State, Output, UFun, {_, _, LogState}, _Conf) ->
+handle_message({msg, Msg}, #wr_st{state=State, output=Output, funs=Funs, log={_, _, LogState}}) ->
+    UFun = Funs#wr_funs.upd, 
     {LogState, update_on_msg(Msg, State, Output, UFun)};
-handle_message({merge, {{_Tag, Father}, _Node, _Ts}}, State, _Output, _UFun, LogTriple, Conf) ->
-    respond_to_merge(Father, State, LogTriple, Conf).
+handle_message({merge, {{_Tag, Father}, _Node, _Ts}}, #wr_st{state=State, log=Log, conf=Conf}) ->
+    respond_to_merge(Father, State, Log, Conf).
 
 -spec update_on_msg(gen_impl_message(), State::any(), mailbox(), update_fun()) -> State::any().
 update_on_msg({Msg, _Node, _Ts} = _ImplMsg, State, Output, UFun) ->
