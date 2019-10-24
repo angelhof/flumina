@@ -69,7 +69,8 @@ dependencies(NumHouseIDs) ->
 -type totals() :: {float(), integer()}. % Total, count
 -type time_of_day() :: integer(). % Will be computed as a modulo of the time_overall
 -type total_by_time_of_day() :: #{time_of_day() := totals()}.
-% Summary for an individual plug, household, house, etc.: (1) total in the previous slice, and (2) total in each time of day
+% Summary for an individual plug, household, house, etc.: (1) total in
+% the previous slice, and (2) total in each time of day
 -type past_load_summary() :: {totals(), total_by_time_of_day()}.
 
 %% The state will be several maps of load summaries.
@@ -91,7 +92,9 @@ dependencies(NumHouseIDs) ->
 -type weights() :: [float()].
 -type all_weights() :: {weights(), weights()}.
 
-%% Complete state includes load summaries overall, for each house, for each household, and for each plug. We also include the time overall and the time of day for each plug.
+%% Complete state includes load summaries overall, for each house, for
+%% each household, and for each plug. We also include the time overall
+%% and the time of day for each plug.
 -type state() :: {time_overall(),
 				  time_of_day(),
 				  all_load_summaries(),
@@ -115,9 +118,13 @@ init_state(InitialTime) ->
       lists:duplicate(8, 1 / 8)  % 8 equal weights to predict plug load
      }}.
 
-%% To update the state we need some helper functions: to update totals, and to update a complete load summary. Also to update a map of load summaries.
-%% For totals and load_summary values, we write an update function and a new function. Also, a reset function for load summaries (which resets the first coordinate only).
-%% The functions to add totals and load summaries won't be used until later (for joining state).
+%% To update the state we need some helper functions: to update
+%% totals, and to update a complete load summary. Also to update a map
+%% of load summaries.  For totals and load_summary values, we write an
+%% update function and a new function. Also, a reset function for load
+%% summaries (which resets the first coordinate only).  The functions
+%% to add totals and load summaries won't be used until later (for
+%% joining state).
 -spec update_totals(totals(), integer()) -> totals().
 update_totals({Sum, Count}, NewVal) ->
     {Sum + NewVal, Count + 1}.
@@ -312,7 +319,8 @@ update({end_timeslice, TimeValue}, State, SinkPid) ->
 
 %% ========== Parallelization Primitives ==========
 
-%% To fork the state: split the maps by key. Fork the global load summary by preserving the sum (fork (x,y) -> (x,y), (0,0)).
+%% To fork the state: split the maps by key. Fork the global load
+%% summary by preserving the sum (fork (x,y) -> (x,y), (0,0)).
 
 -spec fork(split_preds(), state()) -> {state(), state()}.
 fork(SplitPreds, State) ->

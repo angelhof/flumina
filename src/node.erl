@@ -37,7 +37,7 @@ init(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
 %% Main Processing Node
 %%
 -spec init_worker(State::any(), #wr_funs{}, num_log_triple(), 
-		checkpoint_predicate(), mailbox()) -> no_return().
+                  checkpoint_predicate(), mailbox()) -> no_return().
 init_worker(State, Funs, LogTriple, CheckPred, Output) ->
     log_mod:init_debug_log(),
     %% Before executing the main loop receive the
