@@ -1,7 +1,6 @@
 -module(mailbox).
 
--export([init_mailbox/6,
-	 mailbox/1]).
+-export([init_mailbox/6]).
 
 -include("type_definitions.hrl").
 

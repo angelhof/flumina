@@ -49,7 +49,7 @@ create(Tree, Dependencies, OptionsRec, OutputPid, ImplTags) ->
 %% Spawns the nodes based on the tree configuration
 -spec spawn_nodes(temp_setup_tree(), name_seed(), conf_gen_options_rec(), 
 		  dependencies(), mailbox(), integer(), impl_tags()) -> {pid_tree(), name_seed()}.
-spawn_nodes({State, Node, {SpecPred, Pred}, Funs, Children}, NameSeed, 
+spawn_nodes({State, Node, {_SpecPred, Pred}, Funs, Children}, NameSeed, 
 	    OptionsRec, Dependencies, OutputPid, Depth, ImplTags) ->
     {ChildrenPidTrees, NewNameSeed} = 
 	lists:foldr(
@@ -58,10 +58,10 @@ spawn_nodes({State, Node, {SpecPred, Pred}, Funs, Children}, NameSeed,
 		     spawn_nodes(C, NameSeed0, OptionsRec, Dependencies, OutputPid, Depth + 1, ImplTags),
 		 {[CTree|AccTrees], NameSeed1}
 	 end, {[], NameSeed}, Children),
-    ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
+    _ChildrenPids = [MP || {{_NP, MP}, _} <- ChildrenPidTrees],
     {Name, FinalNameSeed} = gen_proc_name(NewNameSeed),
     {NodePid, NameNode} = 
-	node:node(State, {Name, Node}, Pred, Funs, OptionsRec, Dependencies, OutputPid, Depth, ImplTags),
+	node:init(State, {Name, Node}, Pred, Funs, OptionsRec, Dependencies, OutputPid, Depth, ImplTags),
     {{{NodePid, NameNode}, ChildrenPidTrees}, FinalNameSeed}.
 
 -spec make_name_seed() -> name_seed().
@@ -79,7 +79,7 @@ gen_proc_name(Seed) ->
 %% Prepares the router tree
 -spec prepare_configuration_tree(pid_tree(), temp_setup_tree()) -> configuration().
 prepare_configuration_tree({{NodePid, {_, Node} = MboxNameNode}, ChildrenPids}, 
-			   {State, Node, {SpecPred, Pred}, Funs, Children}) ->
+			   {_State, Node, {SpecPred, Pred}, _Funs, Children}) ->
     ChildrenTrees = [prepare_configuration_tree(P, N) || {P, N} <- lists:zip(ChildrenPids, Children)],
     {node, NodePid, MboxNameNode, {SpecPred, Pred}, ChildrenTrees}.
 

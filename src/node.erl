@@ -1,16 +1,16 @@
 -module(node).
 
--export([node/9,
+-export([init/9,
 	 init_worker/5]).
 
 -include("type_definitions.hrl").
 
 %% Initializes and spawns a node and its mailbox
--spec node(State::any(), mailbox(), impl_message_predicate(), spec_functions(), 
-	   conf_gen_options_rec(), dependencies(), mailbox(), integer(),
-	   impl_tags()) 
-	  -> {pid(), mailbox()}.
-node(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, 
+-spec init(State::any(), mailbox(), impl_message_predicate(), spec_functions(), 
+           conf_gen_options_rec(), dependencies(), mailbox(), integer(),
+           impl_tags()) 
+          -> {pid(), mailbox()}.
+init(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, 
      #options{log_triple = LogTriple, checkpoint = CheckFun}, Dependencies, 
      Output, Depth, ImplTags) ->
     Funs = #wr_funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
@@ -65,34 +65,12 @@ init_worker(State, Funs, LogTriple, CheckPred, Output) ->
 
 %% This is the main loop that each node executes.
 -spec worker(worker_state()) -> no_return().
-worker(WorkerState) ->
+worker(WorkerState = #wr_st{log={LogFun, ResetFun, LogState}}) ->
     receive
         {MsgOrMerge, _} = MessageMerge when MsgOrMerge =:= msg orelse MsgOrMerge =:= merge ->
-            ConfTree = WorkerState#wr_st.conf,
-            {LogFun, ResetFun, _} = WorkerState#wr_st.log,
-	    %% The mailbox has cleared this message so we don't need to check for pred
-	    {NewLogState, NewState} = 
-		case configuration:find_children_mbox_pids(self(), ConfTree) of
-		    [] ->
-			handle_message(MessageMerge, WorkerState);
-		    Children ->
-			{_IsMsgMerge, {{Tag, _Payload}, Node, Ts}} = MessageMerge,
-			ImplTag = {Tag, Node},
-                        LogTriple = WorkerState#wr_st.log,
-                        #wr_funs{mrg=MFun, spl=SFun} = WorkerState#wr_st.funs,
-			{LogState1, [State1, State2]} = 
-			    receive_states({ImplTag, Ts}, Children, LogTriple),
-			MergedState = MFun(State1, State2),
-                        MergedWorkerState = 
-                            WorkerState#wr_st{state=MergedState,
-                                              log={LogFun, ResetFun, LogState1}},
-			{LogState2, NewState0} = 
-			    handle_message(MessageMerge, MergedWorkerState),
-			{[SpecPred1, SpecPred2], _} = WorkerState#wr_st.child_preds,
-			{NewState1, NewState2} = SFun({SpecPred1, SpecPred2}, NewState0),
-			[C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
-			{LogState2, NewState0}
-		end,
+	    %% Handle the message, depending on whether his worker has
+	    %% children or not.
+	    {NewLogState, NewState} = handle_message(MessageMerge, WorkerState),
 	    %% Check whether to create a checkpoint 
             CheckPred = WorkerState#wr_st.cp_pred,
 	    NewCheckPred = CheckPred(MessageMerge, NewState),
@@ -107,20 +85,52 @@ worker(WorkerState) ->
 	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
 			      " -- Its erl_mailbox_size is: ~p~n", 
 			      [util:local_timestamp(),self(), node(), 
-			       erlang:process_info(self(), message_queue_len)]),
-            {LogFun, ResetFun, LogState} = WorkerState#wr_st.log,
+			       erlang:process_info(self(), message_queue_len)]),            
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
             NewWorkerState =
                 WorkerState#wr_st{log={LogFun, ResetFun, NewLogState}},
 	    worker(NewWorkerState)
     end.
 
+%% This is the function that handles a message. If the worker node has
+%% children, then it receives their states, then acts on the message,
+%% and then splits back the state. If it has no children, then it just
+%% acts on the message.
 -spec handle_message(gen_impl_message() | merge_request(), worker_state()) 
+                    -> {num_log_state(), State::any()}. 
+handle_message(MessageMerge, WorkerState = #wr_st{log={LogFun, ResetFun, _} = Log}) ->
+    ConfTree = WorkerState#wr_st.conf,
+    %% The mailbox has cleared this message so we don't need to check for pred
+    case configuration:find_children_mbox_pids(self(), ConfTree) of
+        [] ->
+            act_on_message(MessageMerge, WorkerState);
+        Children ->
+            {_IsMsgMerge, {{Tag, _Payload}, Node, Ts}} = MessageMerge,
+            ImplTag = {Tag, Node},
+            #wr_funs{mrg=MFun, spl=SFun} = WorkerState#wr_st.funs,
+            {LogState1, [State1, State2]} = 
+                receive_states({ImplTag, Ts}, Children, Log),
+            MergedState = MFun(State1, State2),
+            MergedWorkerState = 
+                WorkerState#wr_st{state=MergedState,
+                                  log={LogFun, ResetFun, LogState1}},
+            {LogState2, NewState0} = 
+                act_on_message(MessageMerge, MergedWorkerState),
+            {[SpecPred1, SpecPred2], _} = WorkerState#wr_st.child_preds,
+            {NewState1, NewState2} = SFun({SpecPred1, SpecPred2}, NewState0),
+            [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
+            {LogState2, NewState0}
+    end.
+
+%% This function acts on a message. If it is a simple message, then it
+%% just runs the update, otherwise if it is a merge, it responds to
+%% the parent.
+-spec act_on_message(gen_impl_message() | merge_request(), worker_state()) 
 		    -> {num_log_state(), State::any()}.
-handle_message({msg, Msg}, #wr_st{state=State, output=Output, funs=Funs, log={_, _, LogState}}) ->
+act_on_message({msg, Msg}, #wr_st{state=State, output=Output, funs=Funs, log={_, _, LogState}}) ->
     UFun = Funs#wr_funs.upd, 
     {LogState, update_on_msg(Msg, State, Output, UFun)};
-handle_message({merge, {{_Tag, Father}, _Node, _Ts}}, #wr_st{state=State, log=Log, conf=Conf}) ->
+act_on_message({merge, {{_Tag, Father}, _Node, _Ts}}, #wr_st{state=State, log=Log, conf=Conf}) ->
     respond_to_merge(Father, State, Log, Conf).
 
 -spec update_on_msg(gen_impl_message(), State::any(), mailbox(), update_fun()) -> State::any().
