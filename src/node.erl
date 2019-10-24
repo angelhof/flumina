@@ -2,7 +2,7 @@
 
 -export([node/9,
 	 init_mailbox/6,
-	 mailbox/5,
+	 mailbox/1,
 	 init_node/5,
 	 loop/7]).
 
@@ -95,7 +95,12 @@ init_mailbox(Name, Dependencies, Pred, Attachee, Master, ImplTags) ->
 	    AllDependingImplTags = lists:flatten(maps:values(RelevantDependencies)),
 	    Timers = maps:from_list([{T, 0} || T <-  AllDependingImplTags]),
 	    Buffers = maps:from_list([{T, queue:new()} || T <-  AllDependingImplTags]),
-	    mailbox({Buffers, Timers}, RelevantDependencies, Pred, Attachee, ConfTree)
+            MboxState = #mb_st{buffers = {Buffers, Timers},
+                               deps = RelevantDependencies,
+                               pred = Pred,
+                               attachee = Attachee,
+                               conf = ConfTree},
+	    mailbox(MboxState)
     end.
 
 %%
@@ -115,7 +120,7 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 
     ImplDependencies =
 	lists:map(
-	  fun({Tag, Node} = ImplTag) ->
+	  fun({Tag, _Node} = ImplTag) ->
 		  %% For each implementation tag
 		  %% find the tags that depend on its
 		  %% specification tag
@@ -146,15 +151,13 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 				   
     %% %% io:format("Clean Deps:~p~n~p~n", [self(), Dependencies1]),
     %% Dependencies1.
-    
-
+   
 
 %% This is the mailbox process that routes to 
 %% their correct nodes and makes sure that
 %% dependent messages arrive in order
--spec mailbox(buffers_timers(), impl_dependencies(), impl_message_predicate(), 
-	      pid(), configuration()) -> no_return().
-mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
+-spec mailbox(mailbox_state()) -> no_return().
+mailbox(MboxState) ->
     receive
 	%% Explanation:
 	%% The messages that first enter the system contain an 
@@ -171,9 +174,11 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 	    %%   the message to a lower node, as only leaf processes process
 	    %%   and a message must be handled by (one of) the lowest process 
 	    %%   in the tree that can handle it.
+            ConfTree = MboxState#mb_st.conf,
 	    route_message_and_merge_requests(Msg, ConfTree),
-	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree);
+	    mailbox(MboxState);
 	{msg, Msg} ->
+            Pred = MboxState#mb_st.pred,
 	    case Pred(Msg) of
 		false ->
 		    %% This should be unreachable because all the messages 
@@ -181,19 +186,24 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 		    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was sent msg: ~p ~n"
 				      "  that doesn't satisfy its predicate.~n",
 				      [util:local_timestamp(),self(), node(), Msg]),
+                    Attachee = MboxState#mb_st.attachee,
 		    util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
 		    erlang:halt(1);
 		true ->
-		    %% Whenever a new message arrives, we add it to the buffer
+		    %% Whenever a new message arrives, we add it to its buffer
+                    BuffersTimers = MboxState#mb_st.buffers,
 		    NewBuffersTimers = add_to_buffers_timers({msg, Msg}, BuffersTimers),
 		    {{Tag, _Payload}, Node, Ts} = Msg,
 		    ImplTag = {Tag, Node},
 		    %% And we then clear the buffer based on it, as messages also act as heartbeats
+                    Attachee = MboxState#mb_st.attachee,
+                    Dependencies = MboxState#mb_st.deps,
 		    ClearedBuffersTimers = 
 			update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
 		    %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
 		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]),
-		    mailbox(ClearedBuffersTimers, Dependencies, Pred, Attachee, ConfTree)
+                    NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
+		    mailbox(NewMboxState)
 	    end;
 	{merge, {{Tag, Father}, Node, Ts}} ->
 	    %% A merge requests acts as two different messages in our model.
@@ -204,16 +214,21 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 	    %%   its dependencies are dealt with), so we have to add it to the buffer
 	    %%   like we do with every other message
 	    ImplTag = {Tag, Node},
+            BuffersTimers = MboxState#mb_st.buffers,
+            Attachee = MboxState#mb_st.attachee,
+            Dependencies = MboxState#mb_st.deps,
 	    NewBuffersTimers = add_to_buffers_timers({merge, {{Tag, Father}, Node, Ts}}, BuffersTimers),
 	    ClearedBuffersTimers = 
 		update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
 	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedBuffersTimers]),
 	    %% io:format("~p -- ~p~n", [self(), erlang:process_info(self(), message_queue_len)]),
-	    mailbox(ClearedBuffersTimers, Dependencies, Pred, Attachee, ConfTree);
+            NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
+            mailbox(NewMboxState);
 	{state, State} ->
-	    %% This is the reply of a child node with its state 
+	    %% This is the reply of a child node with its state
+            Attachee = MboxState#mb_st.attachee, 
 	    Attachee ! {state, State},
-	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree);
+	    mailbox(MboxState);
 	{iheartbeat, ImplTagTs} ->
 	    %% WARNING: I am not sure about that
 	    %% Whenever a heartbeat first arrives into the system we have to send it to all nodes
@@ -227,16 +242,23 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 	    %% Broadcast the heartbeat to all nodes who process tags related to this 
 	    %% heartbeat (so if it satisfies their predicates). In order for this to be
 	    %% efficient, it assumes that predicates are not too broad in the sense that
-	    %% a node processes a message x iff pred(x) = true. 
+	    %% a node processes a message x iff pred(x) = true.
+            ConfTree = MboxState#mb_st.conf, 
 	    broadcast_heartbeat(ImplTagTs, ConfTree),
-	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree);
+	    mailbox(MboxState);
 	{heartbeat, ImplTagTs} ->
 	    %% A heartbeat clears the buffer and updates the timers
+            Attachee = MboxState#mb_st.attachee,
+            Dependencies = MboxState#mb_st.deps,
+            BuffersTimers = MboxState#mb_st.buffers,
 	    NewBuffersTimers = 
 		update_timers_clear_buffers(ImplTagTs, BuffersTimers, Dependencies, Attachee),
 	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewBuffersTimers]),
-	    mailbox(NewBuffersTimers, Dependencies, Pred, Attachee, ConfTree);
+            NewMboxState = MboxState#mb_st{buffers = NewBuffersTimers},
+            mailbox(NewMboxState);
 	{get_message_log, ReplyTo} ->
+            Attachee = MboxState#mb_st.attachee,
+            BuffersTimers = MboxState#mb_st.buffers,
 	    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was asked for throughput.~n" 
 			      " -- Its erl_mailbox_size is: ~p~n"
 			      " -- Its buffer mailbox size is: ~p~n",
@@ -244,7 +266,7 @@ mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree) ->
 			       erlang:process_info(self(), message_queue_len),
 			       buffers_length(BuffersTimers)]),
 	    Attachee ! {get_message_log, ReplyTo},
-	    mailbox(BuffersTimers, Dependencies, Pred, Attachee, ConfTree)
+	    mailbox(MboxState)
     end.
 
 
@@ -366,7 +388,7 @@ empty_or_later({ImplTag, Ts}, Buffer) ->
 %% This function inserts a newly arrived message to the buffers
 -spec add_to_buffers_timers(gen_message_or_merge(), buffers_timers()) -> buffers_timers().
 add_to_buffers_timers(Msg, {Buffers, Timers}) ->
-    {_MsgOrMerge, {{Tag, _Payload}, Node, Ts}} = Msg,
+    {_MsgOrMerge, {{Tag, _Payload}, Node, _Ts}} = Msg,
     ImplTag = {Tag, Node},
     Buffer = maps:get(ImplTag, Buffers),
     NewBuffer = add_to_buffer(Msg, Buffer),
@@ -473,7 +495,7 @@ loop(State, Funs = #funs{upd=UFun, spl=SFun, mrg=MFun},
 	    FinalLogState = LogFun(MsgOrMerge, NewLogState),
 	    loop(NewState, Funs, {LogFun, ResetFun, FinalLogState}, 
 		 NewCheckPred, Output, ChildrenPredicates, ConfTree);
-	{get_message_log, ReplyTo} = GetLogMsg ->
+	{get_message_log, _ReplyTo} = GetLogMsg ->
 	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
 			      " -- Its erl_mailbox_size is: ~p~n", 
 			      [util:local_timestamp(),self(), node(), 
@@ -527,7 +549,7 @@ receive_new_state_or_get_message_log({LogFun, ResetFun, LogState}) ->
     receive
 	{state, NewState} ->
 	    {LogState, NewState};
-	{get_message_log, ReplyTo} = GetLogMsg ->
+	{get_message_log, _ReplyTo} = GetLogMsg ->
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
 	    receive_new_state_or_get_message_log({LogFun, ResetFun, NewLogState})
     end.
@@ -549,7 +571,7 @@ receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, LogState}}) ->
     receive
 	{state, {C, State}} ->
 	    {[State|States], {LogFun, ResetFun, LogState}};
-	{get_message_log, ReplyTo} = GetLogMsg ->
+	{get_message_log, _ReplyTo} = GetLogMsg ->
 	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
 			      " -- Its erl_mailbox_size is: ~p~n", 
 			      [util:local_timestamp(),self(), node(), 

@@ -86,6 +86,19 @@
 			    spec_functions(), [temp_setup_tree()]}.
 
 %%
+%% Mailbox State
+%%
+
+%% This is a record of the mailbox state
+-record(mb_st, {buffers :: buffers_timers(),
+                deps :: impl_dependencies(),
+                pred :: impl_message_predicate(),
+                attachee :: pid(),
+                conf :: configuration()}).
+-type mailbox_state() :: #mb_st{}.
+
+
+%%
 %% Configuration Generator
 %%
 
