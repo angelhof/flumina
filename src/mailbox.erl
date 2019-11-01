@@ -67,15 +67,18 @@ init_mailbox(Name, Dependencies, Pred, Attachee, Master, ImplTags) ->
     end.
 
 %%
-%% The mailbox works by releasing messages (and merge requests) when all of their previously
-%% received dependencies have been released. However a node never receives heartbeats from
-%% messages that their siblings or uncle nodes handle, so they have to disregard those dependencies
-%% as they cannot be handled by them. 
-%% Because of that, we have to remove dependencies that a node can not handle (because it 
-%% doesn't receive those messages and heartbeats), so that progress is ensured.
+%% The mailbox works by releasing messages (and merge requests) when
+%% all of their previously received dependencies have been
+%% released. However a node never receives heartbeats from messages
+%% that their siblings or uncle nodes handle, so they have to
+%% disregard those dependencies as they cannot be handled by them.
+%% Because of that, we have to remove dependencies that a node can not
+%% handle (because it doesn't receive those messages and heartbeats),
+%% so that progress is ensured.
 %%
-%% The way we do it, is by only keeping the dependencies that belong to the union 
-%% (MyPred - ChildrenPreds), (ParentPred - SiblingPred), (GrandParentPred - UnclePred)
+%% The way we do it, is by only keeping the dependencies that belong
+%% to the union (MyPred - ChildrenPreds), (ParentPred - SiblingPred),
+%% (GrandParentPred - UnclePred)
 -spec filter_relevant_dependencies(dependencies(), pid(), configuration(), impl_tags()) -> impl_dependencies().
 filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
     {ok, Predicate} = configuration:get_relevant_predicates(Attachee, ConfTree),
@@ -101,7 +104,7 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 		  %% 	    [ImplTag, DepTags, RelevantImplTags]),
 		  {ImplTag, RelevantImplTags}
 	  end, ImplTags),
-    %% io:format("Implementation Tag Dependencies for: ~p~n~p~n", [self(), ImplDependencies]),
+    io:format("Implementation Tag Dependencies for: ~p~n~p~n", [self(), ImplDependencies]),
     maps:from_list(ImplDependencies).
     %% Dependencies1 = 
     %% 	maps:map(
@@ -153,20 +156,8 @@ mailbox(MboxState) ->
 		    util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
 		    erlang:halt(1);
 		true ->
-		    %% Whenever a new message arrives, we add it to its buffer
-                    BuffersTimers = MboxState#mb_st.buffers,
-		    NewBuffersTimers = add_to_buffers_timers({msg, Msg}, BuffersTimers),
-		    {{Tag, _Payload}, Node, Ts} = Msg,
-		    ImplTag = {Tag, Node},
-		    %% And we then clear the buffer based on it, as messages also act as heartbeats
-                    Attachee = MboxState#mb_st.attachee,
-                    Dependencies = MboxState#mb_st.deps,
-		    ClearedBuffersTimers = 
-			update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
-		    %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
-		    %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]),
-                    NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
-		    mailbox(NewMboxState)
+                    NewMboxState = handle_message({msg, Msg}, MboxState),
+                    mailbox(NewMboxState)
 	    end;
 	{merge, {{Tag, Father}, Node, Ts}} ->
 	    %% A merge requests acts as two different messages in our model.
@@ -206,7 +197,7 @@ mailbox(MboxState) ->
 	    %% heartbeat (so if it satisfies their predicates). In order for this to be
 	    %% efficient, it assumes that predicates are not too broad in the sense that
 	    %% a node processes a message x iff pred(x) = true.
-            ConfTree = MboxState#mb_st.conf, 
+            ConfTree = MboxState#mb_st.conf,
 	    broadcast_heartbeat(ImplTagTs, ConfTree),
 	    mailbox(MboxState);
 	{heartbeat, ImplTagTs} ->
@@ -232,6 +223,39 @@ mailbox(MboxState) ->
 	    mailbox(MboxState)
     end.
 
+%% This function handles a message, by updating the relative buffers
+%% and timers, and by clearing buffers.
+-spec handle_message(gen_message(), mailbox_state()) -> mailbox_state().
+handle_message({msg, Msg}, MboxState) ->
+    BuffersTimers = MboxState#mb_st.buffers,
+    case is_completely_independent(Msg, BuffersTimers) of
+        true ->
+            %% If the message is completely independent, just forward it
+            Attachee = MboxState#mb_st.attachee,
+            Attachee ! {msg, Msg},
+            MboxState;
+        false ->            
+            %% Whenever a new message arrives, we add it to its buffer
+            NewBuffersTimers = add_to_buffers_timers({msg, Msg}, BuffersTimers),
+            {{Tag, _Payload}, Node, Ts} = Msg,
+            ImplTag = {Tag, Node},
+            %% And we then clear the buffer based on it, as messages also act as heartbeats
+            Attachee = MboxState#mb_st.attachee,
+            Dependencies = MboxState#mb_st.deps,
+            ClearedBuffersTimers = 
+                update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
+            %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
+            %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]),
+            MboxState#mb_st{buffers = ClearedBuffersTimers}
+    end.
+
+%% If this specific message is completely independent, then it
+%% shouldn't have any associated buffer or timer, since those would
+%% have been cleared in the filter_relevant dependencies function.
+-spec is_completely_independent(gen_impl_message(), buffers_timers()) -> boolean().
+is_completely_independent({{Tag, _Pld}, Node, _Ts}, {Buffers, _Timers}) ->
+    ImplTag = {Tag, Node},
+    not maps:is_key(ImplTag, Buffers).
 
 %% This function updates the timer for the newly received tag and clears
 %% any buffer that depends on this tag

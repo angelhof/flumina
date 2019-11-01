@@ -1,5 +1,7 @@
 ** Work TODO
 
+*** TODO Write a test where the mailbox has completely independent messages
+
 *** TODO Setup all the generators for the debs smart home experiments
 
   - [ ] Implement the hour-window generators
