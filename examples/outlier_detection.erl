@@ -114,3 +114,30 @@ seq_conf(SinkPid) ->
     producer:make_producers(InputStream, ConfTree, Topology),
 
     SinkPid ! finished.
+
+%%
+%% Tests
+%%
+
+sample_test_output() ->
+    [{connection,{0,tcp,http,'SF',215,45076}},
+     {connection,{0,tcp,http,'SF',162,4528}},
+     {connection,{0,tcp,http,'SF',236,1228}},
+     {connection,{0,tcp,http,'SF',233,2032}},
+     {connection,{0,tcp,http,'SF',239,486}},
+     {connection,{0,tcp,http,'SF',238,1282}},
+     {connection,{0,tcp,http,'SF',235,1337}},
+     {connection,{0,tcp,http,'SF',234,1364}},
+     {connection,{0,tcp,http,'SF',239,1295}},
+     {connection,{0,tcp,http,'SF',181,5450}}].
+
+
+sample_test_() ->
+    Rounds = lists:seq(1,100),
+    {"Input example test",
+     [{setup,
+      fun util:nothing/0,
+      fun(ok) -> testing:unregister_names() end,
+      fun(ok) ->
+	      ?_assertEqual(ok, testing:test_mfa({?MODULE, seq_conf}, sample_test_output()))
+      end} || _ <- Rounds]}.

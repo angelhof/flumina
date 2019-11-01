@@ -65,6 +65,7 @@ tests:
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run abexample test $(HALT)
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run taxiexample test $(HALT)
 	@$(ERL) -pa $(EBIN_DIRS) -noshell -run smart_home_example test $(HALT)
+	@$(ERL) -pa $(EBIN_DIRS) -noshell -run outlier_detection test $(HALT)
 
 prepare_dialyzer:
 	dialyzer --build_plt --apps erts stdlib kernel
