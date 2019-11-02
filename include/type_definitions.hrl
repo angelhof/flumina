@@ -23,8 +23,8 @@
 -type dependencies() :: #{tag() := [tag()]}.
 
 -type state_type_name() :: atom().
--type state_type_triple() :: {state_type_name(), 
-			      state_type_name(), 
+-type state_type_triple() :: {state_type_name(),
+			      state_type_name(),
 			      state_type_name()}.
 -type split_merge() :: {split_fun(), merge_fun()}.
 -type split_merge_fun() :: {state_type_triple(), split_merge()}.
@@ -44,7 +44,7 @@
 -type impl_message(Tag, Payload) :: {message(Tag, Payload), node(), timestamp()}.
 -type gen_impl_message() :: impl_message(tag(), any()).
 
--type merge_request() :: {'merge', {{tag(), Father::pid()}, node(), timestamp()}}. 
+-type merge_request() :: {'merge', {{tag(), Father::pid()}, node(), timestamp()}}.
 
 -type message_or_merge(Tag, Payload) :: {'msg', impl_message(Tag, Payload)} | merge_request().
 -type gen_message_or_merge() :: message_or_merge(tag(), any()).
@@ -56,7 +56,7 @@
 -type message_or_heartbeat(Tag, Payload) :: impl_message(Tag, Payload) | heartbeat(Tag).
 -type gen_message_or_heartbeat() :: message_or_heartbeat(tag(), any()).
 
--type imessage_or_iheartbeat(Tag, Payload) :: {'imsg', impl_message(Tag, Payload)} 
+-type imessage_or_iheartbeat(Tag, Payload) :: {'imsg', impl_message(Tag, Payload)}
 					    | iheartbeat(Tag).
 -type gen_imessage_or_iheartbeat() :: imessage_or_iheartbeat(tag(), any()).
 
@@ -78,11 +78,11 @@
 
 %% The configuration tree, contains the pid and the mailbox pid of each node
 %% as well as a predicate that represents which messages does this node process.
--type configuration() :: {'node', Node::pid(), mailbox(), 
+-type configuration() :: {'node', Node::pid(), mailbox(),
 			  {tag_predicate(), impl_message_predicate()}, [configuration()]}.
 
 -type pid_tree() :: {{pid(), mailbox()}, [pid_tree()]}.
--type temp_setup_tree() :: {State::any(), node(), {tag_predicate(), impl_message_predicate()}, 
+-type temp_setup_tree() :: {State::any(), node(), {tag_predicate(), impl_message_predicate()},
 			    spec_functions(), [temp_setup_tree()]}.
 
 %%
@@ -138,11 +138,11 @@
 %%       or whether it should talk about whole nodes
 -type nodes_rates() :: [{node(), tag(), non_neg_integer()}].
 
--type specification() :: 
+-type specification() ::
         { %% For each tag there exists a maximum subset
 	  %% of tags that it can handle, as well as an
 	  %% update function
-	  state_types_map(), 
+	  state_types_map(),
 	  %% A possibly empty list of splits and merges,
 	  %% and the state types that they are done from
 	  %% and to.
@@ -164,7 +164,7 @@
 -type tag_root_tree() :: {impl_tags(), [tag_root_tree()]}.
 -type root_tree() :: {{impl_tags(), node()}, [root_tree()]}.
 -type set_root_tree() :: {{sets:set(impl_tag()), node()}, [set_root_tree()]}.
--type hole_setup_tree() :: {state_type_pair(), set_root_tree(), 
+-type hole_setup_tree() :: {state_type_pair(), set_root_tree(),
 			    fun((temp_setup_tree()) -> temp_setup_tree())}.
 
 -type name_seed() :: integer().
@@ -192,8 +192,8 @@
 
 -type msg_generator() :: fun(() -> 'done' | {gen_message_or_heartbeat(),  msg_generator()}).
 -type msg_generator_init() :: {fun((...) -> msg_generator()), Args::[any()]}.
--type producer_type() :: 'constant' 
-		       | 'timestamp_based' 
+-type producer_type() :: 'constant'
+		       | 'timestamp_based'
 		       | 'steady_timestamp'.
 -type producer_init(Tags) :: [{msg_generator_init(), {Tags, node()}, integer()}].
 -type gen_producer_init() :: producer_init(tag()).
