@@ -1,12 +1,14 @@
 -module(outlier_detection).
 
 -export([make_kddcup_generator/0,
-         seq/0,
-         seq_conf/1]).
+         sample_seq/0,
+         sample_seq_conf/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("type_definitions.hrl").
 
+%% TODO: What should this value be?
+-define(PARAM_S, 1).
 
 %%%
 %%% Data types
@@ -23,24 +25,96 @@
 -type src_bytes() :: integer().
 -type dst_bytes() :: integer().
 
+%% All categorical features
+-type cat_feature() :: protocol_type() | service() | flag().
+
 -type connection_tag() :: 'connection'.
 -type connection_payload() :: {duration(), protocol_type(), service(),
                           flag(), src_bytes(), dst_bytes()}.
 -type connection() :: {connection_tag(), connection_payload()}.
 -type event() :: connection().
 
-%% State
--type state() :: any().
+%% Dependencies
 
 -spec dependencies() -> dependencies().
 dependencies() ->
     #{connection => []}.
 
+%% State
+
+%% The itemset hash value
+-record(hval, {sup = 0 :: integer()}).
+-type hval() :: #hval{}.
+
+%% Itemset is a tuple of categorical features
+-type itemset() :: {[cat_feature()]} | tuple().
+-type ihash() :: #{ itemset() := hval()}.
+
+-type state() :: ihash().
+
+%% TODO: Construct itemset for a given set of features.
+
+%% TODO: Extend the map to have all the necessary values to compute
+%%       the score.
+
+-spec all_itemsets() -> [itemset()].
+all_itemsets() ->
+    [{tcp}, {udp}].
+
+-spec init_itemset_hash() -> ihash().
+init_itemset_hash() ->
+    Itemsets = all_itemsets(),
+    ItemsetList = lists:zip(Itemsets, lists:duplicate(length(Itemsets), #hval{})),
+    maps:from_list(ItemsetList).
+
+-spec init_state() -> state().
 init_state() ->
-    0.
+    init_itemset_hash().
+
+-spec update_sup(connection_payload(), itemset(), ihash()) -> ihash().
+update_sup(Payload, G, ItemsetHash) ->
+    case util:is_subset(G, Payload) of
+        true ->
+            maps:update_with(G, fun(HVal = #hval{sup=Sup}) ->
+                                        HVal#hval{sup = Sup + 1}
+                                end, ItemsetHash);
+        false ->
+            ItemsetHash
+    end.
+
+-spec compute_score(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
+compute_score(Payload, G, {State, Score}) ->
+    ItemsetHash = State, % This hints that state will probably be extended.
+    NewItemsetHash = update_sup(Payload, G, ItemsetHash),
+    %% TODO: Update the rest of the state (Covariance matrices, etc)
+    NewState = NewItemsetHash,
+
+    HVal = maps:get(G, NewItemsetHash),
+    SupG = HVal#hval.sup,
+    NewScore =
+        case SupG < ?PARAM_S of
+            true ->
+                Score + 1.0 / tuple_size(G);
+            false ->
+                Score
+        end,
+    {NewState, NewScore}.
+
 
 -spec update(event(), state(), pid()) -> state().
-update({connection, _Payload} = Msg, State, SinkPid) ->
+update({connection, Payload}, State, _SinkPid) ->
+    %% TODO: Enumerate only the relevant itemsets. Fow now we can try
+    %%       all, or use the MAXLEVEL optimization as they propose.
+    Itemsets = all_itemsets(),
+    {NewState, Score} =
+        lists:foldl(
+         fun(G, Acc) ->
+                 compute_score(Payload, G, Acc)
+         end, {State, 0}, Itemsets),
+    NewState.
+
+-spec update_id(event(), state(), pid()) -> state().
+update_id({connection, _Payload} = Msg, State, SinkPid) ->
     SinkPid ! Msg,
     State.
 
@@ -86,13 +160,13 @@ parse_kddcup_csv_line(Line) ->
 %% Experiments
 %%
 
-seq() ->
+sample_seq() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, seq_conf, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, sample_seq_conf, [SinkName]),
     util:sink().
 
-seq_conf(SinkPid) ->
+sample_seq_conf(SinkPid) ->
     %% Architecture
     Rates = [{node(), connection, 1000}],
     Topology =
@@ -101,7 +175,7 @@ seq_conf(SinkPid) ->
     %% Computation
     Tags = [connection],
     StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3}},
+	#{'state0' => {sets:from_list(Tags), fun update_id/3}},
     SplitsMerges = [],
     Dependencies = dependencies(),
     InitState = {'state0', init_state()},
@@ -139,5 +213,5 @@ sample_test_() ->
       fun util:nothing/0,
       fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
-	      ?_assertEqual(ok, testing:test_mfa({?MODULE, seq_conf}, sample_test_output()))
+	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sample_seq_conf}, sample_test_output()))
       end} || _ <- Rounds]}.
