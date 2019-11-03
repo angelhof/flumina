@@ -1,6 +1,8 @@
 -module(outlier_detection).
 
 -export([make_kddcup_generator/0,
+         sample_id_seq/0,
+         sample_id_seq_conf/1,
          sample_seq/0,
          sample_seq_conf/1]).
 
@@ -28,22 +30,59 @@
 %% All categorical features
 -type cat_feature() :: protocol_type() | service() | flag().
 
+-type categorical_features() :: {protocol_type(), service(), flag()}.
+-type continuous_features() :: {duration(), src_bytes(), dst_bytes()}.
+
 -type connection_tag() :: 'connection'.
--type connection_payload() :: {duration(), protocol_type(), service(),
-                          flag(), src_bytes(), dst_bytes()}.
+-type connection_payload() :: {categorical_features(), continuous_features()}.
 -type connection() :: {connection_tag(), connection_payload()}.
 -type event() :: connection().
 
-%% Dependencies
+%% Specification
+
+-spec tags() -> [connection_tag()].
+tags() ->
+    [connection].
+
+-spec state_types_map() -> state_types_map().
+state_types_map() ->
+    #{'state0' => {sets:from_list(tags()), fun update/3}}.
+
+-spec splits_merges() -> split_merge_funs().
+splits_merges() ->
+    [].
 
 -spec dependencies() -> dependencies().
 dependencies() ->
     #{connection => []}.
 
+-spec init_state_pair() -> state_type_pair().
+init_state_pair() ->
+    {'state0', init_state()}.
+
+
+%% Matrix API
+
+%% TODO: Move this to another file (or at the end)
+
+-type matrix() :: list(list(float())).
+
+%% This matrix returns a new 0 filled matrix with size n
+new_matrix(N) ->
+    [[0.0 || _ <- lists:seq(1, N)]
+     || _ <- lists:seq(1, N)].
+
+%% This returnes a new 0 filled matrix for S. Its size should be equal
+%% to the number of continuous features.
+new_s_matrix() ->
+    new_matrix(3).
+
+
 %% State
 
 %% The itemset hash value
--record(hval, {sup = 0 :: integer()}).
+-record(hval, {sup = 0 :: integer(),
+               s = new_s_matrix() :: matrix()}).
 -type hval() :: #hval{}.
 
 %% Itemset is a tuple of categorical features
@@ -72,8 +111,8 @@ init_state() ->
     init_itemset_hash().
 
 -spec update_sup(connection_payload(), itemset(), ihash()) -> ihash().
-update_sup(Payload, G, ItemsetHash) ->
-    case util:is_subset(G, Payload) of
+update_sup({Categorical, _Continous}, G, ItemsetHash) ->
+    case util:is_subset(G, Categorical) of
         true ->
             maps:update_with(G, fun(HVal = #hval{sup=Sup}) ->
                                         HVal#hval{sup = Sup + 1}
@@ -102,7 +141,7 @@ compute_score(Payload, G, {State, Score}) ->
 
 
 -spec update(event(), state(), pid()) -> state().
-update({connection, Payload}, State, _SinkPid) ->
+update({connection, Payload}, State, SinkPid) ->
     %% TODO: Enumerate only the relevant itemsets. Fow now we can try
     %%       all, or use the MAXLEVEL optimization as they propose.
     Itemsets = all_itemsets(),
@@ -111,6 +150,8 @@ update({connection, Payload}, State, _SinkPid) ->
          fun(G, Acc) ->
                  compute_score(Payload, G, Acc)
          end, {State, 0}, Itemsets),
+    %% TODO: Use the score to flag as local outlier
+    SinkPid ! Score,
     NewState.
 
 -spec update_id(event(), state(), pid()) -> state().
@@ -149,10 +190,15 @@ parse_kddcup_csv_line(Line) ->
     Flag = list_to_atom(SFlag),
     SrcBytes = list_to_integer(SSrcBytes),
     DstBytes = list_to_integer(SDstBytes),
+
+    %% Separate features
+    Categorical = {Protocol, Service, Flag},
+    Continuous = {Duration, SrcBytes, DstBytes},
+
     %% WARNING: This should return the producer node
     Node = node(),
     %% TODO: Add node name (or some number) in the connection.
-    {{connection, {Duration, Protocol, Service, Flag, SrcBytes, DstBytes}}, Node, Timestamp}.
+    {{connection, {Categorical, Continuous}}, Node, Timestamp}.
 
 
 
@@ -167,6 +213,31 @@ sample_seq() ->
     util:sink().
 
 sample_seq_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), connection, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Specification =
+	conf_gen:make_specification(state_types_map(), splits_merges(),
+                                    dependencies(), init_state_pair()),
+
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
+
+    InputStream = make_connection_generator_init(),
+    producer:make_producers(InputStream, ConfTree, Topology),
+
+    SinkPid ! finished.
+
+
+sample_id_seq() ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, sample_id_seq_conf, [SinkName]),
+    util:sink().
+
+sample_id_seq_conf(SinkPid) ->
     %% Architecture
     Rates = [{node(), connection, 1000}],
     Topology =
@@ -193,17 +264,17 @@ sample_seq_conf(SinkPid) ->
 %% Tests
 %%
 
-sample_test_output() ->
-    [{connection,{0,tcp,http,'SF',215,45076}},
-     {connection,{0,tcp,http,'SF',162,4528}},
-     {connection,{0,tcp,http,'SF',236,1228}},
-     {connection,{0,tcp,http,'SF',233,2032}},
-     {connection,{0,tcp,http,'SF',239,486}},
-     {connection,{0,tcp,http,'SF',238,1282}},
-     {connection,{0,tcp,http,'SF',235,1337}},
-     {connection,{0,tcp,http,'SF',234,1364}},
-     {connection,{0,tcp,http,'SF',239,1295}},
-     {connection,{0,tcp,http,'SF',181,5450}}].
+sample_id_test_output() ->
+    [{connection,{{tcp,http,'SF'},{0,215,45076}}},
+     {connection,{{tcp,http,'SF'},{0,162,4528}}},
+     {connection,{{tcp,http,'SF'},{0,236,1228}}},
+     {connection,{{tcp,http,'SF'},{0,233,2032}}},
+     {connection,{{tcp,http,'SF'},{0,239,486}}},
+     {connection,{{tcp,http,'SF'},{0,238,1282}}},
+     {connection,{{tcp,http,'SF'},{0,235,1337}}},
+     {connection,{{tcp,http,'SF'},{0,234,1364}}},
+     {connection,{{tcp,http,'SF'},{0,239,1295}}},
+     {connection,{{tcp,http,'SF'},{0,181,5450}}}].
 
 
 sample_test_() ->
@@ -213,5 +284,5 @@ sample_test_() ->
       fun util:nothing/0,
       fun(ok) -> testing:unregister_names() end,
       fun(ok) ->
-	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sample_seq_conf}, sample_test_output()))
+	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sample_id_seq_conf}, sample_id_test_output()))
       end} || _ <- Rounds]}.
