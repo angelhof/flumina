@@ -79,6 +79,14 @@ new_matrix(N) ->
 new_s_matrix() ->
     new_matrix(3).
 
+-spec m_from_list(list(list(float()))) -> matrix().
+m_from_list(ListMatrix) ->
+    ListMatrix.
+
+-spec m_get(integer(), integer(), matrix()) -> float().
+m_get(I, J, Matrix) ->
+    Row = lists:nth(I, Matrix),
+    lists:nth(J, Row).
 
 %% State
 
@@ -132,15 +140,37 @@ init_itemset_hash() ->
 init_state() ->
     init_itemset_hash().
 
--spec update_sup(connection_payload(), itemset(), ihash()) -> ihash().
-update_sup({Categorical, _Continous}, G, ItemsetHash) ->
+-spec update_sup(itemset(), ihash()) -> ihash().
+update_sup(G, ItemsetHash) ->
+    maps:update_with(G, fun(HVal = #hval{sup=Sup}) ->
+                                HVal#hval{sup = Sup + 1}
+                        end, ItemsetHash).
+
+-spec update_s(continuous_features(), itemset(), ihash()) -> ihash().
+update_s(Continuous, G, ItemsetHash) ->
+    maps:update_with(G, fun(HVal = #hval{s = S}) ->
+                                HVal#hval{s = extend_s(Continuous, S)}
+                        end, ItemsetHash).
+-spec extend_s(continuous_features(), matrix()) -> matrix().
+extend_s(Cont, S) ->
+    N = tuple_size(Cont),
+    ListMatrix = [[(element(I, Cont) * element(J, Cont)) + m_get(I, J, S)
+                   || J <- lists:seq(1,N)]
+                  || I <- lists:seq(1,N)],
+    m_from_list(ListMatrix).
+
+-spec update_ihash(connection_payload(), itemset(), ihash()) -> ihash().
+update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
     case util:is_subset(G, Categorical) of
         true ->
             %% io:format("~p is subset of: ~p~n", [G, Categorical]),
-            maps:update_with(G, fun(HVal = #hval{sup=Sup}) ->
-                                        HVal#hval{sup = Sup + 1}
-                                end, ItemsetHash);
+            ItemsetHash1 = update_sup(G, ItemsetHash),
+            ItemsetHash2 = update_s(Continuous, G, ItemsetHash1),
+            %% TODO: Update the rest of the state (Covariance matrices, etc)
+            %% io:format("New ItemsetHash for: ~p~n~p~n", [G, maps:get(G, ItemsetHash2)]),
+            ItemsetHash2;
         false ->
+            %% io:format("~p is not a subset of ~p~n", [G, Categorical]),
             ItemsetHash
     end.
 
@@ -148,8 +178,7 @@ update_sup({Categorical, _Continous}, G, ItemsetHash) ->
 compute_score(Payload, G, {State, Score}) ->
     %% io:format("Msg: ~p - g: ~p~nState: ~p - Score: ~p~n", [Payload, G, State, Score]),
     ItemsetHash = State, % This hints that state will probably be extended.
-    NewItemsetHash = update_sup(Payload, G, ItemsetHash),
-    %% TODO: Update the rest of the state (Covariance matrices, etc)
+    NewItemsetHash = update_ihash(Payload, G, ItemsetHash),
     NewState = NewItemsetHash,
 
     HVal = maps:get(G, NewItemsetHash),
