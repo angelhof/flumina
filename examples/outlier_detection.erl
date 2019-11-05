@@ -103,6 +103,10 @@ m_get(I, J, Matrix) ->
     Row = a_get(I, Matrix),
     a_get(J, Row).
 
+-spec m_size(matrix()) -> integer().
+m_size(Matrix) ->
+    a_size(Matrix).
+
 %% State
 
 -type support() :: integer().
@@ -122,8 +126,10 @@ new_s_matrix() ->
 
 %% The itemset hash value
 -record(hval, {sup = 0 :: support(),
-               s = new_s_matrix() :: s_matrix(),
-               l = new_l_array()  :: l_array()}).
+               s = new_s_matrix()  :: s_matrix(),
+               l = new_l_array()   :: l_array(),
+               vs = new_s_matrix() :: s_matrix(),
+               vl = new_s_matrix() :: s_matrix()}).
 -type hval() :: #hval{}.
 
 %% Itemset is a tuple of categorical features
@@ -171,12 +177,14 @@ init_itemset_hash() ->
 init_state() ->
     init_itemset_hash().
 
+%% Updates the support for a point in the itemset
 -spec update_sup(itemset(), ihash()) -> ihash().
 update_sup(G, ItemsetHash) ->
     maps:update_with(G, fun(HVal = #hval{sup=Sup}) ->
                                 HVal#hval{sup = Sup + 1}
                         end, ItemsetHash).
 
+%% Updates the S matrix for a point in the dataset
 -spec update_s(continuous_features(), itemset(), ihash()) -> ihash().
 update_s(Continuous, G, ItemsetHash) ->
     maps:update_with(G, fun(HVal = #hval{s = S}) ->
@@ -191,6 +199,7 @@ extend_s(Cont, S) ->
                   || I <- lists:seq(1,N)],
     m_from_list(ListMatrix).
 
+%% Updates the L array for a point in the dataset
 -spec update_l(continuous_features(), itemset(), ihash()) -> ihash().
 update_l(Continuous, G, ItemsetHash) ->
     maps:update_with(G, fun(HVal = #hval{l = L}) ->
@@ -204,6 +213,37 @@ extend_l(Cont, L) ->
                  || I <- lists:seq(1,N)],
     a_from_list(ListArray).
 
+%% Updates the S matrix that is needed for the violation score
+-spec update_vs(c_matrix(), itemset(), ihash()) -> ihash().
+update_vs(CovP, G, ItemsetHash) ->
+    maps:update_with(G, fun(HVal = #hval{vs = VS}) ->
+                                HVal#hval{vs = extend_vs(CovP, VS)}
+                        end, ItemsetHash).
+
+-spec extend_vs(c_matrix(), s_matrix()) -> s_matrix().
+extend_vs(CovP, VS) ->
+    N = m_size(VS),
+    ListMatrix = [[math:pow(m_get(I,J,CovP),2) + m_get(I, J, VS)
+                   || J <- lists:seq(1,N)]
+                  || I <- lists:seq(1,N)],
+    m_from_list(ListMatrix).
+
+%% Updates the L array needed for the violation score
+-spec update_vl(c_matrix(), itemset(), ihash()) -> ihash().
+update_vl(CovP, G, ItemsetHash) ->
+    maps:update_with(G, fun(HVal = #hval{vl = L}) ->
+                                HVal#hval{vl = extend_vl(CovP, L)}
+                        end, ItemsetHash).
+
+-spec extend_vl(c_matrix(), s_matrix()) -> s_matrix().
+extend_vl(CovP, L) ->
+    N = m_size(L),
+    ListMatrix = [[m_get(I,J,CovP) + m_get(I, J, L)
+                   || J <- lists:seq(1,N)]
+                  || I <- lists:seq(1,N)],
+    m_from_list(ListMatrix).
+
+
 -spec update_ihash(connection_payload(), itemset(), ihash()) -> ihash().
 update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
     case util:is_subset(G, Categorical) of
@@ -216,9 +256,12 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
             %% itemset, as well as for the input event.
             CovG = compute_c(G, ItemsetHash3),
             CovP = compute_c_score(Continuous, G, ItemsetHash3),
+
+            ItemsetHash4 = update_vs(CovP, G, ItemsetHash3),
+            ItemsetHash5 = update_vl(CovP, G, ItemsetHash4),
             %% TODO: Update the rest of the state (Covariance matrices, etc)
             %% io:format("New ItemsetHash for: ~p~n~p~n", [G, maps:get(G, ItemsetHash2)]),
-            ItemsetHash3;
+            ItemsetHash5;
         false ->
             %% io:format("~p is not a subset of ~p~n", [G, Categorical]),
             ItemsetHash
