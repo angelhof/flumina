@@ -63,36 +63,63 @@ init_state_pair() ->
     {'state0', init_state()}.
 
 
-%% Matrix API
+%% Array API
 
 %% TODO: Move this to another file (or at the end)
 
--type matrix() :: list(list(float())).
+-type array(X) :: list(X).
+
+-spec new_array(integer(), X) -> array(X).
+new_array(N, Default) ->
+    [Default || _ <- lists:seq(1, N)].
+
+-spec a_from_list(list(X)) -> array(X).
+a_from_list(List) ->
+    List.
+
+-spec a_get(integer(), array(X)) -> X.
+a_get(I, Array) ->
+    lists:nth(I, Array).
+
+%% Matrix API
+
+-type matrix() :: array(array(float())).
 
 %% This matrix returns a new 0 filled matrix with size n
 new_matrix(N) ->
-    [[0.0 || _ <- lists:seq(1, N)]
-     || _ <- lists:seq(1, N)].
+    new_array(N, new_array(N, 0.0)).
 
-%% This returnes a new 0 filled matrix for S. Its size should be equal
-%% to the number of continuous features.
-new_s_matrix() ->
-    new_matrix(3).
-
+%% TODO: Use a_from_list
 -spec m_from_list(list(list(float()))) -> matrix().
 m_from_list(ListMatrix) ->
     ListMatrix.
 
 -spec m_get(integer(), integer(), matrix()) -> float().
 m_get(I, J, Matrix) ->
-    Row = lists:nth(I, Matrix),
-    lists:nth(J, Row).
+    Row = a_get(I, Matrix),
+    a_get(J, Row).
 
 %% State
 
+-type l_array() :: array(float()).
+
+-spec new_l_array() -> l_array().
+new_l_array() ->
+    new_array(3, 0.0).
+
+%% This returnes a new 0 filled matrix for S. Its size should be equal
+%% to the number of continuous features.
+-type s_matrix() :: matrix().
+
+-spec new_s_matrix() -> s_matrix().
+new_s_matrix() ->
+    new_matrix(3).
+
+
 %% The itemset hash value
 -record(hval, {sup = 0 :: integer(),
-               s = new_s_matrix() :: matrix()}).
+               s = new_s_matrix() :: s_matrix(),
+               l = new_l_array()  :: l_array()}).
 -type hval() :: #hval{}.
 
 %% Itemset is a tuple of categorical features
@@ -151,13 +178,27 @@ update_s(Continuous, G, ItemsetHash) ->
     maps:update_with(G, fun(HVal = #hval{s = S}) ->
                                 HVal#hval{s = extend_s(Continuous, S)}
                         end, ItemsetHash).
--spec extend_s(continuous_features(), matrix()) -> matrix().
+
+-spec extend_s(continuous_features(), s_matrix()) -> s_matrix().
 extend_s(Cont, S) ->
     N = tuple_size(Cont),
     ListMatrix = [[(element(I, Cont) * element(J, Cont)) + m_get(I, J, S)
                    || J <- lists:seq(1,N)]
                   || I <- lists:seq(1,N)],
     m_from_list(ListMatrix).
+
+-spec update_l(continuous_features(), itemset(), ihash()) -> ihash().
+update_l(Continuous, G, ItemsetHash) ->
+    maps:update_with(G, fun(HVal = #hval{l = L}) ->
+                                HVal#hval{l = extend_l(Continuous, L)}
+                        end, ItemsetHash).
+
+-spec extend_l(continuous_features(), l_array()) -> l_array().
+extend_l(Cont, L) ->
+    N = tuple_size(Cont),
+    ListArray = [element(I, Cont) + a_get(I, L)
+                 || I <- lists:seq(1,N)],
+    a_from_list(ListArray).
 
 -spec update_ihash(connection_payload(), itemset(), ihash()) -> ihash().
 update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
@@ -166,9 +207,10 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
             %% io:format("~p is subset of: ~p~n", [G, Categorical]),
             ItemsetHash1 = update_sup(G, ItemsetHash),
             ItemsetHash2 = update_s(Continuous, G, ItemsetHash1),
+            ItemsetHash3 = update_l(Continuous, G, ItemsetHash2),
             %% TODO: Update the rest of the state (Covariance matrices, etc)
             %% io:format("New ItemsetHash for: ~p~n~p~n", [G, maps:get(G, ItemsetHash2)]),
-            ItemsetHash2;
+            ItemsetHash3;
         false ->
             %% io:format("~p is not a subset of ~p~n", [G, Categorical]),
             ItemsetHash
