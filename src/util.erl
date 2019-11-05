@@ -19,9 +19,9 @@
 	 intmod/2,
 	 intdiv/2,
 	 split_map/2,
-         tup2list/1,
          is_subset/2,
-         is_sublist/2]).
+         is_sublist/2,
+         cartesian/1]).
 
 -include("type_definitions.hrl").
 
@@ -192,17 +192,10 @@ split_map_rec(MyIter, Map1SoFar, Map2SoFar, PartitionFun) ->
 % merge_maps(Map1, Map2) ->
 %     maps:from_list(maps:to_list(Map1) ++ maps:to_list(Map2)).
 
-
-tup2list(Tuple) -> tup2list(Tuple, 1, tuple_size(Tuple)).
-
-tup2list(Tuple, Pos, Size) when Pos =< Size ->
-    [element(Pos,Tuple) | tup2list(Tuple, Pos+1, Size)];
-tup2list(_Tuple,_Pos,_Size) -> [].
-
 -spec is_subset(tuple(), tuple()) -> boolean().
 is_subset(S1, S2) ->
-    L1 = tup2list(S1),
-    L2 = tup2list(S2),
+    L1 = tuple_to_list(S1),
+    L2 = tuple_to_list(S2),
     is_sublist(L1, L2).
 
 -spec is_sublist(list(), list()) -> boolean().
@@ -217,3 +210,7 @@ is_sublist([H1|T1], [H2|T2]) ->
         false ->
             is_sublist(T1, [H2|T2])
     end.
+
+-spec cartesian([[X]]) -> [[X]].
+cartesian([H])   -> [[A] || A <- H];
+cartesian([H|T]) -> [[A|B] || A <- H, B <- cartesian(T)].

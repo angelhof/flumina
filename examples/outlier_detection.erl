@@ -10,7 +10,9 @@
 -include("type_definitions.hrl").
 
 %% TODO: What should this value be?
--define(PARAM_S, 1).
+-define(PARAM_S, 10).
+-define(INPUT_FILE, "data/outlier_detection/sample_kddcup_data").
+-define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
 
 %%%
 %%% Data types
@@ -21,7 +23,7 @@
 %% TODO: Add all the features here, as well as all the possible
 %% values. Extend the parse_function.
 -type duration() :: integer().
--type protocol_type() :: 'tcp' | 'udp'.
+-type protocol_type() :: 'tcp' | 'udp' | 'icmp'.
 -type service() :: 'http'.
 -type flag() :: 'SF'.
 -type src_bytes() :: integer().
@@ -91,14 +93,34 @@ new_s_matrix() ->
 
 -type state() :: ihash().
 
-%% TODO: Construct itemset for a given set of features.
-
-%% TODO: Extend the map to have all the necessary values to compute
-%%       the score.
+%% Generates all itemsets.
 
 -spec all_itemsets() -> [itemset()].
 all_itemsets() ->
-    [{tcp}, {udp}].
+    Items = parse_items(?ITEMSETS_FILE),
+    Itemsets = generate_itemsets(Items),
+    Itemsets.
+
+-spec parse_items(file:filename()) -> [[cat_feature()]].
+parse_items(Filename) ->
+    {ok, Data} = file:read_file(Filename),
+    StringData = binary:bin_to_list(Data),
+    TrimmedStringData = string:trim(StringData, trailing),
+    Lines = string:split(TrimmedStringData, "\n", all),
+    Items = [[list_to_atom(Item) || Item <- string:split(Line, ",", all)]
+             || Line <- Lines],
+    Items.
+
+-spec generate_itemsets([[cat_feature()]]) -> [itemset()].
+generate_itemsets(Items) ->
+    PreparedItems = [[[]] ++ [[Item] || Item <- Feature]
+                     || Feature <- Items],
+    UnflattenedItemsets = util:cartesian(PreparedItems),
+    Itemsets = [list_to_tuple(lists:flatten(UI))
+                || UI <- UnflattenedItemsets],
+    io:format("Number of Itemsets: ~p~n", [length(Itemsets)]),
+    lists:delete({}, Itemsets).
+
 
 -spec init_itemset_hash() -> ihash().
 init_itemset_hash() ->
@@ -114,6 +136,7 @@ init_state() ->
 update_sup({Categorical, _Continous}, G, ItemsetHash) ->
     case util:is_subset(G, Categorical) of
         true ->
+            %% io:format("~p is subset of: ~p~n", [G, Categorical]),
             maps:update_with(G, fun(HVal = #hval{sup=Sup}) ->
                                         HVal#hval{sup = Sup + 1}
                                 end, ItemsetHash);
@@ -123,6 +146,7 @@ update_sup({Categorical, _Continous}, G, ItemsetHash) ->
 
 -spec compute_score(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
 compute_score(Payload, G, {State, Score}) ->
+    %% io:format("Msg: ~p - g: ~p~nState: ~p - Score: ~p~n", [Payload, G, State, Score]),
     ItemsetHash = State, % This hints that state will probably be extended.
     NewItemsetHash = update_sup(Payload, G, ItemsetHash),
     %% TODO: Update the rest of the state (Covariance matrices, etc)
@@ -142,9 +166,9 @@ compute_score(Payload, G, {State, Score}) ->
 
 -spec update(event(), state(), pid()) -> state().
 update({connection, Payload}, State, SinkPid) ->
-    %% TODO: Enumerate only the relevant itemsets. Fow now we can try
-    %%       all, or use the MAXLEVEL optimization as they propose.
-    Itemsets = all_itemsets(),
+    %% TODO: Do the optimization of itemsets.
+
+    Itemsets = maps:keys(State),
     {NewState, Score} =
         lists:foldl(
          fun(G, Acc) ->
@@ -171,7 +195,7 @@ make_connection_generator_init() ->
 %% Makes a generator for a kddcup data file, that doesn't add heartbeats
 -spec make_kddcup_generator() -> msg_generator().
 make_kddcup_generator() ->
-    Filename = io_lib:format("data/outlier_detection/sample_kddcup_data", []),
+    Filename = io_lib:format(?INPUT_FILE, []),
     producer:file_generator(Filename, fun parse_kddcup_csv_line/1).
 
 %% TODO: Implement a generator that adds heartbeats
