@@ -81,6 +81,10 @@ a_from_list(List) ->
 a_get(I, Array) ->
     lists:nth(I, Array).
 
+-spec a_size(array(_)) -> integer().
+a_size(Array) ->
+    length(Array).
+
 %% Matrix API
 
 -type matrix() :: array(array(float())).
@@ -101,7 +105,10 @@ m_get(I, J, Matrix) ->
 
 %% State
 
+-type support() :: integer().
 -type l_array() :: array(float()).
+-type s_matrix() :: matrix().
+-type c_matrix() :: matrix().
 
 -spec new_l_array() -> l_array().
 new_l_array() ->
@@ -109,15 +116,12 @@ new_l_array() ->
 
 %% This returnes a new 0 filled matrix for S. Its size should be equal
 %% to the number of continuous features.
--type s_matrix() :: matrix().
-
 -spec new_s_matrix() -> s_matrix().
 new_s_matrix() ->
     new_matrix(3).
 
-
 %% The itemset hash value
--record(hval, {sup = 0 :: integer(),
+-record(hval, {sup = 0 :: support(),
                s = new_s_matrix() :: s_matrix(),
                l = new_l_array()  :: l_array()}).
 -type hval() :: #hval{}.
@@ -208,6 +212,10 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
             ItemsetHash1 = update_sup(G, ItemsetHash),
             ItemsetHash2 = update_s(Continuous, G, ItemsetHash1),
             ItemsetHash3 = update_l(Continuous, G, ItemsetHash2),
+            %% Compute the covariance matrix for G the point in the
+            %% itemset, as well as for the input event.
+            CovG = compute_c(G, ItemsetHash3),
+            CovP = compute_c_score(Continuous, G, ItemsetHash3),
             %% TODO: Update the rest of the state (Covariance matrices, etc)
             %% io:format("New ItemsetHash for: ~p~n~p~n", [G, maps:get(G, ItemsetHash2)]),
             ItemsetHash3;
@@ -215,6 +223,43 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
             %% io:format("~p is not a subset of ~p~n", [G, Categorical]),
             ItemsetHash
     end.
+
+%% Computes the covariance matrix for a point in the itemset
+-spec compute_c(itemset(), ihash()) -> c_matrix().
+compute_c(G, ItemsetHash) ->
+    #hval{sup = Sup, s = S, l = L} =
+        maps:get(G, ItemsetHash),
+    N = a_size(L),
+    ListMatrix = [[compute_c_cell(Sup, m_get(I, J, S), a_get(I, L), a_get(J, L))
+                   || J <- lists:seq(1,N)]
+                  || I <- lists:seq(1,N)],
+    m_from_list(ListMatrix).
+
+-spec compute_c_cell(support(), float(), float(), float()) -> float().
+compute_c_cell(Sup, Sij, Li, Lj) when Sup > 1 ->
+    (Sij / (Sup - 1)) + ((Li * Lj) / (Sup * (Sup - 1)));
+compute_c_cell(Sup, Sij, Li, Lj) ->
+    %% This only happens on the first item that covers each d, so it
+    %% shouldn't matter that much.
+    Sij + (Li * Lj).
+
+%% Computes the covariance score between an input and a point in the
+%% itemset.
+-spec compute_c_score(continuous_features(), itemset(), ihash()) -> c_matrix().
+compute_c_score(Continuous, G, ItemsetHash) ->
+    #hval{sup = Sup, l = L} =
+        maps:get(G, ItemsetHash),
+    N = a_size(L),
+    ListMatrix = [[compute_c_score_cell(element(I, Continuous), element(J, Continuous),
+                                        Sup, a_get(I, L), a_get(J, L))
+                   || J <- lists:seq(1,N)]
+                  || I <- lists:seq(1,N)],
+    m_from_list(ListMatrix).
+
+-spec compute_c_score_cell(number(), number(), support(),
+                           float(), float()) -> float().
+compute_c_score_cell(Pi, Pj, Sup, Li, Lj) ->
+    (Pi - (Li / Sup)) * (Pj - (Lj / Sup)).
 
 -spec compute_score(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
 compute_score(Payload, G, {State, Score}) ->
