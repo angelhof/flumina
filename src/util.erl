@@ -208,7 +208,7 @@ is_sublist([H1|T1], [H2|T2]) ->
         true ->
             is_sublist(T1, T2);
         false ->
-            is_sublist(T1, [H2|T2])
+            is_sublist([H1|T1], T2)
     end.
 
 -spec cartesian([[X]]) -> [[X]].
