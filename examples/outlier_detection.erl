@@ -107,6 +107,16 @@ m_get(I, J, Matrix) ->
 m_size(Matrix) ->
     a_size(Matrix).
 
+-type m_map_fun() :: fun((integer(), integer(), float()) -> float()).
+
+-spec m_map(m_map_fun(), matrix()) -> matrix().
+m_map(Fun, Matrix) ->
+    N = m_size(Matrix),
+    ListMatrix = [[Fun(I, J, m_get(I, J, Matrix))
+                   || J <- lists:seq(1,N)]
+                  || I <- lists:seq(1,N)],
+    m_from_list(ListMatrix).
+
 %% State
 
 -type support() :: integer().
@@ -193,11 +203,9 @@ update_s(Continuous, G, ItemsetHash) ->
 
 -spec extend_s(continuous_features(), s_matrix()) -> s_matrix().
 extend_s(Cont, S) ->
-    N = tuple_size(Cont),
-    ListMatrix = [[(element(I, Cont) * element(J, Cont)) + m_get(I, J, S)
-                   || J <- lists:seq(1,N)]
-                  || I <- lists:seq(1,N)],
-    m_from_list(ListMatrix).
+    m_map(fun(I, J, Mcell) ->
+                  (element(I, Cont) * element(J, Cont)) + Mcell
+          end, S).
 
 %% Updates the L array for a point in the dataset
 -spec update_l(continuous_features(), itemset(), ihash()) -> ihash().
@@ -222,11 +230,9 @@ update_vs(CovP, G, ItemsetHash) ->
 
 -spec extend_vs(c_matrix(), s_matrix()) -> s_matrix().
 extend_vs(CovP, VS) ->
-    N = m_size(VS),
-    ListMatrix = [[math:pow(m_get(I,J,CovP),2) + m_get(I, J, VS)
-                   || J <- lists:seq(1,N)]
-                  || I <- lists:seq(1,N)],
-    m_from_list(ListMatrix).
+    m_map(fun(I, J, Mcell) ->
+                  math:pow(m_get(I,J,CovP),2) + Mcell
+          end, VS).
 
 %% Updates the L array needed for the violation score
 -spec update_vl(c_matrix(), itemset(), ihash()) -> ihash().
@@ -236,13 +242,10 @@ update_vl(CovP, G, ItemsetHash) ->
                         end, ItemsetHash).
 
 -spec extend_vl(c_matrix(), s_matrix()) -> s_matrix().
-extend_vl(CovP, L) ->
-    N = m_size(L),
-    ListMatrix = [[m_get(I,J,CovP) + m_get(I, J, L)
-                   || J <- lists:seq(1,N)]
-                  || I <- lists:seq(1,N)],
-    m_from_list(ListMatrix).
-
+extend_vl(CovP, VL) ->
+    m_map(fun(I, J, Mcell) ->
+                  m_get(I,J,CovP) + Mcell
+          end, VL).
 
 -spec update_ihash(connection_payload(), itemset(), ihash()) -> ihash().
 update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
