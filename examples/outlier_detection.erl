@@ -348,7 +348,7 @@ compute_v_score(CovG, CovP, Sigma) ->
     lists:sum(List).
 
 -spec compute_v_score0(float(), float(), float()) -> integer().
-compute_v_score0(_Cij, _CPij, _Sigmaij) when Sigmaij == 0 ->
+compute_v_score0(_Cij, _CPij, Sigmaij) when Sigmaij == 0 ->
     %% WARNING: I am not sure if that is the correct behaviour when
     %% Sigma is 0
     1;
