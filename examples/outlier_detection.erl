@@ -269,14 +269,28 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
             %% Compute the violation score for P and G
             Sigma = compute_sigma(CovG, G, ItemsetHash5),
 
-            %% Compute the violation score
+            %% TODO: Compute the violation score
+            ViolationScore = 0,
 
             %% Return the score
+            NewScore = compute_new_score(ViolationScore, G, ItemsetHash5),
+
             %% io:format("New ItemsetHash for: ~p~n~p~n", [G, maps:get(G, ItemsetHash2)]),
-            {ItemsetHash5, 0};
+            {ItemsetHash5, NewScore};
         false ->
             %% io:format("~p is not a subset of ~p~n", [G, Categorical]),
             {ItemsetHash, 0}
+    end.
+
+-spec compute_new_score(v_score(), itemset(), ihash()) -> float().
+compute_new_score(V, G, ItemsetHash) ->
+    HVal = maps:get(G, ItemsetHash),
+    SupG = HVal#hval.sup,
+    case SupG < ?PARAM_S of
+        true ->
+            1.0 / tuple_size(G);
+        false ->
+            0
     end.
 
 %% Computes the covariance matrix for a point in the itemset
@@ -337,24 +351,14 @@ compute_sigma_cell(Sup, Cij, VSij, VLij) ->
     VSij + 2 * Cij * VLij + Sup * math:pow(Cij, 2).
 
 
--spec compute_score(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
-compute_score(Payload, G, {State, Score}) ->
+-spec compute_score_item(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
+compute_score_item(Payload, G, {State, Score}) ->
     %% io:format("Msg: ~p - g: ~p~nState: ~p - Score: ~p~n", [Payload, G, State, Score]),
     ItemsetHash = State, % This hints that state will probably be extended.
-    {NewItemsetHash, _} = update_ihash(Payload, G, ItemsetHash),
+    {NewItemsetHash, ItemScore} = update_ihash(Payload, G, ItemsetHash),
+
     NewState = NewItemsetHash,
-
-    %% TODO: Compute Score in Ihash.
-
-    HVal = maps:get(G, NewItemsetHash),
-    SupG = HVal#hval.sup,
-    NewScore =
-        case SupG < ?PARAM_S of
-            true ->
-                Score + 1.0 / tuple_size(G);
-            false ->
-                Score
-        end,
+    NewScore = Score + ItemScore,
     {NewState, NewScore}.
 
 
@@ -366,7 +370,7 @@ update({connection, Payload}, State, SinkPid) ->
     {NewState, Score} =
         lists:foldl(
          fun(G, Acc) ->
-                 compute_score(Payload, G, Acc)
+                 compute_score_item(Payload, G, Acc)
          end, {State, 0}, Itemsets),
     %% TODO: Use the score to flag as local outlier
     SinkPid ! Score,
