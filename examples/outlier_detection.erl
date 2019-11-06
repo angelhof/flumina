@@ -11,6 +11,7 @@
 
 %% TODO: What should this value be?
 -define(PARAM_S, 10).
+-define(PARAM_TAU, 10).
 -define(INPUT_FILE, "data/outlier_detection/sample_kddcup_data").
 -define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
 
@@ -269,8 +270,8 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
             %% Compute the violation score for P and G
             Sigma = compute_sigma(CovG, G, ItemsetHash5),
 
-            %% TODO: Compute the violation score
-            ViolationScore = 0,
+            %% Compute the violation score
+            ViolationScore = compute_v_score(CovG, CovP, Sigma),
 
             %% Return the score
             NewScore = compute_new_score(ViolationScore, G, ItemsetHash5),
@@ -280,17 +281,6 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
         false ->
             %% io:format("~p is not a subset of ~p~n", [G, Categorical]),
             {ItemsetHash, 0}
-    end.
-
--spec compute_new_score(v_score(), itemset(), ihash()) -> float().
-compute_new_score(V, G, ItemsetHash) ->
-    HVal = maps:get(G, ItemsetHash),
-    SupG = HVal#hval.sup,
-    case SupG < ?PARAM_S of
-        true ->
-            1.0 / tuple_size(G);
-        false ->
-            0
     end.
 
 %% Computes the covariance matrix for a point in the itemset
@@ -344,12 +334,41 @@ compute_sigma(CovG, G, ItemsetHash) ->
 
 -spec compute_sigma_cell(support(), float(), float(), float()) -> float().
 compute_sigma_cell(Sup, Cij, VSij, VLij) when Sup > 1 ->
-    (VSij + 2 * Cij * VLij + Sup * math:pow(Cij, 2)) / (Sup - 1);
+    math:sqrt((VSij + 2 * Cij * VLij + Sup * math:pow(Cij, 2)) / (Sup - 1));
 compute_sigma_cell(Sup, Cij, VSij, VLij) ->
     %% This only happens on the first item that covers each d, so it
     %% shouldn't matter that much.
-    VSij + 2 * Cij * VLij + Sup * math:pow(Cij, 2).
+    math:sqrt(VSij + 2 * Cij * VLij + Sup * math:pow(Cij, 2)).
 
+-spec compute_v_score(c_matrix(), c_matrix(), c_matrix()) -> integer().
+compute_v_score(CovG, CovP, Sigma) ->
+    N = m_size(CovG),
+    List = [compute_v_score0(m_get(I,J,CovG), m_get(I,J,CovP), m_get(I,J,Sigma))
+            || I <- lists:seq(1,N), J <- lists:seq(1,N)],
+    lists:sum(List).
+
+-spec compute_v_score0(float(), float(), float()) -> integer().
+compute_v_score0(_Cij, _CPij, _Sigmaij) when Sigmaij == 0 ->
+    %% WARNING: I am not sure if that is the correct behaviour when
+    %% Sigma is 0
+    1;
+compute_v_score0(Cij, CPij, Sigmaij) ->
+    P = abs((CPij - Cij) / Sigmaij),
+    case P =< ?PARAM_TAU of
+        true -> 0;
+        false -> 1
+    end.
+
+-spec compute_new_score(v_score(), itemset(), ihash()) -> float().
+compute_new_score(V, G, ItemsetHash) ->
+    HVal = maps:get(G, ItemsetHash),
+    SupG = HVal#hval.sup,
+    case SupG < ?PARAM_S of
+        true ->
+            1.0 / tuple_size(G);
+        false ->
+            0
+    end.
 
 -spec compute_score_item(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
 compute_score_item(Payload, G, {State, Score}) ->
