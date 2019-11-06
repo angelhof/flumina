@@ -123,6 +123,7 @@ m_map(Fun, Matrix) ->
 -type l_array() :: array(float()).
 -type s_matrix() :: matrix().
 -type c_matrix() :: matrix().
+-type v_score() :: integer().
 
 -spec new_l_array() -> l_array().
 new_l_array() ->
@@ -139,7 +140,8 @@ new_s_matrix() ->
                s = new_s_matrix()  :: s_matrix(),
                l = new_l_array()   :: l_array(),
                vs = new_s_matrix() :: s_matrix(),
-               vl = new_s_matrix() :: s_matrix()}).
+               vl = new_s_matrix() :: s_matrix(),
+               vscore = 0 :: v_score()}).
 -type hval() :: #hval{}.
 
 %% Itemset is a tuple of categorical features
@@ -247,7 +249,8 @@ extend_vl(CovP, VL) ->
                   m_get(I,J,CovP) + Mcell
           end, VL).
 
--spec update_ihash(connection_payload(), itemset(), ihash()) -> ihash().
+%% This function updates the hash and computes the score
+-spec update_ihash(connection_payload(), itemset(), ihash()) -> {ihash(), float()}.
 update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
     case util:is_subset(G, Categorical) of
         true ->
@@ -262,12 +265,18 @@ update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
 
             ItemsetHash4 = update_vs(CovP, G, ItemsetHash3),
             ItemsetHash5 = update_vl(CovP, G, ItemsetHash4),
-            %% TODO: Update the rest of the state (Covariance matrices, etc)
+
+            %% Compute the violation score for P and G
+            Sigma = compute_sigma(CovG, G, ItemsetHash5),
+
+            %% Compute the violation score
+
+            %% Return the score
             %% io:format("New ItemsetHash for: ~p~n~p~n", [G, maps:get(G, ItemsetHash2)]),
-            ItemsetHash5;
+            {ItemsetHash5, 0};
         false ->
             %% io:format("~p is not a subset of ~p~n", [G, Categorical]),
-            ItemsetHash
+            {ItemsetHash, 0}
     end.
 
 %% Computes the covariance matrix for a point in the itemset
@@ -284,7 +293,7 @@ compute_c(G, ItemsetHash) ->
 -spec compute_c_cell(support(), float(), float(), float()) -> float().
 compute_c_cell(Sup, Sij, Li, Lj) when Sup > 1 ->
     (Sij / (Sup - 1)) + ((Li * Lj) / (Sup * (Sup - 1)));
-compute_c_cell(Sup, Sij, Li, Lj) ->
+compute_c_cell(_Sup, Sij, Li, Lj) ->
     %% This only happens on the first item that covers each d, so it
     %% shouldn't matter that much.
     Sij + (Li * Lj).
@@ -307,12 +316,35 @@ compute_c_score(Continuous, G, ItemsetHash) ->
 compute_c_score_cell(Pi, Pj, Sup, Li, Lj) ->
     (Pi - (Li / Sup)) * (Pj - (Lj / Sup)).
 
+%% Computes the sigma needed for the violation score for an element and point in itemset
+-spec compute_sigma(c_matrix(), itemset(), ihash()) -> c_matrix().
+compute_sigma(CovG, G, ItemsetHash) ->
+    #hval{sup = Sup, vs = VS, vl = VL} =
+        maps:get(G, ItemsetHash),
+    N = m_size(VL),
+    ListMatrix = [[compute_sigma_cell(Sup, m_get(I, J, CovG),
+                                      m_get(I, J, VS), m_get(I, J, VL))
+                   || J <- lists:seq(1,N)]
+                  || I <- lists:seq(1,N)],
+    m_from_list(ListMatrix).
+
+-spec compute_sigma_cell(support(), float(), float(), float()) -> float().
+compute_sigma_cell(Sup, Cij, VSij, VLij) when Sup > 1 ->
+    (VSij + 2 * Cij * VLij + Sup * math:pow(Cij, 2)) / (Sup - 1);
+compute_sigma_cell(Sup, Cij, VSij, VLij) ->
+    %% This only happens on the first item that covers each d, so it
+    %% shouldn't matter that much.
+    VSij + 2 * Cij * VLij + Sup * math:pow(Cij, 2).
+
+
 -spec compute_score(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
 compute_score(Payload, G, {State, Score}) ->
     %% io:format("Msg: ~p - g: ~p~nState: ~p - Score: ~p~n", [Payload, G, State, Score]),
     ItemsetHash = State, % This hints that state will probably be extended.
-    NewItemsetHash = update_ihash(Payload, G, ItemsetHash),
+    {NewItemsetHash, _} = update_ihash(Payload, G, ItemsetHash),
     NewState = NewItemsetHash,
+
+    %% TODO: Compute Score in Ihash.
 
     HVal = maps:get(G, NewItemsetHash),
     SupG = HVal#hval.sup,
