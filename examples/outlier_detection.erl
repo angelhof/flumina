@@ -15,6 +15,8 @@
 -define(PARAM_DELTA, 0.3).
 -define(DELTA_SCORE, 10).
 -define(SCORE_WINDOW_SIZE, 40).
+-define(MAX_LEVEL, 3).
+
 
 -define(INPUT_FILE, "data/outlier_detection/sample_kddcup_data_10k").
 -define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
@@ -208,8 +210,9 @@ generate_itemsets(Items) ->
     UnflattenedItemsets = util:cartesian(PreparedItems),
     Itemsets = [list_to_tuple(lists:flatten(UI))
                 || UI <- UnflattenedItemsets],
-    io:format("Number of Itemsets: ~p~n", [length(Itemsets)]),
-    lists:delete({}, Itemsets).
+    MaxLevelItemsets = [I || I <- Itemsets, tuple_size(I) =< ?MAX_LEVEL],
+    io:format("Number of Itemsets: ~p~n", [length(MaxLevelItemsets)]),
+    lists:delete({}, MaxLevelItemsets).
 
 
 -spec init_itemset_hash() -> ihash().
