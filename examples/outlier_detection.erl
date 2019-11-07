@@ -9,10 +9,14 @@
 -include_lib("eunit/include/eunit.hrl").
 -include("type_definitions.hrl").
 
-%% TODO: What should this value be?
+%% These values are copied from the initial paper.
 -define(PARAM_S, 10).
--define(PARAM_TAU, 10).
--define(INPUT_FILE, "data/outlier_detection/sample_kddcup_data").
+-define(PARAM_TAU, 1.96).
+-define(PARAM_DELTA, 0.3).
+-define(DELTA_SCORE, 10).
+-define(SCORE_WINDOW_SIZE, 40).
+
+-define(INPUT_FILE, "data/outlier_detection/sample_kddcup_data_10k").
 -define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
 
 %%%
@@ -37,7 +41,8 @@
 -type continuous_features() :: {duration(), src_bytes(), dst_bytes()}.
 
 -type connection_tag() :: 'connection'.
--type connection_payload() :: {categorical_features(), continuous_features()}.
+-type connection_features() :: {categorical_features(), continuous_features()}.
+-type connection_payload() :: {integer(), connection_features()}.
 -type connection() :: {connection_tag(), connection_payload()}.
 -type event() :: connection().
 
@@ -251,7 +256,7 @@ extend_vl(CovP, VL) ->
           end, VL).
 
 %% This function updates the hash and computes the score
--spec update_ihash(connection_payload(), itemset(), ihash()) -> {ihash(), float()}.
+-spec update_ihash(connection_features(), itemset(), ihash()) -> {ihash(), float()}.
 update_ihash({Categorical, Continuous}, G, ItemsetHash) ->
     case util:is_subset(G, Categorical) of
         true ->
@@ -363,14 +368,15 @@ compute_v_score0(Cij, CPij, Sigmaij) ->
 compute_new_score(V, G, ItemsetHash) ->
     HVal = maps:get(G, ItemsetHash),
     SupG = HVal#hval.sup,
-    case SupG < ?PARAM_S of
+    case (SupG < ?PARAM_S)
+        orelse (V > ?PARAM_DELTA) of
         true ->
             1.0 / tuple_size(G);
         false ->
             0
     end.
 
--spec compute_score_item(connection_payload(), itemset(), {state(), float()}) -> {state(), float()}.
+-spec compute_score_item(connection_features(), itemset(), {state(), float()}) -> {state(), float()}.
 compute_score_item(Payload, G, {State, Score}) ->
     %% io:format("Msg: ~p - g: ~p~nState: ~p - Score: ~p~n", [Payload, G, State, Score]),
     ItemsetHash = State, % This hints that state will probably be extended.
@@ -382,17 +388,24 @@ compute_score_item(Payload, G, {State, Score}) ->
 
 
 -spec update(event(), state(), pid()) -> state().
-update({connection, Payload}, State, SinkPid) ->
+update({connection, {Timestamp, Features}}, State, SinkPid) ->
     %% TODO: Do the optimization of itemsets.
 
     Itemsets = maps:keys(State),
     {NewState, Score} =
         lists:foldl(
          fun(G, Acc) ->
-                 compute_score_item(Payload, G, Acc)
+                 compute_score_item(Features, G, Acc)
          end, {State, 0}, Itemsets),
     %% TODO: Use the score to flag as local outlier
-    SinkPid ! Score,
+    case Score > 3 of
+        true ->
+            SinkPid ! Timestamp;
+        false ->
+            ok
+    end,
+
+    %% SinkPid ! Score,
     NewState.
 
 -spec update_id(event(), state(), pid()) -> state().
@@ -439,7 +452,7 @@ parse_kddcup_csv_line(Line) ->
     %% WARNING: This should return the producer node
     Node = node(),
     %% TODO: Add node name (or some number) in the connection.
-    {{connection, {Categorical, Continuous}}, Node, Timestamp}.
+    {{connection, {Timestamp, {Categorical, Continuous}}}, Node, Timestamp}.
 
 
 
