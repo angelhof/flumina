@@ -4,33 +4,27 @@ import edu.upenn.flumina.data.Barrier;
 import edu.upenn.flumina.data.Value;
 import edu.upenn.flumina.data.cases.BarrierOrHeartbeat;
 import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
+import edu.upenn.flumina.sink.TimestampMapper;
 import edu.upenn.flumina.source.BarrierSource;
 import edu.upenn.flumina.source.ValueSource;
-import edu.upenn.flumina.util.ValueBarrierEncoder;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
-import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
-import org.apache.flink.streaming.api.functions.sink.filesystem.bucketassigners.BasePathBucketAssigner;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
-import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
 public class ValueBarrierExperiment {
 
-    private static final Logger LOG = LogManager.getLogger();
+    // private static final Logger LOG = LogManager.getLogger();
 
     public static void main(String[] args) throws Exception {
         // Parse arguments
@@ -51,10 +45,10 @@ public class ValueBarrierExperiment {
         // Broadcast the barrier stream and connect it with the value stream
         // We use a dummy broadcast state descriptor that is never actually used.
         MapStateDescriptor<Void, Void> broadcastStateDescriptor =
-                new MapStateDescriptor("BroadcastState", Void.class, Void.class);
+                new MapStateDescriptor<>("BroadcastState", Void.class, Void.class);
         BroadcastStream<BarrierOrHeartbeat> broadcastStream = barrierStream.broadcast(broadcastStateDescriptor);
 
-        DataStream<Tuple2<Long, Long>> output = valueStream.connect(broadcastStream)
+        DataStream<String> output = valueStream.connect(broadcastStream)
                 .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple2<Long, Long>>() {
                     private long valueTimestamp = Long.MIN_VALUE;
                     private long barrierTimestamp = Long.MIN_VALUE;
@@ -115,7 +109,6 @@ public class ValueBarrierExperiment {
                     }
                 }).setParallelism(conf.getValueNodes())
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple2<Long, Long>>() {
-                    @Nullable
                     @Override
                     public Watermark checkAndGetNextWatermark(Tuple2<Long, Long> tuple, long l) {
                         return new Watermark(l);
@@ -130,13 +123,9 @@ public class ValueBarrierExperiment {
                 .reduce((x, y) -> {
                     x.f0 += y.f0;
                     return x;
-                });
-
-        StreamingFileSink<Tuple2<Long, Long>> sink = StreamingFileSink
-                .forRowFormat(new Path(conf.getOutputPath()), new ValueBarrierEncoder())
-                .withBucketAssigner(new BasePathBucketAssigner<>())
-                .build();
-        output.addSink(sink).setParallelism(1);
+                })
+                .map(new TimestampMapper()).setParallelism(1);
+        output.writeAsText(conf.getOutputPath()).setParallelism(1);
 
         env.execute();
     }
