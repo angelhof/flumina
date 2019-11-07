@@ -6,7 +6,7 @@ import edu.upenn.flumina.data.cases.BarrierOrHeartbeat;
 import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
 import edu.upenn.flumina.source.BarrierSource;
 import edu.upenn.flumina.source.ValueSource;
-import org.apache.flink.api.common.serialization.Encoder;
+import edu.upenn.flumina.util.ValueBarrierEncoder;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.Path;
@@ -133,15 +133,7 @@ public class ValueBarrierExperiment {
                 });
 
         StreamingFileSink<Tuple2<Long, Long>> sink = StreamingFileSink
-                .forRowFormat(
-                        new Path(conf.getOutputPath()),
-                        (Encoder<Tuple2<Long, Long>>) (tuple, out) -> {
-                            final StringBuilder sb = new StringBuilder();
-                            // TODO: Add timestamp (look at java.time)
-                            sb.append(tuple.f0).append(" @ ").append(tuple.f1).append('\n');
-                            out.write(sb.toString().getBytes());
-                        }
-                )
+                .forRowFormat(new Path(conf.getOutputPath()), new ValueBarrierEncoder())
                 .withBucketAssigner(new BasePathBucketAssigner<>())
                 .build();
         output.addSink(sink).setParallelism(1);
