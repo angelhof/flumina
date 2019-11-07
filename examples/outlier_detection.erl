@@ -94,7 +94,10 @@
 -type connection_features() :: {categorical_features(), continuous_features()}.
 -type connection_payload() :: {integer(), connection_features(), label()}.
 -type connection() :: {connection_tag(), connection_payload()}.
--type event() :: connection().
+
+-type check_event_tag() :: 'check_local_outliers'.
+-type check_event() :: {check_event_tag(), integer()}.
+-type event() :: connection() | check_event().
 
 %% Specification
 
@@ -207,8 +210,9 @@ new_s_matrix() ->
 -type itemset() :: {[cat_feature()]} | tuple().
 -type ihash() :: #{ itemset() := hval()}.
 -type window_scores() :: [float()].
+-type local_outliers() :: [connection_payload()].
 
--type state() :: {ihash(), window_scores()}.
+-type state() :: {ihash(), window_scores(), local_outliers()}.
 
 %% Generates all itemsets.
 
@@ -262,9 +266,13 @@ get_window_avg_score(WindowScores = [_|_])->
 get_window_avg_score([]) ->
     0.
 
+-spec init_local_outliers() -> local_outliers().
+init_local_outliers() ->
+    [].
+
 -spec init_state() -> state().
 init_state() ->
-    {init_itemset_hash(), init_window_scores()}.
+    {init_itemset_hash(), init_window_scores(), init_local_outliers()}.
 
 %% Updates the support for a point in the itemset
 -spec update_sup(itemset(), ihash()) -> ihash().
@@ -449,27 +457,29 @@ compute_new_score(V, G, ItemsetHash) ->
     end.
 
 -spec compute_score_item(connection_features(), itemset(), {ihash(), float()}) -> {ihash(), float()}.
-compute_score_item(Payload, G, {ItemsetHash, Score}) ->
+compute_score_item(Features, G, {ItemsetHash, Score}) ->
     %% io:format("Msg: ~p - g: ~p~nState: ~p - Score: ~p~n", [Payload, G, State, Score]),
-    {NewItemsetHash, ItemScore} = update_ihash(Payload, G, ItemsetHash),
+    {NewItemsetHash, ItemScore} = update_ihash(Features, G, ItemsetHash),
 
     NewScore = Score + ItemScore,
     {NewItemsetHash, NewScore}.
 
+-spec compute_score_update_ihash(connection_features(), ihash()) -> {ihash(), float()}.
+compute_score_update_ihash(Features, ItemsetHash) ->
+    Itemsets = maps:keys(ItemsetHash),
+
+    lists:foldl(
+      fun(G, Acc) ->
+              compute_score_item(Features, G, Acc)
+      end, {ItemsetHash, 0.0}, Itemsets).
 
 -spec update(event(), state(), pid()) -> state().
 update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
-    %% TODO: Do the optimization of itemsets.
-
-    {ItemsetHash, WindowScores} = State,
-    Itemsets = maps:keys(ItemsetHash),
+    {ItemsetHash, WindowScores, LocalOutliers} = State,
 
     {NewItemsetHash, Score} =
-        lists:foldl(
-         fun(G, Acc) ->
-                 compute_score_item(Features, G, Acc)
-         end, {ItemsetHash, 0}, Itemsets),
-    %% TODO: Use the score to flag as local outlier
+        compute_score_update_ihash(Features, ItemsetHash),
+
     NewWindowScores =
         case Score > ?DELTA_SCORE * get_window_avg_score(WindowScores) of
             true ->
@@ -485,7 +495,38 @@ update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
         false ->
             ok
     end,
-    {NewItemsetHash, NewWindowScores}.
+    {NewItemsetHash, NewWindowScores, LocalOutliers};
+update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
+    {ItemsetHash, WindowScores, LocalOutliers} = State,
+
+    SinkPid ! {"init_global_check", CheckTimestamp},
+
+    %% Check if all local outliers are also global
+    lists:foreach(
+      fun({Timestamp, Features, Label}) ->
+              {_NewItemsetHash, Score} =
+                  compute_score_update_ihash(Features, ItemsetHash),
+
+              case Score > ?DELTA_SCORE * get_window_avg_score(WindowScores) of
+                  true ->
+                      SinkPid ! {Label, Timestamp, Score};
+                  false ->
+                      ok
+              end
+      end, LocalOutliers),
+
+    SinkPid ! {"end_global_check", CheckTimestamp},
+
+    {ItemsetHash, WindowScores, []}.
+
+
+%%
+%% Distributed Specification
+%%
+
+
+
+
 
 %%
 %% Generation
