@@ -3,7 +3,6 @@ package edu.upenn.flumina.source;
 import edu.upenn.flumina.data.Timestamped;
 import edu.upenn.flumina.generator.Generator;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
-import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -50,7 +49,8 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
             // We're getting ready to sleep at least until sleepAtLeastUntil, so we first collect all objects
             // that should be collected prior to waking up.
             while (obj.getTimestamp() <= sleepAtLeastUntil) {
-                ctx.collectWithTimestamp(obj, obj.getTimestamp());
+//                ctx.collectWithTimestamp(obj, obj.getTimestamp());
+                ctx.collect(obj);
                 if (iterator.hasNext()) {
                     obj = iterator.next();
                 } else {
@@ -58,7 +58,8 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
                     break;
                 }
             }
-            ctx.emitWatermark(new Watermark(sleepAtLeastUntil));
+//            ctx.emitWatermark(new Watermark(sleepAtLeastUntil));
+//            ctx.markAsTemporarilyIdle();
 
             // We only sleep if there still is an object to be collected, and we sleep until it is
             // time to collect that object.

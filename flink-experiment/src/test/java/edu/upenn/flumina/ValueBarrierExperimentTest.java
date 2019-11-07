@@ -7,12 +7,8 @@ import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
 import edu.upenn.flumina.source.BarrierSource;
 import edu.upenn.flumina.source.ValueSource;
 import org.apache.flink.api.common.functions.AggregateFunction;
-import org.apache.flink.api.common.state.BroadcastState;
 import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.common.state.ReadOnlyBroadcastState;
-import org.apache.flink.api.java.tuple.Tuple;
 import org.apache.flink.api.java.tuple.Tuple2;
-import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.runtime.testutils.MiniClusterResourceConfiguration;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
@@ -108,11 +104,11 @@ public class ValueBarrierExperimentTest {
     @Test
     public void testBroadcast() throws Exception {
         // Parameters
-        int totalValues = 10_000;
-        double valueRate = 10.0;
+        int totalValues = 1_000_000;
+        double valueRate = 1_000.0;
         int valueNodes = 3;
-        int vbRatio = 10;
-        int hbRatio = 5;
+        int vbRatio = 1_000;
+        int hbRatio = 200;
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
@@ -138,10 +134,10 @@ public class ValueBarrierExperimentTest {
 
                     @Override
                     public void processElement(ValueOrHeartbeat item, ReadOnlyContext ctx, Collector<Tuple2<Long, Long>> collector) {
-                        int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
-                        long ts = ctx.timestamp();
-                        long wm = ctx.currentWatermark();
-                        LOG.debug("[{}] processing {} (ts = {}; wm = {})", subtaskIndex, item, ts, wm);
+//                        int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
+//                        long ts = ctx.timestamp();
+//                        long wm = ctx.currentWatermark();
+//                        LOG.debug("[{}] processing {} (ts = {}; wm = {})", subtaskIndex, item, ts, wm);
                         item.<Void>match(
                                 value -> {
                                     unprocessedValues.addLast(value);
@@ -150,15 +146,15 @@ public class ValueBarrierExperimentTest {
                                 heartbeat -> null
                         );
                         valueTimestamp = Math.max(valueTimestamp, item.getTimestamp());
-                        makeProgress(ts, wm, collector);
+                        makeProgress(collector);
                     }
 
                     @Override
                     public void processBroadcastElement(BarrierOrHeartbeat item, Context ctx, Collector<Tuple2<Long, Long>> collector) {
-                        int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
-                        long ts = ctx.timestamp();
-                        long wm = ctx.currentWatermark();
-                        LOG.debug("[{}] processing broadcast {} (ts = {}; wm = {})", subtaskIndex, item, ts, wm);
+//                        int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
+//                        long ts = ctx.timestamp();
+//                        long wm = ctx.currentWatermark();
+//                        LOG.debug("[{}] processing broadcast {} (ts = {}; wm = {})", subtaskIndex, item, ts, wm);
                         item.<Void>match(
                                 barrier -> {
                                     unprocessedBarriers.addLast(barrier);
@@ -167,10 +163,10 @@ public class ValueBarrierExperimentTest {
                                 heartbeat -> null
                         );
                         barrierTimestamp = Math.max(barrierTimestamp, item.getTimestamp());
-                        makeProgress(ts, wm, collector);
+                        makeProgress(collector);
                     }
 
-                    private void makeProgress(long ts, long wm, Collector<Tuple2<Long, Long>> collector) {
+                    private void makeProgress(Collector<Tuple2<Long, Long>> collector) {
                         long currentTime = Math.min(valueTimestamp, barrierTimestamp);
                         while (!unprocessedValues.isEmpty() &&
                                 unprocessedValues.getFirst().getTimestamp() <= currentTime) {
@@ -178,17 +174,17 @@ public class ValueBarrierExperimentTest {
                             while (!unprocessedBarriers.isEmpty() &&
                                     unprocessedBarriers.getFirst().getTimestamp() < value.getTimestamp()) {
                                 Barrier barrier = unprocessedBarriers.removeFirst();
-                                LOG.debug("[{}] collecting {} @ {} (ts = {}; wm = {})", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getTimestamp(), ts, wm);
+                                LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getTimestamp());
                                 collector.collect(Tuple2.of(sum, barrier.getTimestamp()));
                                 sum = 0;
                             }
-                            LOG.debug("[{}] new sum = {} + {} (ts = {}; wm = {})", getRuntimeContext().getIndexOfThisSubtask(), sum, value.getVal(), ts, wm);
+                            LOG.debug("[{}] new sum = {} + {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, value.getVal(), value.getTimestamp());
                             sum += value.getVal();
                         }
                         while (!unprocessedBarriers.isEmpty() &&
                                 unprocessedBarriers.getFirst().getTimestamp() <= currentTime) {
                             Barrier barrier = unprocessedBarriers.removeFirst();
-                            LOG.debug("[{}] collecting {} @ {} (ts = {}; wm = {})", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getTimestamp(), ts, wm);
+                            LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getTimestamp());
                             collector.collect(Tuple2.of(sum, barrier.getTimestamp()));
                             sum = 0;
                         }
@@ -216,7 +212,7 @@ public class ValueBarrierExperimentTest {
                 .addSink(new SinkFunction<Tuple2<Long, Long>>() {
                     @Override
                     public void invoke(Tuple2<Long, Long> out, Context ctx) {
-                        LOG.info("out: {} @ {} (ts = {}; wm = {})", out.f0, out.f1, ctx.timestamp(), ctx.currentWatermark());
+                        LOG.info("out: {} @ {}", out.f0, out.f1);
                     }
                 }).setParallelism(1);
         env.execute();

@@ -1,6 +1,7 @@
 package edu.upenn.flumina;
 
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.core.fs.Path;
 
 public class ValueBarrierConfig {
 
@@ -15,13 +16,15 @@ public class ValueBarrierConfig {
     private final double valueRate;
     private final int valueBarrierRatio;
     private final int heartbeatRatio;
+    private final String outputPath;
 
-    private ValueBarrierConfig(int valueNodes, int totalValues, double valueRate, int valueBarrierRatio, int heartbeatRatio) {
+    private ValueBarrierConfig(int valueNodes, int totalValues, double valueRate, int valueBarrierRatio, int heartbeatRatio, String outputPath) {
         this.valueNodes = valueNodes;
         this.totalValues = totalValues;
         this.valueRate = valueRate;
         this.valueBarrierRatio = valueBarrierRatio;
         this.heartbeatRatio = heartbeatRatio;
+        this.outputPath = outputPath;
     }
 
     public int getValueNodes() {
@@ -44,6 +47,10 @@ public class ValueBarrierConfig {
         return heartbeatRatio;
     }
 
+    public String getOutputPath() {
+        return outputPath;
+    }
+
     public static ValueBarrierConfig fromArgs(String[] args) {
         ParameterTool parameterTool = ParameterTool.fromArgs(args);
         return new ValueBarrierConfig(
@@ -51,7 +58,8 @@ public class ValueBarrierConfig {
                 parameterTool.getInt("totalValues", TOTAL_VALUES),
                 parameterTool.getDouble("valueRate", VALUE_RATE),
                 parameterTool.getInt("vbRatio", VALUE_BARRIER_RATIO),
-                parameterTool.getInt("hbRatio", HEARTBEAT_RATIO)
+                parameterTool.getInt("hbRatio", HEARTBEAT_RATIO),
+                parameterTool.get("outputPath", Path.CUR_DIR)
         );
     }
 }
