@@ -440,7 +440,7 @@ compute_new_score(V, G, ItemsetHash) ->
     HVal = maps:get(G, ItemsetHash),
     SupG = HVal#hval.sup,
     case (SupG < ?PARAM_S)
-        orelse (V > ?PARAM_DELTA) of
+        orelse (V > (?PARAM_DELTA * ?NUM_CONT_FEATURES * ?NUM_CONT_FEATURES)) of
         true ->
             %% io:format("G: ~p~nSup: ~p~nV: ~p~n", [G, SupG, V]),
             1.0 / tuple_size(G);
@@ -479,7 +479,12 @@ update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
                 update_window_scores(Score, WindowScores)
         end,
 
-    %% SinkPid ! Score,
+    case Timestamp rem 100 == 0 of
+        true ->
+            SinkPid ! Timestamp;
+        false ->
+            ok
+    end,
     {NewItemsetHash, NewWindowScores}.
 
 %%
@@ -489,7 +494,7 @@ update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
 %% Make a generator initializer, used to initialize the computation
 -spec make_connection_generator_init() -> producer_init(connection_tag()).
 make_connection_generator_init() ->
-    [{{fun ?MODULE:make_kddcup_generator/0, []}, {connection, node()}, 10}].
+    [{{fun ?MODULE:make_kddcup_generator/0, []}, {connection, node()}, 100}].
 
 %% Makes a generator for a kddcup data file, that doesn't add heartbeats
 -spec make_kddcup_generator() -> msg_generator().
@@ -543,7 +548,6 @@ parse_kddcup_csv_line(Line) ->
     %% The next are floats
     SErrorRate = list_to_float(SSErrorRate),
     SrvSErrorRate = list_to_float(SSrvSErrorRate),
-
     SrvSErrorRate = list_to_float(SSrvSErrorRate),
     RErrorRate = list_to_float(SRErrorRate),
     SrvRErrorRate = list_to_float(SSrvRErrorRate),
@@ -575,6 +579,10 @@ parse_kddcup_csv_line(Line) ->
                   DstHostSameSrvRate, DstHostDiffSrvRate, DstHostSameSrcPortRate,
                   DstHostSrvDiffHostRate, DstHostSErrorRate, DstHostSrvSErrorRate,
                   DstHostRErrorRate, DstHostSrvRErrorRate},
+
+    %% Maybe all continuous have to be floats?
+    %% It doesn't make any difference
+    %% FloatContinuous = list_to_tuple([float(C) || C <- tuple_to_list(Continuous)]),
 
     %% WARNING: This should return the producer node
     Node = node(),
