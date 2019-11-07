@@ -1,8 +1,6 @@
 -module(outlier_detection).
 
 -export([make_kddcup_generator/0,
-         sample_id_seq/0,
-         sample_id_seq_conf/1,
          sample_seq/0,
          sample_seq_conf/1]).
 
@@ -182,8 +180,9 @@ new_s_matrix() ->
 %% Itemset is a tuple of categorical features
 -type itemset() :: {[cat_feature()]} | tuple().
 -type ihash() :: #{ itemset() := hval()}.
+-type window_scores() :: [float()].
 
--type state() :: ihash().
+-type state() :: {ihash(), window_scores()}.
 
 %% Generates all itemsets.
 
@@ -221,9 +220,25 @@ init_itemset_hash() ->
     ItemsetList = lists:zip(Itemsets, lists:duplicate(length(Itemsets), #hval{})),
     maps:from_list(ItemsetList).
 
+-spec init_window_scores() -> window_scores().
+init_window_scores() ->
+    [].
+
+-spec update_window_scores(float(), window_scores()) -> window_scores().
+update_window_scores(Score, WindowScores) when length(WindowScores) == 40 ->
+    tl(WindowScores) ++ [Score];
+update_window_scores(Score, WindowScores) when length(WindowScores) =< 40 ->
+    WindowScores ++ [Score].
+
+-spec get_window_avg_score(window_scores()) -> float().
+get_window_avg_score(WindowScores = [_|_])->
+    lists:sum(WindowScores) / length(WindowScores);
+get_window_avg_score([]) ->
+    0.
+
 -spec init_state() -> state().
 init_state() ->
-    init_itemset_hash().
+    {init_itemset_hash(), init_window_scores()}.
 
 %% Updates the support for a point in the itemset
 -spec update_sup(itemset(), ihash()) -> ihash().
@@ -407,42 +422,39 @@ compute_new_score(V, G, ItemsetHash) ->
             0
     end.
 
--spec compute_score_item(connection_features(), itemset(), {state(), float()}) -> {state(), float()}.
-compute_score_item(Payload, G, {State, Score}) ->
+-spec compute_score_item(connection_features(), itemset(), {ihash(), float()}) -> {ihash(), float()}.
+compute_score_item(Payload, G, {ItemsetHash, Score}) ->
     %% io:format("Msg: ~p - g: ~p~nState: ~p - Score: ~p~n", [Payload, G, State, Score]),
-    ItemsetHash = State, % This hints that state will probably be extended.
     {NewItemsetHash, ItemScore} = update_ihash(Payload, G, ItemsetHash),
 
-    NewState = NewItemsetHash,
     NewScore = Score + ItemScore,
-    {NewState, NewScore}.
+    {NewItemsetHash, NewScore}.
 
 
 -spec update(event(), state(), pid()) -> state().
 update({connection, {Timestamp, Features}}, State, SinkPid) ->
     %% TODO: Do the optimization of itemsets.
 
-    Itemsets = maps:keys(State),
-    {NewState, Score} =
+    {ItemsetHash, WindowScores} = State,
+    Itemsets = maps:keys(ItemsetHash),
+
+    {NewItemsetHash, Score} =
         lists:foldl(
          fun(G, Acc) ->
                  compute_score_item(Features, G, Acc)
-         end, {State, 0}, Itemsets),
+         end, {ItemsetHash, 0}, Itemsets),
     %% TODO: Use the score to flag as local outlier
-    case Score > 3 of
-        true ->
-            SinkPid ! {Timestamp, Score};
-        false ->
-            ok
-    end,
+    NewWindowScores =
+        case Score > ?DELTA_SCORE * get_window_avg_score(WindowScores) of
+            true ->
+                SinkPid ! {Timestamp, Score},
+                WindowScores;
+            false ->
+                update_window_scores(Score, WindowScores)
+        end,
 
     %% SinkPid ! Score,
-    NewState.
-
--spec update_id(event(), state(), pid()) -> state().
-update_id({connection, _Payload} = Msg, State, SinkPid) ->
-    SinkPid ! Msg,
-    State.
+    {NewItemsetHash, NewWindowScores}.
 
 %%
 %% Generation
@@ -543,59 +555,3 @@ sample_seq_conf(SinkPid) ->
 
     SinkPid ! finished.
 
-
-sample_id_seq() ->
-    true = register('sink', self()),
-    SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, sample_id_seq_conf, [SinkName]),
-    util:sink().
-
-sample_id_seq_conf(SinkPid) ->
-    %% Architecture
-    Rates = [{node(), connection, 1000}],
-    Topology =
-	conf_gen:make_topology(Rates, SinkPid),
-
-    %% Computation
-    Tags = [connection],
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update_id/3}},
-    SplitsMerges = [],
-    Dependencies = dependencies(),
-    InitState = {'state0', init_state()},
-    Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-
-    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
-
-    InputStream = make_connection_generator_init(),
-    producer:make_producers(InputStream, ConfTree, Topology),
-
-    SinkPid ! finished.
-
-%%
-%% Tests
-%%
-
-sample_id_test_output() ->
-    [{connection,{{tcp,http,'SF'},{0,215,45076}}},
-     {connection,{{tcp,http,'SF'},{0,162,4528}}},
-     {connection,{{tcp,http,'SF'},{0,236,1228}}},
-     {connection,{{tcp,http,'SF'},{0,233,2032}}},
-     {connection,{{tcp,http,'SF'},{0,239,486}}},
-     {connection,{{tcp,http,'SF'},{0,238,1282}}},
-     {connection,{{tcp,http,'SF'},{0,235,1337}}},
-     {connection,{{tcp,http,'SF'},{0,234,1364}}},
-     {connection,{{tcp,http,'SF'},{0,239,1295}}},
-     {connection,{{tcp,http,'SF'},{0,181,5450}}}].
-
-
-sample_test_() ->
-    Rounds = lists:seq(1,100),
-    {"Input example test",
-     [{setup,
-      fun util:nothing/0,
-      fun(ok) -> testing:unregister_names() end,
-      fun(ok) ->
-	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sample_id_seq_conf}, sample_id_test_output()))
-      end} || _ <- Rounds]}.
