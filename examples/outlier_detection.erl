@@ -383,7 +383,7 @@ compute_v_score(CovG, CovP, Sigma) ->
 compute_v_score0(_Cij, _CPij, Sigmaij) when Sigmaij == 0 ->
     %% WARNING: I am not sure if that is the correct behaviour when
     %% Sigma is 0
-    1;
+    0;
 compute_v_score0(Cij, CPij, Sigmaij) ->
     P = abs((CPij - Cij) / Sigmaij),
     case P =< ?PARAM_TAU of
@@ -398,6 +398,7 @@ compute_new_score(V, G, ItemsetHash) ->
     case (SupG < ?PARAM_S)
         orelse (V > ?PARAM_DELTA) of
         true ->
+            %% io:format("G: ~p~nSup: ~p~nV: ~p~n", [G, SupG, V]),
             1.0 / tuple_size(G);
         false ->
             0
@@ -475,12 +476,12 @@ parse_kddcup_csv_line(Line) ->
     Flag = list_to_atom(SFlag),
     SrcBytes = list_to_integer(SSrcBytes),
     DstBytes = list_to_integer(SDstBytes),
-    Land = list_to_integer(SLand),
+    Land = list_to_atom(SLand),
     WrongFragment = list_to_integer(SWrongFragment),
     Urgent = list_to_integer(SUrgent),
     Hot = list_to_integer(SHot),
     NumFailedLogins = list_to_integer(SNumFailedLogins),
-    LoggedIn = list_to_integer(SLoggedIn),
+    LoggedIn = list_to_atom(SLoggedIn),
     NumCompromised = list_to_integer(SNumCompromised),
     RootShell = list_to_integer(SRootShell),
     SuAttempted = list_to_integer(SSuAttempted),
@@ -489,8 +490,8 @@ parse_kddcup_csv_line(Line) ->
     NumShells = list_to_integer(SNumShells),
     NumAccessFiles = list_to_integer(SNumAccessFiles),
     NumOutboundCmds = list_to_integer(SNumOutboundCmds),
-    IsHostLogin = list_to_integer(SIsHostLogin),
-    IsGuestLogin = list_to_integer(SIsGuestLogin),
+    IsHostLogin = list_to_atom(SIsHostLogin),
+    IsGuestLogin = list_to_atom(SIsGuestLogin),
     Count = list_to_integer(SCount),
     SrvCount = list_to_integer(SSrvCount),
     %% The next are floats
