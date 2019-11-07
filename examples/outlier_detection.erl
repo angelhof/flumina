@@ -29,16 +29,16 @@
 %% values. Extend the parse_function.
 -type duration() :: integer().
 -type protocol_type() :: 'tcp' | 'udp' | 'icmp'.
--type service() :: 'http'.
--type flag() :: 'SF'.
+-type service() :: 'http' | atom().
+-type flag() :: 'SF' | atom().
 -type src_bytes() :: integer().
 -type dst_bytes() :: integer().
--type land() :: integer().
+-type land() :: '0' | '1'.
 -type wrong_fragment() :: integer().
 -type urgent() :: integer().
 -type hot() :: integer().
 -type num_failed_logins() :: integer().
--type logged_in() :: integer().
+-type logged_in() :: '0' | '1'.
 -type num_compromised() :: integer().
 -type root_shell() :: integer().
 -type su_attempted() :: integer().
@@ -47,11 +47,28 @@
 -type num_shells() :: integer().
 -type num_access_files() :: integer().
 -type num_outbound_cmds() :: integer().
--type is_host_login() :: integer().
--type is_guest_login() :: integer().
+-type is_host_login() :: '0' | '1'.
+-type is_guest_login() :: '0' | '1'.
 -type count() :: integer().
 -type srv_count() :: integer().
-
+-type serror_rate() :: float().
+-type srv_serror_rate() :: float().
+-type rerror_rate() :: float().
+-type srv_rerror_rate() :: float().
+-type same_srv_rate() :: float().
+-type diff_srv_rate() :: float().
+-type srv_diff_host_rate() :: float().
+-type dst_host_count() :: integer().
+-type dst_host_srv_count() :: integer().
+-type dst_host_same_srv_rate() :: float().
+-type dst_host_diff_srv_rate() :: float().
+-type dst_host_same_src_port_rate() :: float().
+-type dst_host_srv_diff_host_rate() :: float().
+-type dst_host_serror_rate() :: float().
+-type dst_host_srv_serror_rate() :: float().
+-type dst_host_rerror_rate() :: float().
+-type dst_host_srv_rerror_rate() :: float().
+-type label() :: atom().
 
 %% All categorical features
 -type cat_feature() :: protocol_type() | service() | flag() | land()
@@ -63,13 +80,19 @@
                                 urgent(), hot(), num_failed_logins(), num_compromised(),
                                 root_shell(), su_attempted(), num_root(), num_file_creations(),
                                 num_shells(), num_access_files(), num_outbound_cmds(),
-                                count(), srv_count()}.
+                                count(), srv_count(), serror_rate(), srv_serror_rate(),
+                                rerror_rate(), srv_rerror_rate(), same_srv_rate(), diff_srv_rate(),
+                                srv_diff_host_rate(), dst_host_count(), dst_host_srv_count(),
+                                dst_host_same_srv_rate(), dst_host_diff_srv_rate(),
+                                dst_host_same_src_port_rate(), dst_host_srv_diff_host_rate(),
+                                dst_host_serror_rate(), dst_host_srv_serror_rate(), dst_host_rerror_rate(),
+                                dst_host_srv_rerror_rate()}.
 
--define(NUM_CONT_FEATURES, 17).
+-define(NUM_CONT_FEATURES, 34).
 
 -type connection_tag() :: 'connection'.
 -type connection_features() :: {categorical_features(), continuous_features()}.
--type connection_payload() :: {integer(), connection_features()}.
+-type connection_payload() :: {integer(), connection_features(), label()}.
 -type connection() :: {connection_tag(), connection_payload()}.
 -type event() :: connection().
 
@@ -432,7 +455,7 @@ compute_score_item(Payload, G, {ItemsetHash, Score}) ->
 
 
 -spec update(event(), state(), pid()) -> state().
-update({connection, {Timestamp, Features}}, State, SinkPid) ->
+update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
     %% TODO: Do the optimization of itemsets.
 
     {ItemsetHash, WindowScores} = State,
@@ -447,7 +470,7 @@ update({connection, {Timestamp, Features}}, State, SinkPid) ->
     NewWindowScores =
         case Score > ?DELTA_SCORE * get_window_avg_score(WindowScores) of
             true ->
-                SinkPid ! {Timestamp, Score},
+                SinkPid ! {Label, Timestamp, Score},
                 WindowScores;
             false ->
                 update_window_scores(Score, WindowScores)
@@ -482,8 +505,13 @@ parse_kddcup_csv_line(Line) ->
      SLand, SWrongFragment, SUrgent, SHot, SNumFailedLogins, SLoggedIn,
      SNumCompromised, SRootShell, SSuAttempted, SNumRoot, SNumFileCreations,
      SNumShells, SNumAccessFiles, SNumOutboundCmds, SIsHostLogin, SIsGuestLogin,
-     SCount, SSrvCount|_] =
+     SCount, SSrvCount, SSErrorRate, SSrvSErrorRate, SRErrorRate, SSrvRErrorRate,
+     SSameSrvRate, SDiffSrvRate, SSrvDiffHostRate, SDstHostCount, SDstHostSrvCount,
+     SDstHostSameSrvRate, SDstHostDiffSrvRate, SDstHostSameSrcPortRate,
+     SDstHostSrvDiffHostRate, SDstHostSErrorRate, SDstHostSrvSErrorRate,
+     SDstHostRErrorRate, SDstHostSrvRErrorRate, SLabel] =
         string:split(TrimmedLine, ",", all),
+
     Timestamp = list_to_integer(STimestamp),
     Duration = list_to_integer(SDuration),
     Protocol = list_to_atom(SProtocol),
@@ -510,6 +538,27 @@ parse_kddcup_csv_line(Line) ->
     Count = list_to_integer(SCount),
     SrvCount = list_to_integer(SSrvCount),
     %% The next are floats
+    SErrorRate = list_to_float(SSErrorRate),
+    SrvSErrorRate = list_to_float(SSrvSErrorRate),
+
+    SrvSErrorRate = list_to_float(SSrvSErrorRate),
+    RErrorRate = list_to_float(SRErrorRate),
+    SrvRErrorRate = list_to_float(SSrvRErrorRate),
+    SameSrvRate = list_to_float(SSameSrvRate),
+    DiffSrvRate = list_to_float(SDiffSrvRate),
+    SrvDiffHostRate = list_to_float(SSrvDiffHostRate),
+    DstHostCount = list_to_integer(SDstHostCount),
+    DstHostSrvCount = list_to_integer(SDstHostSrvCount),
+    DstHostSameSrvRate = list_to_float(SDstHostSameSrvRate),
+    DstHostDiffSrvRate = list_to_float(SDstHostDiffSrvRate),
+    DstHostSameSrcPortRate = list_to_float(SDstHostSameSrcPortRate),
+    DstHostSrvDiffHostRate = list_to_float(SDstHostSrvDiffHostRate),
+    DstHostSErrorRate = list_to_float(SDstHostSErrorRate),
+    DstHostSrvSErrorRate = list_to_float(SDstHostSrvSErrorRate),
+    DstHostRErrorRate = list_to_float(SDstHostRErrorRate),
+    DstHostSrvRErrorRate = list_to_float(SDstHostSrvRErrorRate),
+
+    Label = list_to_atom(string:trim(SLabel, trailing, ".")),
 
     %% Separate features
     Categorical = {Protocol, Service, Flag, Land, LoggedIn,
@@ -518,12 +567,16 @@ parse_kddcup_csv_line(Line) ->
                   Urgent, Hot, NumFailedLogins, NumCompromised,
                   RootShell, SuAttempted, NumRoot, NumFileCreations,
                   NumShells, NumAccessFiles, NumOutboundCmds,
-                  Count, SrvCount},
+                  Count, SrvCount, SErrorRate, SrvSErrorRate, RErrorRate, SrvRErrorRate,
+                  SameSrvRate, DiffSrvRate, SrvDiffHostRate, DstHostCount, DstHostSrvCount,
+                  DstHostSameSrvRate, DstHostDiffSrvRate, DstHostSameSrcPortRate,
+                  DstHostSrvDiffHostRate, DstHostSErrorRate, DstHostSrvSErrorRate,
+                  DstHostRErrorRate, DstHostSrvRErrorRate},
 
     %% WARNING: This should return the producer node
     Node = node(),
     %% TODO: Add node name (or some number) in the connection.
-    {{connection, {Timestamp, {Categorical, Continuous}}}, Node, Timestamp}.
+    {{connection, {Timestamp, {Categorical, Continuous}, Label}}, Node, Timestamp}.
 
 
 
