@@ -123,23 +123,24 @@ init_state_pair() ->
 
 %% TODO: Move this to another file (or at the end)
 
--type array(X) :: list(X).
+-type array(X) :: array:array(X).
 
 -spec new_array(integer(), X) -> array(X).
 new_array(N, Default) ->
-    [Default || _ <- lists:seq(1, N)].
+    array:new(N, [{default, Default}]).
 
 -spec a_from_list(list(X)) -> array(X).
 a_from_list(List) ->
-    List.
+    Arr = array:from_list(List),
+    array:fix(Arr).
 
 -spec a_get(integer(), array(X)) -> X.
 a_get(I, Array) ->
-    lists:nth(I, Array).
+    array:get(I-1, Array).
 
 -spec a_size(array(_)) -> integer().
 a_size(Array) ->
-    length(Array).
+    array:size(Array).
 
 %% Matrix API
 
@@ -152,7 +153,9 @@ new_matrix(N) ->
 %% TODO: Use a_from_list
 -spec m_from_list(list(list(float()))) -> matrix().
 m_from_list(ListMatrix) ->
-    ListMatrix.
+    Rows = [array:fix(array:from_list(Row))
+            || Row <- ListMatrix],
+    array:fix(array:from_list(Rows)).
 
 -spec m_get(integer(), integer(), matrix()) -> float().
 m_get(I, J, Matrix) ->
