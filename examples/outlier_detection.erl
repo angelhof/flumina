@@ -33,12 +33,39 @@
 -type flag() :: 'SF'.
 -type src_bytes() :: integer().
 -type dst_bytes() :: integer().
+-type land() :: integer().
+-type wrong_fragment() :: integer().
+-type urgent() :: integer().
+-type hot() :: integer().
+-type num_failed_logins() :: integer().
+-type logged_in() :: integer().
+-type num_compromised() :: integer().
+-type root_shell() :: integer().
+-type su_attempted() :: integer().
+-type num_root() :: integer().
+-type num_file_creations() :: integer().
+-type num_shells() :: integer().
+-type num_access_files() :: integer().
+-type num_outbound_cmds() :: integer().
+-type is_host_login() :: integer().
+-type is_guest_login() :: integer().
+-type count() :: integer().
+-type srv_count() :: integer().
+
 
 %% All categorical features
--type cat_feature() :: protocol_type() | service() | flag().
+-type cat_feature() :: protocol_type() | service() | flag() | land()
+                     | logged_in() | is_host_login() | is_guest_login().
 
--type categorical_features() :: {protocol_type(), service(), flag()}.
--type continuous_features() :: {duration(), src_bytes(), dst_bytes()}.
+-type categorical_features() :: {protocol_type(), service(), flag(), land(), logged_in(),
+                                 is_host_login(), is_guest_login()}.
+-type continuous_features() :: {duration(), src_bytes(), dst_bytes(), wrong_fragment(),
+                                urgent(), hot(), num_failed_logins(), num_compromised(),
+                                root_shell(), su_attempted(), num_root(), num_file_creations(),
+                                num_shells(), num_access_files(), num_outbound_cmds(),
+                                count(), srv_count()}.
+
+-define(NUM_CONT_FEATURES, 17).
 
 -type connection_tag() :: 'connection'.
 -type connection_features() :: {categorical_features(), continuous_features()}.
@@ -133,13 +160,13 @@ m_map(Fun, Matrix) ->
 
 -spec new_l_array() -> l_array().
 new_l_array() ->
-    new_array(3, 0.0).
+    new_array(?NUM_CONT_FEATURES, 0.0).
 
 %% This returnes a new 0 filled matrix for S. Its size should be equal
 %% to the number of continuous features.
 -spec new_s_matrix() -> s_matrix().
 new_s_matrix() ->
-    new_matrix(3).
+    new_matrix(?NUM_CONT_FEATURES).
 
 %% The itemset hash value
 -record(hval, {sup = 0 :: support(),
@@ -400,7 +427,7 @@ update({connection, {Timestamp, Features}}, State, SinkPid) ->
     %% TODO: Use the score to flag as local outlier
     case Score > 3 of
         true ->
-            SinkPid ! Timestamp;
+            SinkPid ! {Timestamp, Score};
         false ->
             ok
     end,
@@ -435,7 +462,11 @@ make_kddcup_generator() ->
 -spec parse_kddcup_csv_line(string()) -> impl_message(connection_tag(), connection_payload()).
 parse_kddcup_csv_line(Line) ->
     TrimmedLine = string:trim(Line),
-    [STimestamp, SDuration, SProtocol, SService, SFlag, SSrcBytes, SDstBytes|_] =
+    [STimestamp, SDuration, SProtocol, SService, SFlag, SSrcBytes, SDstBytes,
+     SLand, SWrongFragment, SUrgent, SHot, SNumFailedLogins, SLoggedIn,
+     SNumCompromised, SRootShell, SSuAttempted, SNumRoot, SNumFileCreations,
+     SNumShells, SNumAccessFiles, SNumOutboundCmds, SIsHostLogin, SIsGuestLogin,
+     SCount, SSrvCount|_] =
         string:split(TrimmedLine, ",", all),
     Timestamp = list_to_integer(STimestamp),
     Duration = list_to_integer(SDuration),
@@ -444,10 +475,34 @@ parse_kddcup_csv_line(Line) ->
     Flag = list_to_atom(SFlag),
     SrcBytes = list_to_integer(SSrcBytes),
     DstBytes = list_to_integer(SDstBytes),
+    Land = list_to_integer(SLand),
+    WrongFragment = list_to_integer(SWrongFragment),
+    Urgent = list_to_integer(SUrgent),
+    Hot = list_to_integer(SHot),
+    NumFailedLogins = list_to_integer(SNumFailedLogins),
+    LoggedIn = list_to_integer(SLoggedIn),
+    NumCompromised = list_to_integer(SNumCompromised),
+    RootShell = list_to_integer(SRootShell),
+    SuAttempted = list_to_integer(SSuAttempted),
+    NumRoot = list_to_integer(SNumRoot),
+    NumFileCreations = list_to_integer(SNumFileCreations),
+    NumShells = list_to_integer(SNumShells),
+    NumAccessFiles = list_to_integer(SNumAccessFiles),
+    NumOutboundCmds = list_to_integer(SNumOutboundCmds),
+    IsHostLogin = list_to_integer(SIsHostLogin),
+    IsGuestLogin = list_to_integer(SIsGuestLogin),
+    Count = list_to_integer(SCount),
+    SrvCount = list_to_integer(SSrvCount),
+    %% The next are floats
 
     %% Separate features
-    Categorical = {Protocol, Service, Flag},
-    Continuous = {Duration, SrcBytes, DstBytes},
+    Categorical = {Protocol, Service, Flag, Land, LoggedIn,
+                   IsHostLogin, IsGuestLogin},
+    Continuous = {Duration, SrcBytes, DstBytes, WrongFragment,
+                  Urgent, Hot, NumFailedLogins, NumCompromised,
+                  RootShell, SuAttempted, NumRoot, NumFileCreations,
+                  NumShells, NumAccessFiles, NumOutboundCmds,
+                  Count, SrvCount},
 
     %% WARNING: This should return the producer node
     Node = node(),

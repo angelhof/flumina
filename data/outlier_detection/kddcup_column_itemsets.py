@@ -4,7 +4,14 @@ src_filename = sys.argv[1]
 dst_filename = sys.argv[2]
 
 ## A list of indexes of the categorical features
-categorical = [2,3,4]
+categorical = [2,  # Protocol Type
+               3,  # Service
+               4,  # Flag
+               7,  # Land
+               12, # Logged In
+               21, # Is Host Login
+               22  # Is Guest Login
+               ]
 
 src_file = open(src_filename, 'r')
 
