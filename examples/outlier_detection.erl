@@ -1,8 +1,11 @@
 -module(outlier_detection).
 
--export([make_kddcup_generator/0,
-         sample_seq/0,
-         sample_seq_conf/1]).
+-export([make_kddcup_generator/1,
+         check_outliers_input/1,
+         seq/0,
+         seq_conf/1,
+         distr/0,
+         distr_conf/1]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("type_definitions.hrl").
@@ -101,21 +104,23 @@
 
 %% Specification
 
--spec tags() -> [connection_tag()].
+-spec tags() -> [connection_tag() | check_event_tag()].
 tags() ->
-    [connection].
+    [connection, check_local_outliers].
 
 -spec state_types_map() -> state_types_map().
 state_types_map() ->
-    #{'state0' => {sets:from_list(tags()), fun update/3}}.
+    #{'state0' => {sets:from_list(tags()), fun update/3},
+      'state'  => {sets:from_list([connection]), fun update_local/3}}.
 
 -spec splits_merges() -> split_merge_funs().
 splits_merges() ->
-    [].
+    [{{'state0', 'state', 'state'}, {fun split/2, fun merge/2}}].
 
 -spec dependencies() -> dependencies().
 dependencies() ->
-    #{connection => []}.
+    #{connection => [check_local_outliers],
+      check_local_outliers => [connection, check_local_outliers]}.
 
 -spec init_state_pair() -> state_type_pair().
 init_state_pair() ->
@@ -519,13 +524,23 @@ update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
 
     {ItemsetHash, WindowScores, []}.
 
-
 %%
 %% Distributed Specification
 %%
 
+%% TODO: Predicates?
+-spec split(split_preds(), state()) -> {state(), state()}.
+split({_Pred1, _Pred2}, State) ->
+    {State, State}.
 
+%% TODO: Really merge the local models
+-spec merge(state(), state()) -> state().
+merge(State1, State2) ->
+    State1.
 
+%% TODO: Implement local update
+update_local({connection, Payload}, State, SinkPid) ->
+    update({connection, Payload}, State, SinkPid).
 
 
 %%
@@ -533,22 +548,36 @@ update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
 %%
 
 %% Make a generator initializer, used to initialize the computation
--spec make_connection_generator_init() -> producer_init(connection_tag()).
-make_connection_generator_init() ->
-    [{{fun ?MODULE:make_kddcup_generator/0, []}, {connection, node()}, 100}].
+-spec make_check_outliers_generator_init(node()) -> producer_init(check_event_tag()).
+make_check_outliers_generator_init(Node) ->
+    [{{fun ?MODULE:check_outliers_input/1, [Node]}, {check_local_outliers, Node}, 100}].
+
+-spec check_outliers_input(node()) -> msg_generator().
+check_outliers_input(Node) ->
+    Input = [{{check_local_outliers, T * 1000}, Node, T * 1000} || T <- lists:seq(1, 10)],
+    Msgs = producer:interleave_heartbeats(Input, {{check_local_outliers, Node}, 10}, 11000),
+    producer:list_generator(Msgs).
+
+
+%% Make a generator initializer, used to initialize the computation
+-spec make_connection_generator_init(node()) -> producer_init(connection_tag()).
+make_connection_generator_init(Node) ->
+    [{{fun ?MODULE:make_kddcup_generator/1, [Node]}, {connection, Node}, 100}].
 
 %% Makes a generator for a kddcup data file, that doesn't add heartbeats
--spec make_kddcup_generator() -> msg_generator().
-make_kddcup_generator() ->
+-spec make_kddcup_generator(node()) -> msg_generator().
+make_kddcup_generator(Node) ->
     Filename = io_lib:format(?INPUT_FILE, []),
-    producer:file_generator(Filename, fun parse_kddcup_csv_line/1).
+    producer:file_generator(Filename,
+                            fun(Line) ->
+                                    parse_kddcup_csv_line(Node, Line)
+                            end).
 
 %% TODO: Implement a generator that adds heartbeats
 
-
 %% Parses a line of the kddcup dataset csv file
--spec parse_kddcup_csv_line(string()) -> impl_message(connection_tag(), connection_payload()).
-parse_kddcup_csv_line(Line) ->
+-spec parse_kddcup_csv_line(node(), string()) -> impl_message(connection_tag(), connection_payload()).
+parse_kddcup_csv_line(Node, Line) ->
     TrimmedLine = string:trim(Line),
     [STimestamp, SDuration, SProtocol, SService, SFlag, SSrcBytes, SDstBytes,
      SLand, SWrongFragment, SUrgent, SHot, SNumFailedLogins, SLoggedIn,
@@ -625,26 +654,23 @@ parse_kddcup_csv_line(Line) ->
     %% It doesn't make any difference
     %% FloatContinuous = list_to_tuple([float(C) || C <- tuple_to_list(Continuous)]),
 
-    %% WARNING: This should return the producer node
-    Node = node(),
     %% TODO: Add node name (or some number) in the connection.
     {{connection, {Timestamp, {Categorical, Continuous}, Label}}, Node, Timestamp}.
-
-
 
 %%
 %% Experiments
 %%
 
-sample_seq() ->
+seq() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, sample_seq_conf, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, seq_conf, [SinkName]),
     util:sink().
 
-sample_seq_conf(SinkPid) ->
+seq_conf(SinkPid) ->
     %% Architecture
-    Rates = [{node(), connection, 1000}],
+    Rates = [{node(), connection, 1000},
+             {node(), check_local_outliers, 1}],
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
@@ -655,8 +681,36 @@ sample_seq_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
 
-    InputStream = make_connection_generator_init(),
-    producer:make_producers(InputStream, ConfTree, Topology),
+    InputStream = make_connection_generator_init(node()),
+    CheckInputStream = make_check_outliers_generator_init(node()),
+    producer:make_producers(InputStream ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
 
+%% TODO: Make a distributed scenario
+distr() ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, distr_conf, [SinkName]),
+    util:sink().
+
+distr_conf(SinkPid) ->
+    %% Architecture
+    Rates = [{node(), connection, 1000},
+             {node(), check_local_outliers, 1}],
+
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Specification =
+	conf_gen:make_specification(state_types_map(), splits_merges(),
+                                    dependencies(), init_state_pair()),
+
+    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
+
+    InputStream = make_connection_generator_init(node()),
+    CheckInputStream = make_check_outliers_generator_init(node()),
+    producer:make_producers(InputStream ++ CheckInputStream, ConfTree, Topology),
+
+    SinkPid ! finished.
