@@ -54,8 +54,11 @@ taxiexample_tumble:
 taxiexample_slide:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run taxiexample distributed_1 $(args) $(HALT)
 
-outlier_detection_sample:
+outlier_detection_seq:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run outlier_detection seq $(args) $(HALT)
+
+outlier_detection_distr:
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run outlier_detection distr $(args) $(HALT)
 
 exec:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)

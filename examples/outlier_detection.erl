@@ -1,6 +1,6 @@
 -module(outlier_detection).
 
--export([make_kddcup_generator/1,
+-export([make_kddcup_generator/2,
          check_outliers_input/1,
          seq/0,
          seq_conf/1,
@@ -19,7 +19,9 @@
 -define(MAX_LEVEL, 3).
 
 
--define(INPUT_FILE, "data/outlier_detection/sample_kddcup_data_10k").
+-define(INPUT_FILE_10K, "data/outlier_detection/sample_kddcup_data_10k").
+-define(INPUT_FILE_5K0, "data/outlier_detection/sample_kddcup_data_5k_0").
+-define(INPUT_FILE_5K1, "data/outlier_detection/sample_kddcup_data_5k_1").
 -define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
 
 %%%
@@ -494,7 +496,7 @@ update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
                 update_window_scores(Score, WindowScores)
         end,
 
-    case Timestamp rem 100 == 0 of
+    case Timestamp rem 100 =< 1 of
         true ->
             SinkPid ! Timestamp;
         false ->
@@ -528,7 +530,6 @@ update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
 %% Distributed Specification
 %%
 
-%% TODO: Predicates?
 -spec split(split_preds(), state()) -> {state(), state()}.
 split({_Pred1, _Pred2}, State) ->
     {State, State}.
@@ -560,14 +561,13 @@ check_outliers_input(Node) ->
 
 
 %% Make a generator initializer, used to initialize the computation
--spec make_connection_generator_init(node()) -> producer_init(connection_tag()).
-make_connection_generator_init(Node) ->
-    [{{fun ?MODULE:make_kddcup_generator/1, [Node]}, {connection, Node}, 100}].
+-spec make_connection_generator_init(node(), string()) -> producer_init(connection_tag()).
+make_connection_generator_init(Node, Filename) ->
+    [{{fun ?MODULE:make_kddcup_generator/2, [Node, Filename]}, {connection, Node}, 100}].
 
 %% Makes a generator for a kddcup data file, that doesn't add heartbeats
--spec make_kddcup_generator(node()) -> msg_generator().
-make_kddcup_generator(Node) ->
-    Filename = io_lib:format(?INPUT_FILE, []),
+-spec make_kddcup_generator(node(), string()) -> msg_generator().
+make_kddcup_generator(Node, Filename) ->
     producer:file_generator(Filename,
                             fun(Line) ->
                                     parse_kddcup_csv_line(Node, Line)
@@ -681,7 +681,7 @@ seq_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
 
-    InputStream = make_connection_generator_init(node()),
+    InputStream = make_connection_generator_init(node(), ?INPUT_FILE_10K),
     CheckInputStream = make_check_outliers_generator_init(node()),
     producer:make_producers(InputStream ++ CheckInputStream, ConfTree, Topology),
 
@@ -697,6 +697,7 @@ distr() ->
 distr_conf(SinkPid) ->
     %% Architecture
     Rates = [{node(), connection, 1000},
+             {node(), connection, 1000},
              {node(), check_local_outliers, 1}],
 
     Topology =
@@ -709,8 +710,9 @@ distr_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
 
-    InputStream = make_connection_generator_init(node()),
+    InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0),
+    InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1),
     CheckInputStream = make_check_outliers_generator_init(node()),
-    producer:make_producers(InputStream ++ CheckInputStream, ConfTree, Topology),
+    producer:make_producers(InputStream1 ++ InputStream2 ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
