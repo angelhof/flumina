@@ -69,7 +69,19 @@ public class ValueBarrierExperimentTest {
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(4);
         env.addSource(new ValueSource(10_000, 10.0))
-                .timeWindowAll(Time.milliseconds(10_002))
+                .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<ValueOrHeartbeat>() {
+                    @Nullable
+                    @Override
+                    public Watermark checkAndGetNextWatermark(ValueOrHeartbeat valueOrHeartbeat, long l) {
+                        return new Watermark(l);
+                    }
+
+                    @Override
+                    public long extractTimestamp(ValueOrHeartbeat valueOrHeartbeat, long l) {
+                        return valueOrHeartbeat.getTimestamp();
+                    }
+                })
+                .timeWindowAll(Time.milliseconds(10_001))
                 .aggregate(new AggregateFunction<ValueOrHeartbeat, Integer, Integer>() {
                     @Override
                     public Integer createAccumulator() {
@@ -104,11 +116,11 @@ public class ValueBarrierExperimentTest {
     @Test
     public void testBroadcast() throws Exception {
         // Parameters
-        int totalValues = 1_000_000;
-        double valueRate = 1_000.0;
+        int totalValues = 10_000;
+        double valueRate = 10.0;
         int valueNodes = 3;
         int vbRatio = 1_000;
-        int hbRatio = 200;
+        int hbRatio = 10;
 
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
@@ -134,10 +146,6 @@ public class ValueBarrierExperimentTest {
 
                     @Override
                     public void processElement(ValueOrHeartbeat item, ReadOnlyContext ctx, Collector<Tuple2<Long, Long>> collector) {
-//                        int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
-//                        long ts = ctx.timestamp();
-//                        long wm = ctx.currentWatermark();
-//                        LOG.debug("[{}] processing {} (ts = {}; wm = {})", subtaskIndex, item, ts, wm);
                         item.<Void>match(
                                 value -> {
                                     unprocessedValues.addLast(value);
@@ -151,10 +159,6 @@ public class ValueBarrierExperimentTest {
 
                     @Override
                     public void processBroadcastElement(BarrierOrHeartbeat item, Context ctx, Collector<Tuple2<Long, Long>> collector) {
-//                        int subtaskIndex = getRuntimeContext().getIndexOfThisSubtask();
-//                        long ts = ctx.timestamp();
-//                        long wm = ctx.currentWatermark();
-//                        LOG.debug("[{}] processing broadcast {} (ts = {}; wm = {})", subtaskIndex, item, ts, wm);
                         item.<Void>match(
                                 barrier -> {
                                     unprocessedBarriers.addLast(barrier);
