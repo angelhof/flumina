@@ -39,22 +39,22 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
         // be 100 / 10 = 10 barriers, and 10 * 5 = 50 barriers and heartbeats.
         // The stream with timestamps should be as follows:
         //
-        //   hb(5), hb(10), hb(15), hb(20), barrier(25),
+        //   hb(1), hb(3), hb(5), hb(7), barrier(9),
         //     ...,
-        //       hb(80), hb(85), hb(90), hb(95), barrier(100)
+        //       hb(91), hb(93), hb(95), hb(97), barrier(99)
         //
-        // We add one heartbeat with timestamp (totalValues + 1) at the end.
+        // We add one heartbeat with timestamp totalValues at the end.
         final int totalBarrierOrHeartbeats = totalValues / vbRatio * hbRatio;
         final Stream<BarrierOrHeartbeat> barriers = IntStream.rangeClosed(1, totalBarrierOrHeartbeats)
                 .mapToObj(i -> {
                     if (i % hbRatio == 0) {
-                        return new Barrier(i * vbRatio / hbRatio);
+                        return new Barrier(i * vbRatio / hbRatio - 1);
                     } else {
-                        return new Heartbeat(i * vbRatio / hbRatio);
+                        return new Heartbeat(i * vbRatio / hbRatio - 1);
                     }
                 });
         final Stream<BarrierOrHeartbeat> withFinalHeartbeat =
-                Stream.concat(barriers, Stream.of(new Heartbeat(totalValues + 1)));
+                Stream.concat(barriers, Stream.of(new Heartbeat(totalValues)));
         return withFinalHeartbeat.iterator();
     }
 }

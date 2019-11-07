@@ -19,4 +19,9 @@ public class Heartbeat extends TimestampedCore implements BarrierOrHeartbeat, Va
     public <T> T match(ValueCase<T> valueCase, HeartbeatVOHCase<T> heartbeatCase) {
         return heartbeatCase.apply(this);
     }
+
+    @Override
+    public String toString() {
+        return "Heartbeat @ " + getTimestamp();
+    }
 }

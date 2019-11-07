@@ -27,11 +27,11 @@ public class ValueGenerator implements Generator<ValueOrHeartbeat> {
 
     @Override
     public Iterator<ValueOrHeartbeat> getIterator() {
-        // Prepare a stream of Value objects with timestamps ranging from 1 to totalValues.
-        // Add one heartbeat with timestamp (totalValues + 1) at the end.
-        final Stream<Value> values = IntStream.rangeClosed(1, totalValues).mapToObj(t -> new Value(t, t));
+        // Prepare a stream of Value objects with timestamps ranging from 0 to totalValues-1.
+        // Add one heartbeat with timestamp totalValues at the end.
+        final Stream<Value> values = IntStream.range(0, totalValues).mapToObj(t -> new Value(t + 1, t));
         final Stream<ValueOrHeartbeat> withFinalHeartbeat =
-                Stream.concat(values, Stream.of(new Heartbeat(totalValues + 1)));
+                Stream.concat(values, Stream.of(new Heartbeat(totalValues)));
         return withFinalHeartbeat.iterator();
     }
 }

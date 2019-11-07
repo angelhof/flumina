@@ -16,4 +16,9 @@ public class Barrier extends TimestampedCore implements BarrierOrHeartbeat {
     public <T> T match(BarrierCase<T> barrierCase, HeartbeatBOHCase<T> heartbeatCase) {
         return barrierCase.apply(this);
     }
+
+    @Override
+    public String toString() {
+        return "Barrier @ " + getTimestamp();
+    }
 }
