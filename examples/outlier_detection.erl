@@ -480,29 +480,41 @@ compute_score_update_ihash(Features, ItemsetHash) ->
               compute_score_item(Features, G, Acc)
       end, {ItemsetHash, 0.0}, Itemsets).
 
--spec update(event(), state(), pid()) -> state().
-update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
+-spec compute_outlier(connection_features(), state())
+                     -> {{'outlier', float()} | 'normal', state()}.
+compute_outlier(Features, State) ->
     {ItemsetHash, WindowScores, LocalOutliers} = State,
 
     {NewItemsetHash, Score} =
         compute_score_update_ihash(Features, ItemsetHash),
 
-    NewWindowScores =
+    {IsOutlier, NewWindowScores} =
         case Score > ?DELTA_SCORE * get_window_avg_score(WindowScores) of
             true ->
-                SinkPid ! {Label, Timestamp, Score},
-                WindowScores;
+                {{outlier, Score}, WindowScores};
             false ->
-                update_window_scores(Score, WindowScores)
+                {normal, update_window_scores(Score, WindowScores)}
+        end,
+    {IsOutlier, {NewItemsetHash, NewWindowScores, LocalOutliers}}.
+
+-spec update(event(), state(), pid()) -> state().
+update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
+    FinalState =
+        case compute_outlier(Features, State) of
+            {{outlier, Score}, NewState} ->
+                SinkPid ! {Label, Timestamp, Score},
+                NewState;
+            {normal, NewState} ->
+                NewState
         end,
 
-    case Timestamp rem 100 =< 1 of
+    case Timestamp rem 100 == 0 of
         true ->
             SinkPid ! Timestamp;
         false ->
             ok
     end,
-    {NewItemsetHash, NewWindowScores, LocalOutliers};
+    FinalState;
 update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
     {ItemsetHash, WindowScores, LocalOutliers} = State,
 
@@ -537,11 +549,34 @@ split({_Pred1, _Pred2}, State) ->
 %% TODO: Really merge the local models
 -spec merge(state(), state()) -> state().
 merge(State1, State2) ->
-    State1.
+    {ItemsetHash1, WindowScores1, LocalOutliers1} = State1,
+    {ItemsetHash2, WindowScores2, LocalOutliers2} = State2,
 
-%% TODO: Implement local update
-update_local({connection, Payload}, State, SinkPid) ->
-    update({connection, Payload}, State, SinkPid).
+    %% TODO: Merge the itemset hashes
+    MergedItemsetHash = ItemsetHash1,
+
+    %% Keep one of the two window scores arbitrarily
+    MergedWindowScores = WindowScores1,
+    MergedLocalOutliers = LocalOutliers1 ++ LocalOutliers2,
+    {MergedItemsetHash, MergedWindowScores, MergedLocalOutliers}.
+
+-spec update_local(connection(), state(), pid()) -> state().
+update_local({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
+    FinalState =
+        case compute_outlier(Features, State) of
+            {{outlier, _Score}, {IHash, WScores, LocalOutliers}} ->
+                {IHash, WScores, [{Timestamp, Features, Label}|LocalOutliers]};
+            {normal, NewState} ->
+                NewState
+        end,
+
+    case Timestamp rem 100 =< 1 of
+        true ->
+            SinkPid ! Timestamp;
+        false ->
+            ok
+    end,
+    FinalState.
 
 
 %%
