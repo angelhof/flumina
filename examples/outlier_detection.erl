@@ -152,6 +152,14 @@ a_get(I, Array) ->
 a_size(Array) ->
     array:size(Array).
 
+-spec a_add(array(X), array(X)) -> array(X).
+a_add(Array1, Array2) ->
+    N = a_size(Array1),
+    N = a_size(Array2),
+    ListArray = [a_get(I, Array1) + a_get(I, Array2)
+                 || I <- lists:seq(1,N)],
+    a_from_list(ListArray).
+
 %% Matrix API
 
 -type matrix() :: array(array(float())).
@@ -185,6 +193,12 @@ m_map(Fun, Matrix) ->
                    || J <- lists:seq(1,N)]
                   || I <- lists:seq(1,N)],
     m_from_list(ListMatrix).
+
+-spec m_add(matrix(), matrix()) -> matrix().
+m_add(Matrix1, Matrix2) ->
+    m_map(fun(I, J, Mcell1) ->
+                  (Mcell1 + m_get(I, J, Matrix2))
+          end, Matrix1).
 
 %% State
 
@@ -553,12 +567,32 @@ merge(State1, State2) ->
     {ItemsetHash2, WindowScores2, LocalOutliers2} = State2,
 
     %% TODO: Merge the itemset hashes
-    MergedItemsetHash = ItemsetHash1,
+    MergedItemsetHash =
+        merge_itemsethashes(ItemsetHash1, ItemsetHash2),
 
     %% Keep one of the two window scores arbitrarily
     MergedWindowScores = WindowScores1,
     MergedLocalOutliers = LocalOutliers1 ++ LocalOutliers2,
     {MergedItemsetHash, MergedWindowScores, MergedLocalOutliers}.
+
+-spec merge_itemsets(hval(), hval()) -> hval().
+merge_itemsets(HVal1, HVal2) ->
+    #hval{sup = Sup1, s = S1, l = L1, vs = VS1, vl = VL1} = HVal1,
+    #hval{sup = Sup2, s = S2, l = L2, vs = VS2, vl = VL2} = HVal2,
+
+    #hval{sup = Sup1 + Sup2,
+          s = m_add(S1, S2),
+          l = a_add(L1, L2),
+          vs = m_add(VS1, VS2),
+          vl = m_add(VL1, VL2)}.
+
+-spec merge_itemsethashes(ihash(), ihash()) -> ihash().
+merge_itemsethashes(IHash1, IHash2) ->
+    maps:map(
+      fun(Itemset, HVal1) ->
+              HVal2 = maps:get(Itemset, IHash2),
+              merge_itemsets(HVal1, HVal2)
+      end, IHash1).
 
 -spec update_local(connection(), state(), pid()) -> state().
 update_local({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
