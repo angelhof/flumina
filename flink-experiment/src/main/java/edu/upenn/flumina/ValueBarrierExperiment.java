@@ -135,15 +135,18 @@ public class ValueBarrierExperiment {
                 .map(new TimestampMapper()).setParallelism(1);
         output.writeAsText(conf.getOutputFile(), FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
-        JobExecutionResult result = env.execute();
+        JobExecutionResult result = env.execute("Value-Barrier Experiment");
 
         try (FileWriter statisticsFile = new FileWriter(conf.getStatisticsFile())) {
             long totalEvents = conf.getValueNodes() * conf.getTotalValues() + conf.getTotalValues() / conf.getValueBarrierRatio();
             long totalTimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
             long meanThroughput = Math.floorDiv(totalEvents, totalTimeMillis);
+            long optimalThroughput = (long)(conf.getValueRate() * conf.getValueNodes()
+                    + conf.getValueRate() / conf.getValueBarrierRatio());
             statisticsFile.write(String.format("Total time (ms): %d%n", totalTimeMillis));
             statisticsFile.write(String.format("Events processed: %d%n", totalEvents));
             statisticsFile.write(String.format("Mean throughput (events/ms): %d%n", meanThroughput));
+            statisticsFile.write(String.format("Optimal throughput (events/ms): %d%n", optimalThroughput));
         } catch (IOException e) {
             LOG.error("Exception while trying to write to {}: {}", conf.getStatisticsFile(), e.getMessage());
         }
