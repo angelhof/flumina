@@ -41,7 +41,7 @@ distributed_conf(SinkPid) ->
 
     %% Computation
     Tags = [minute, {a,1}, {a,2}, b],
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update0/3},
 	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update_a/3},
 	  'state_b' => {sets:from_list([b]), fun update_b/3}},
@@ -49,7 +49,7 @@ distributed_conf(SinkPid) ->
 		    {{'state_a', 'state_a', 'state_a'}, {fun split_a/2, fun merge_a/2}}],
     Dependencies = dependencies(),
     InitState = {'state0', init_state()},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_greedy}]),
@@ -76,12 +76,12 @@ sequential_conf(SinkPid) ->
 
     %% Computation
     Tags = [minute, {a,1}, {a,2}, b],
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update0/3}},
     SplitsMerges = [],
     Dependencies = dependencies(),
     InitState = {'state0', init_state()},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
@@ -97,9 +97,9 @@ create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
     Input3 = {fun smart_home_example:input_with_heartbeats/3, [node(), b, fun b_input/1]},
     Input4 = {MarkerFun, [node()]},
 
-    InputStreams = [{Input1, {{a,1},node()}, 100}, 
-		    {Input2, {{a,2},node()}, 100}, 
-		    {Input3, {b,node()}, 100}, 
+    InputStreams = [{Input1, {{a,1},node()}, 100},
+		    {Input2, {{a,2},node()}, 100},
+		    {Input3, {b,node()}, 100},
 		    {Input4, {MarkerTag,node()}, 100}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
@@ -127,10 +127,10 @@ create_producers(MarkerFun, MarkerTag, ConfTree, Topology) ->
 %% Universal state
 %%
 
-%% The state keeps the latest pressure reading, 
-%%                 the largest pressure spike, 
+%% The state keeps the latest pressure reading,
+%%                 the largest pressure spike,
 %%                 the largest temperature for each thermometer
--type state0() :: {pressure(), pressure_spike(), thermo_map()}. 
+-type state0() :: {pressure(), pressure_spike(), thermo_map()}.
 -type tags0() :: thermo_id() | pressure_tag() | sync_tag().
 -type messages0() :: a_message()
 		   | b_message()
@@ -152,8 +152,8 @@ update0({b, Pressure}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
     NewMaxSpike = max(Pressure - LastPres, MaxSpike),
     {Pressure, NewMaxSpike, ThermoMap};
 update0({{a, Id}, Thermo}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
-    NewThermoMap = 
-	maps:update_with({a, Id}, 
+    NewThermoMap =
+	maps:update_with({a, Id},
 			 fun(PrevMax) ->
 				 max(Thermo, PrevMax)
 			 end, ThermoMap),
@@ -163,7 +163,7 @@ update0({{a, Id}, Thermo}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
 %% Pressure state and its update
 %%
 
--type state_b() :: {pressure(), pressure_spike()}. 
+-type state_b() :: {pressure(), pressure_spike()}.
 -type tags_b() :: pressure_tag().
 -type messages_b() :: b_message().
 
@@ -177,14 +177,14 @@ update_b({b, Pressure}, {LastPres, MaxSpike}, _SendTo) ->
 %% Thermo state and its update
 %%
 
--type state_a() :: thermo_map(). 
+-type state_a() :: thermo_map().
 -type tags_a() :: thermo_id().
 -type messages_a() :: a_message().
 
 %% To think about: Ideally we would want to not have to rewrite the same update
 -spec update_a(messages_a(), state_a(), pid()) -> state_a().
 update_a({{a, Id}, Thermo}, ThermoMap, _SendTo) ->
-    maps:update_with({a, Id}, 
+    maps:update_with({a, Id},
 		     fun(PrevMax) ->
 			     max(Thermo, PrevMax)
 		     end, ThermoMap).
@@ -193,7 +193,7 @@ update_a({{a, Id}, Thermo}, ThermoMap, _SendTo) ->
 %% Split from universal state to pressure and thermo state
 %%
 
-%% This split contains two simple predicates because it is only 
+%% This split contains two simple predicates because it is only
 %% allowed to keep the whole thermo map
 -spec split1(split_preds(), state0()) -> {state_a(), state_b()}.
 split1({_Pred1, _Pred2}, {LastPres, MaxSpike, ThermoMap}) ->
@@ -207,7 +207,7 @@ merge1(ThermoMap, {LastPres, MaxSpike}) ->
 %% Split from thermo state to thermo state
 %%
 
-%% This split contains two simple predicates because it is only 
+%% This split contains two simple predicates because it is only
 %% allowed to keep the whole thermo map
 -spec split_a(split_preds(), state_a()) -> {state_a(), state_a()}.
 split_a({Pred1, Pred2}, ThermoMap) ->
@@ -239,7 +239,7 @@ init_state() ->
 %% isA1(_) -> false.
 
 %% isA2({{a,2}, _, _}) -> true;
-%% isA2(_) -> false.    
+%% isA2(_) -> false.
 
 %% isB({b, _, _}) -> true;
 %% isB(_) -> false.
@@ -274,7 +274,7 @@ input_with_heartbeats(Node, Tag, Fun) ->
 %%     producer:list_generator(Msgs).
 
 a1_input(Node) ->
-    Inputs = 
+    Inputs =
 	[{20, 30},
 	 {40, 20},
 	 {60, 47},
@@ -297,7 +297,7 @@ a1_input(Node) ->
     [{{{a,1}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
 a2_input(Node) ->
-    Inputs = 
+    Inputs =
 	[{20, 25},
 	 {40, 26},
 	 {60, 10},
@@ -320,7 +320,7 @@ a2_input(Node) ->
     [{{{a,2}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
 b_input(Node) ->
-    Inputs = 
+    Inputs =
 	[{20, 10},
 	 {40, 120},
 	 {60, 50},
@@ -365,4 +365,3 @@ sequential_test_() ->
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
       end} || _ <- Rounds].
-

@@ -18,7 +18,10 @@
 	 intfloor/1,
 	 intmod/2,
 	 intdiv/2,
-	 split_map/2]).
+	 split_map/2,
+         is_subset/2,
+         is_sublist/2,
+         cartesian/1]).
 
 -include("type_definitions.hrl").
 
@@ -142,7 +145,7 @@ do_n_times(N, Fun) ->
 	    do_n_times(N, X, Fun)
     end.
 
-do_n_times(0, Init, Fun) ->
+do_n_times(0, Init, _Fun) ->
     Init;
 do_n_times(N, Init, Fun) when N > 0 ->
     do_n_times(N - 1, Fun(Init), Fun).
@@ -159,7 +162,7 @@ intdiv(A, B) ->
 
 intmod(X,Y) when X > 0 -> X rem Y;
 intmod(X,Y) when X < 0 -> Y + (X rem Y);
-intmod(0,Y) -> 0.
+intmod(0,_Y) -> 0.
 
 %%% Map util
 
@@ -189,3 +192,25 @@ split_map_rec(MyIter, Map1SoFar, Map2SoFar, PartitionFun) ->
 % merge_maps(Map1, Map2) ->
 %     maps:from_list(maps:to_list(Map1) ++ maps:to_list(Map2)).
 
+-spec is_subset(tuple(), tuple()) -> boolean().
+is_subset(S1, S2) ->
+    L1 = tuple_to_list(S1),
+    L2 = tuple_to_list(S2),
+    is_sublist(L1, L2).
+
+-spec is_sublist(list(), list()) -> boolean().
+is_sublist([], _L2) ->
+    true;
+is_sublist([_|_], []) ->
+    false;
+is_sublist([H1|T1], [H2|T2]) ->
+    case H1 =:= H2 of
+        true ->
+            is_sublist(T1, T2);
+        false ->
+            is_sublist([H1|T1], T2)
+    end.
+
+-spec cartesian([[X]]) -> [[X]].
+cartesian([H])   -> [[A] || A <- H];
+cartesian([H|T]) -> [[A|B] || A <- H, B <- cartesian(T)].

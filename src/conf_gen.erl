@@ -4,11 +4,11 @@
 	 make_specification/4,
 	 make_topology/2,
 	 get_state_type_tags_upd/2,
-	 get_state_types_map/1, 
+	 get_state_types_map/1,
 	 get_split_merge_funs/1,
-	 get_dependencies/1, 
-	 get_init_state/1, 
-	 get_nodes_rates/1, 
+	 get_dependencies/1,
+	 get_init_state/1,
+	 get_nodes_rates/1,
 	 get_implementation_tags/1,
 	 get_sink_pid/1,
 	 default_options/0,
@@ -47,16 +47,16 @@ gen_setup_tree(Specification, Topology, OptimizerModule) ->
 %% Getters (and Setters??) for Specification and Topology structures
 %%
 
--spec make_specification(state_types_map(), 
-			 split_merge_funs(), 
-			 dependencies(), 
-			 state_type_pair()) 
+-spec make_specification(state_types_map(),
+			 split_merge_funs(),
+			 dependencies(),
+			 state_type_pair())
 			-> specification().
 make_specification(StateTypesMap, SplitMergeFuns, Dependencies, StateTypePair) ->
     {StateTypesMap, SplitMergeFuns, Dependencies, StateTypePair}.
 
--spec make_topology(nodes_rates(), 
-		    mailbox()) 
+-spec make_topology(nodes_rates(),
+		    mailbox())
 		   -> topology().
 make_topology(NodesRates, SinkNode) ->
     {NodesRates, SinkNode}.
@@ -95,12 +95,12 @@ get_implementation_tags(Topology) ->
 get_sink_pid({_Rates, SinkPid}) ->
     SinkPid.
 
--spec update_options(conf_gen_options(), conf_gen_options_rec()) 
+-spec update_options(conf_gen_options(), conf_gen_options_rec())
 		    -> conf_gen_options_rec().
 update_options(Options, OptionsRecord) ->
     lists:foldl(fun update_option/2, OptionsRecord, Options).
 
--spec update_option(conf_gen_option(), conf_gen_options_rec()) 
+-spec update_option(conf_gen_option(), conf_gen_options_rec())
 		    -> conf_gen_options_rec().
 update_option({optimizer, Value}, OptionsRecord) ->
     OptionsRecord#options{optimizer = Value};
@@ -118,7 +118,7 @@ default_options() ->
        optimizer = optimizer_greedy,
        log_triple = log_mod:no_log_triple(),
        checkpoint = fun no_checkpoint/2}.
-			     
+
 
 -spec no_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
 no_checkpoint(_Msg, _State) ->
@@ -130,7 +130,7 @@ no_checkpoint(_Msg, _State) ->
 -spec always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
 always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
-        io_lib:format("logs/checkpoint_~s_~s_messages.log", 
+        io_lib:format("logs/checkpoint_~s_~s_messages.log",
 		      [pid_to_list(self()), atom_to_list(node())]),
     ok = file:write_file(Filename, io_lib:format("~p.~n", [{Ts, State}])),
     fun(Msg1, State1) ->
@@ -142,7 +142,7 @@ always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
 -spec binary_always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
 binary_always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
-        io_lib:format("logs/binary_checkpoint_~s_~s_messages.log", 
+        io_lib:format("logs/binary_checkpoint_~s_~s_messages.log",
 		      [pid_to_list(self()), atom_to_list(node())]),
     ok = file:write_file(Filename, term_to_binary({Ts, State})),
     fun(Msg1, State1) ->

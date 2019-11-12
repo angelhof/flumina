@@ -48,20 +48,20 @@ seq_big_conf(SinkPid) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update/3}},
     SplitsMerges = [],
     Dependencies = dependencies(),
     InitState = {'state0', 0},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-    
+
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
-    InputStreams = [{A1, {{a,1},node()}, 10}, 
-		    {A2, {{a,2},node()}, 10}, 
+    InputStreams = [{A1, {{a,1},node()}, 10},
+		    {A2, {{a,2},node()}, 10},
 		    {Bs, {b, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
@@ -92,10 +92,10 @@ distr_big_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
-    InputStreams = [{A1, {{a,1}, node()}, 10}, 
-		    {A2, {{a,2}, node()}, 10}, 
+    InputStreams = [{A1, {{a,1}, node()}, 10},
+		    {A2, {{a,2}, node()}, 10},
 		    {Bs, {b, node()}, 10}],
-    producer:make_producers(InputStreams, ConfTree, Topology),   
+    producer:make_producers(InputStreams, ConfTree, Topology),
 
     SinkPid ! finished.
 
@@ -105,7 +105,7 @@ greedy_big() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, greedy_big_conf, [SinkName]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
@@ -121,29 +121,29 @@ greedy_big_conf(SinkPid) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update/3},
 	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
     SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
     Dependencies = dependencies(),
     InitState = {'state0', 0},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-    
+
     LogTriple = log_mod:make_num_log_triple(),
-    ConfTree = conf_gen:generate(Specification, Topology, 
+    ConfTree = conf_gen:generate(Specification, Topology,
 				 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
     %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
-    InputStreams = [{A1, {{a,1}, node()}, 100}, 
-		    {A2, {{a,2}, node()}, 100}, 
+    InputStreams = [{A1, {{a,1}, node()}, 100},
+		    {A2, {{a,2}, node()}, 100},
 		    {Bs, {b, node()}, 100}],
 
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
@@ -169,24 +169,24 @@ greedy_complex_conf(SinkPid) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}, {a,3}, {a,4}],
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update/3},
 	  'state_a' => {sets:from_list([{a,1}, {a,2}, {a,3}, {a,4}]), fun update/3}},
     SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
 		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
     Dependencies = complex_dependencies(),
     InitState = {'state0', 0},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-    
+
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
 
     %% Set up where will the input arrive
     {A1, A2, A3, A4, Bs} = complex_input_distr_example(node(), node(), node(), node(), node()),
-    InputStreams = [{A1, {{a,1},node()}, 10}, 
-		    {A2, {{a,2},node()}, 10}, 
-		    {A3, {{a,3},node()}, 10}, 
-		    {A4, {{a,4},node()}, 10}, 
+    InputStreams = [{A1, {{a,1},node()}, 10},
+		    {A2, {{a,2},node()}, 10},
+		    {A3, {{a,3},node()}, 10},
+		    {A4, {{a,4},node()}, 10},
 		    {Bs, {b,node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
@@ -198,7 +198,7 @@ greedy_local() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     ExecPid = spawn_link(?MODULE, greedy_local_conf, [SinkName]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
@@ -233,18 +233,18 @@ greedy_local_conf(SinkPid) ->
 
     %% Computation
 
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update/3},
 	  'state_a' => {sets:from_list(ATags), fun update/3}},
     SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
 		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
     Dependencies = parametrized_dependencies(ATags),
     InitState = {'state0', 0},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    LogTriple = log_mod:make_num_log_triple(),    
-    ConfTree = conf_gen:generate(Specification, Topology, 
+    LogTriple = log_mod:make_num_log_triple(),
+    ConfTree = conf_gen:generate(Specification, Topology,
 				 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
 
     %% Set up where will the input arrive
@@ -252,14 +252,14 @@ greedy_local_conf(SinkPid) ->
     %% Input Streams
     {As, Bs} = parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier} 
+    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier}
 		     || {AIn, ATag, ANode} <- lists:zip3(As, ATags, ANodeNames)],
     BInputStream = {Bs, {b, BNodeName}, RateMultiplier},
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the input times of b messages
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
@@ -294,8 +294,8 @@ distributed_conf(SinkPid) ->
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = input_example2(node(), node(), node()),
-    InputStreams = [{{fun() -> producer:list_generator(A1) end, []}, {{a,1}, node()}, 10}, 
-		    {{fun() -> producer:list_generator(A2) end, []}, {{a,2}, node()}, 10}, 
+    InputStreams = [{{fun() -> producer:list_generator(A1) end, []}, {{a,1}, node()}, 10},
+		    {{fun() -> producer:list_generator(A2) end, []}, {{a,2}, node()}, 10},
 		    {{fun() -> producer:list_generator(Bs) end, []}, {b, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
@@ -329,8 +329,8 @@ distributed_conf_1(SinkPid) ->
     %% Set up where will the input arrive
     {A1, A2, Bs} = input_example(node(), node(), node()),
     io:format("Inputs: ~p~n", [{A1, A2, Bs}]),
-    InputStreams = [{{fun() -> producer:list_generator(A1) end, []}, {{a,1}, node()}, 10}, 
-		    {{fun() -> producer:list_generator(A2) end, []}, {{a,2}, node()}, 10}, 
+    InputStreams = [{{fun() -> producer:list_generator(A1) end, []}, {{a,1}, node()}, 10},
+		    {{fun() -> producer:list_generator(A2) end, []}, {{a,2}, node()}, 10},
 		    {{fun() -> producer:list_generator(Bs) end, []}, {b, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
@@ -343,7 +343,7 @@ real_distributed(NodeNames) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     ExecPid = spawn_link(?MODULE, real_distributed_conf, [SinkName, NodeNames]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
@@ -359,17 +359,17 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update/3},
 	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
     SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
     Dependencies = dependencies(),
     InitState = {'state0', 0},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    LogTriple = log_mod:make_num_log_triple(),    
-    ConfTree = conf_gen:generate(Specification, Topology, 
+    LogTriple = log_mod:make_num_log_triple(),
+    ConfTree = conf_gen:generate(Specification, Topology,
 				 [{optimizer, optimizer_greedy}, {log_triple, LogTriple}]),
 
     %% Set up where will the input arrive
@@ -377,8 +377,8 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Big Inputs
     {A1, A2, Bs} = big_input_distr_example(A1NodeName, A2NodeName, BNodeName),
     %% InputStreams = [{A1input, {a,1}, 30}, {A2input, {a,2}, 30}, {BsInput, b, 30}],
-    InputStreams = [{A1, {{a,1}, A1NodeName}, 100}, 
-		    {A2, {{a,2}, A2NodeName}, 100}, 
+    InputStreams = [{A1, {{a,1}, A1NodeName}, 100},
+		    {A2, {{a,2}, A2NodeName}, 100},
 		    {Bs, {b, BNodeName}, 100}],
 
     %% BsInput = bs_input_example(),
@@ -387,7 +387,7 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     %% Log the input times of b messages
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
@@ -401,9 +401,9 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 distributed_experiment(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(?MODULE, distributed_experiment_conf, 
+    ExecPid = spawn_link(?MODULE, distributed_experiment_conf,
 			 [SinkName, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
@@ -436,19 +436,19 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 
     %% Computation
 
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update/3},
 	  'state_a' => {sets:from_list(ATags), fun update/3}},
     SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
 		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
     Dependencies = parametrized_dependencies(ATags),
     InitState = {'state0', 0},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
-    LogTriple = log_mod:make_num_log_triple(),    
-    ConfTree = conf_gen:generate(Specification, Topology, 
-				 [{optimizer,Optimizer}, 
+    LogTriple = log_mod:make_num_log_triple(),
+    ConfTree = conf_gen:generate(Specification, Topology,
+				 [{optimizer,Optimizer},
 				  %% {checkpoint, fun conf_gen:always_checkpoint/2},
 				  {log_triple, LogTriple}]),
 
@@ -456,14 +456,14 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 
     %% Input Streams
     {As, BsMsgInit} = parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
-    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier} 
+    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier}
 		     || {AIn, ATag, ANode} <- lists:zip3(As, ATags, ANodeNames)],
     BInputStream = {BsMsgInit, {b, BNodeName}, RateMultiplier},
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the input times of b messages
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    LoggerInitFun = 
+    LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
@@ -485,7 +485,7 @@ update({b, Ts}, Sum, SendTo) ->
 merge(Sum1, Sum2) ->
     Sum1 + Sum2.
 
-%% This split doesn't use the predicates 
+%% This split doesn't use the predicates
 split(_, Sum) ->
     {Sum, 0}.
 
@@ -534,7 +534,7 @@ isTagA2({a,2}) -> true;
 isTagA2(_) -> false.
 
 %% isB({b, _, _}) -> true;
-%% isB(_) -> false.    
+%% isB(_) -> false.
 
 true_pred(_) -> true.
 
@@ -542,7 +542,7 @@ true_pred(_) -> true.
 %% Some input examples
 input_example(NodeA1, NodeA2, NodeB) ->
     AllInputs = [gen_a(V) || V <- lists:seq(1, 1000)] ++ [gen_a(V) || V <- lists:seq(1002, 2000)],
-    A1 = [{Msg, NodeA1, Ts}  || {_, Ts} = Msg <- AllInputs, isA1(Msg)] 
+    A1 = [{Msg, NodeA1, Ts}  || {_, Ts} = Msg <- AllInputs, isA1(Msg)]
 	++ [{heartbeat, {{{a,1},NodeA1},2005}}],
     A2 = [{Msg, NodeA2, Ts}  || {_, Ts} = Msg <- AllInputs, isA2(Msg)]
 	++ [{heartbeat, {{{a,2},NodeA2},2005}}],
@@ -558,72 +558,72 @@ make_as(Id, ANode, N, Step) ->
 
 -spec make_bs_heartbeats(node(), integer(), integer(), integer()) -> msg_generator().
 make_bs_heartbeats(BNodeName, LengthAStream, RatioAB, HeartbeatBRatio) ->
-    LengthBStream = LengthAStream div RatioAB,    
+    LengthBStream = LengthAStream div RatioAB,
     Bs = lists:flatten(
-	   [[{heartbeat, {{b, BNodeName}, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}} 
-	     || T <- lists:seq(0, HeartbeatBRatio - 1)] 
+	   [[{heartbeat, {{b, BNodeName}, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}}
+	     || T <- lists:seq(0, HeartbeatBRatio - 1)]
 	    ++ [{{b, RatioAB + (RatioAB * BT)}, BNodeName, RatioAB + (RatioAB * BT)}]
 	    || BT <- lists:seq(0,LengthBStream)])
 	++ [{heartbeat, {{b, BNodeName}, LengthAStream + 1}}],
     producer:list_generator(Bs).
 
 %% WARNING: The hearbeat ratio needs to be a divisor of RatioAB (Maybe not necessarily)
--spec parametrized_input_distr_example(integer(), [node()], integer(), integer()) 
+-spec parametrized_input_distr_example(integer(), [node()], integer(), integer())
 				      -> {[msg_generator_init()], msg_generator_init()}.
 parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, HeartbeatBRatio) ->
     LengthAStream = 1000000,
     %% Return a triple that makes the results
-    As = [{fun abexample:make_as/4, [Id, ANode, LengthAStream, 1]} 
+    As = [{fun abexample:make_as/4, [Id, ANode, LengthAStream, 1]}
 	  || {Id, ANode} <- lists:zip(lists:seq(1, NumberAs), ANodeNames)],
 
     Bs = {fun abexample:make_bs_heartbeats/4, [BNodeName, LengthAStream, RatioAB, HeartbeatBRatio]},
-    
+
     {As, Bs}.
 
 
 
--spec big_input_distr_example(node(), node(), node()) 
+-spec big_input_distr_example(node(), node(), node())
 			     -> {msg_generator_init(), msg_generator_init(), msg_generator_init()}.
 big_input_distr_example(NodeA1, NodeA2, NodeB) ->
     LengthA = 1000000,
     A1 = {fun abexample:make_as/4, [1, NodeA1, LengthA, 2]},
     %% A1 = lists:flatten(
-    %% 	   [[{{{a,1}, T + (1000 * BT)}, NodeA1, T + (1000 * BT)} 
+    %% 	   [[{{{a,1}, T + (1000 * BT)}, NodeA1, T + (1000 * BT)}
     %% 	     || T <- lists:seq(1, 999, 2)]
     %% 	    || BT <- lists:seq(0,1000)])
-    %% 	++ [{heartbeat, {{{a,1},NodeA1},1000000}}], 
+    %% 	++ [{heartbeat, {{{a,1},NodeA1},1000000}}],
 
     A2 = {fun abexample:make_as/4, [2, NodeA2, LengthA, 2]},
     %% A2 = lists:flatten(
-    %% 	   [[{{{a,2}, T + (1000 * BT)}, NodeA2, T + (1000 * BT)} 
+    %% 	   [[{{{a,2}, T + (1000 * BT)}, NodeA2, T + (1000 * BT)}
     %% 	     || T <- lists:seq(2, 998, 2)]
     %% 	    || BT <- lists:seq(0,1000)])
     %% 	++ [{heartbeat, {{{a,2},NodeA2},1000000}}],
 
     Bs = {fun abexample:make_bs_heartbeats/4, [NodeB, LengthA, 1000, 1]},
-    %% Bs = [{{b, 1000 + (1000 * BT)},NodeB, 1000 + (1000 * BT)} 
+    %% Bs = [{{b, 1000 + (1000 * BT)},NodeB, 1000 + (1000 * BT)}
     %% 	  || BT <- lists:seq(0,1000)]
     %% 	++ [{heartbeat, {{b,NodeB},1000000}}],
     {A1, A2, Bs}.
 
--spec complex_input_distr_example(node(), node(), node(), node(), node()) 
-				 -> {msg_generator_init(), msg_generator_init(), 
+-spec complex_input_distr_example(node(), node(), node(), node(), node())
+				 -> {msg_generator_init(), msg_generator_init(),
 				     msg_generator_init(), msg_generator_init(), msg_generator_init()}.
 complex_input_distr_example(NodeA1, NodeA2, NodeA3, NodeA4, NodeB) ->
     LengthA = 1000000,
     {A1, A2, Bs} = big_input_distr_example(NodeA1, NodeA2, NodeB),
     A3 = {fun abexample:make_as/4, [3, NodeA3, LengthA, 2]},
     %% A3 = lists:flatten(
-    %% 	   [[{{{a,3}, T + (1000 * BT)}, NodeA3, T + (1000 * BT)} 
+    %% 	   [[{{{a,3}, T + (1000 * BT)}, NodeA3, T + (1000 * BT)}
     %% 	     || T <- lists:seq(1, 999, 2)]
     %% 	    || BT <- lists:seq(1,1000)])
-    %% 	++ [{heartbeat, {{{a,3},NodeA3}, 10000000}}], 
-    A4 = {fun abexample:make_as/4, [4, NodeA4, LengthA, 2]},    
+    %% 	++ [{heartbeat, {{{a,3},NodeA3}, 10000000}}],
+    A4 = {fun abexample:make_as/4, [4, NodeA4, LengthA, 2]},
     %% A4 = lists:flatten(
-    %% 	   [[{{{a,4}, T + (1000 * BT)}, NodeA4, T + (1000 * BT)} 
+    %% 	   [[{{{a,4}, T + (1000 * BT)}, NodeA4, T + (1000 * BT)}
     %% 	     || T <- lists:seq(2, 998, 2)]
     %% 	    || BT <- lists:seq(1,1000)])
-    %% 	++ [{heartbeat, {{{a,4},NodeA4}, 10000000}}], 
+    %% 	++ [{heartbeat, {{{a,4},NodeA4}, 10000000}}],
     {A1, A2, A3, A4, Bs}.
 
 %% bs_input_example() ->
@@ -632,12 +632,12 @@ complex_input_distr_example(NodeA1, NodeA2, NodeA3, NodeA4, NodeB) ->
 %%      {heartbeat, {b,2005}}].
 
 %% as_input_example() ->
-%%     AllAs = 
-%% 	[gen_a(V) || V <- lists:seq(1, 1000, 2)] ++ 
+%%     AllAs =
+%% 	[gen_a(V) || V <- lists:seq(1, 1000, 2)] ++
 %% 	[gen_a(V) || V <- lists:seq(1002, 2000, 2)],
 %%     {A1s, A2s} = lists:partition(fun({{a,Id},_,_}) -> Id =:= 1 end, AllAs),
-%%     {A1s ++ [{heartbeat, {{a,1},2005}}], 
-%%      A2s ++ [{heartbeat, {{a,2},2005}}]}. 
+%%     {A1s ++ [{heartbeat, {{a,1},2005}}],
+%%      A2s ++ [{heartbeat, {{a,2},2005}}]}.
 
 gen_a(V) ->
     Id = random:uniform(2),
@@ -655,7 +655,7 @@ input_example2(NodeA1, NodeA2, NodeB) ->
     A2 = [{heartbeat, {{{a,2}, NodeA2}, 5}},
 	  {{{a,2}, 6}, NodeA2, 6},
 	  {{{a,2}, 5}, NodeA2, 8},
-	  {{{a,2}, 6}, NodeA2, 10}, 
+	  {{{a,2}, 6}, NodeA2, 10},
 	  {heartbeat, {{{a,2}, NodeA2}, 10}},
 	  {{{a,2}, 5}, NodeA2, 11},
 	  {{{a,2}, 1}, NodeA2, 12},
@@ -702,4 +702,3 @@ input_example2_test_() ->
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, distributed_conf}, input_example2_output()))
       end} || _ <- Rounds]}.
-

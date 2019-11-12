@@ -58,7 +58,7 @@ distributed_conf_2(SinkPid) ->
     Ids = init_state_2(),
     {Ids1, Ids2} = split_2({fun isTagId1/1, fun isTagId2/1}, Ids),
     Node1 = {Ids1, node(), {fun isTagId1/1, fun isId1/1}, FunsP, []},
-    Node2 = {Ids2, node(), {fun isTagId2/1, fun isId2/1}, FunsP, []},    
+    Node2 = {Ids2, node(), {fun isTagId2/1, fun isId2/1}, FunsP, []},
     Node0  = {Ids, node(), {fun isTagHour/1, fun isHour/1}, Funs, [Node1, Node2]},
     ConfTree = configuration:create(Node0, dependencies_2(), SinkPid, ImplTags),
 
@@ -66,8 +66,8 @@ distributed_conf_2(SinkPid) ->
     Input1 = {fun taxiexample:id1_positions_with_heartbeats/1, [node()]},
     Input2 = {fun taxiexample:id2_positions_with_heartbeats/1, [node()]},
     Input3 = {fun taxiexample:hour_positions_input/1, [node()]},
-    InputStreams = [{Input1, {{id,1}, node()}, 10}, 
-		    {Input2, {{id,2}, node()}, 10}, 
+    InputStreams = [{Input1, {{id,1}, node()}, 10},
+		    {Input2, {{id,2}, node()}, 10},
 		    {Input3, {hour, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
@@ -91,12 +91,12 @@ sequential_conf_2(SinkPid) ->
 
     %% Computation
     Tags = [hour, {id,1}, {id,2}],
-    StateTypesMap = 
+    StateTypesMap =
 	#{'state2' => {sets:from_list(Tags), fun update_2/3}},
     SplitsMerges = [],
     Dependencies = dependencies_2(),
     InitState = {'state2', init_state_2()},
-    Specification = 
+    Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer, optimizer_sequential}]),
@@ -105,8 +105,8 @@ sequential_conf_2(SinkPid) ->
     Input1 = {fun taxiexample:id1_positions_with_heartbeats/1, [node()]},
     Input2 = {fun taxiexample:id2_positions_with_heartbeats/1, [node()]},
     Input3 = {fun taxiexample:hour_positions_input/1, [node()]},
-    InputStreams = [{Input1, {{id,1}, node()}, 10}, 
-		    {Input2, {{id,2}, node()}, 10}, 
+    InputStreams = [{Input1, {{id,1}, node()}, 10},
+		    {Input2, {{id,2}, node()}, 10},
 		    {Input3, {hour, node()}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology),
 
@@ -195,7 +195,7 @@ distributed_conf(SinkPid) ->
     Node1 = {Ids, node(), {fun isTagId1/1, fun isId1/1}, FunsP, []},
     Node22 = {Ids, node(), {fun isTagId2/1, fun isId2/1}, FunsP, []},
     Node23 = {Ids, node(), {fun isTagId3/1, fun isId3/1}, FunsP, []},
-    Node2 = {Ids, node(), {fun isTagId23/1, fun isId23/1}, FunsP, [Node22, Node23]},    
+    Node2 = {Ids, node(), {fun isTagId23/1, fun isId23/1}, FunsP, [Node22, Node23]},
     Node0  = {Ids, node(), {fun isTagHour/1, fun isHour/1}, Funs, [Node1, Node2]},
     ConfTree = configuration:create(Node0, dependencies(), SinkPid, ImplTags),
 
@@ -244,8 +244,8 @@ create_producers(MarkerFun, MarkerTag, Node, ConfTree, Topology) ->
     Input1 = {fun taxiexample:id1_input_with_heartbeats/1, [node()]},
     Input2 = {fun taxiexample:id2_input_with_heartbeats/1, [node()]},
     Input3 = {MarkerFun, [Node]},
-    InputStreams = [{Input1, {{id,1}, Node}, 10}, 
-		    {Input2, {{id,2}, Node}, 10}, 
+    InputStreams = [{Input1, {{id,1}, Node}, 10},
+		    {Input2, {{id,2}, Node}, 10},
 		    {Input3, {MarkerTag, Node}, 10}],
     producer:make_producers(InputStreams, ConfTree, Topology).
 
@@ -294,7 +294,7 @@ dependencies_2() ->
      }.
 
 init_state_2() ->
-    maps:from_list([{{id,1}, {undef,0}}, 
+    maps:from_list([{{id,1}, {undef,0}},
 		    {{id,2}, {undef,0}}]).
 
 dist({X1, Y1}, {X2, Y2}) ->
@@ -311,7 +311,7 @@ dist(undef, {X2, Y2}) ->
 
 
 
-%% This computation outputs the sum of tips for each driver with a sliding window 
+%% This computation outputs the sum of tips for each driver with a sliding window
 %% of length 1 hour that moves every 20 minutes.
 
 %% The implementation here keeps periods of the greatest common divisor of
@@ -383,7 +383,7 @@ merge_1({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
     {util:merge_with(
        fun(_K, V1, V2) ->
 	       V1 + V2
-       end, TipsMap1, TipsMap2), 
+       end, TipsMap1, TipsMap2),
      util:merge_with(
        fun(_K, V1, V2) ->
 	       %% There shouldn't be a common key between those
@@ -414,7 +414,7 @@ update_id({Tag, Value}, TipSums, SendTo) ->
     Tip = maps:get(Tag, TipSums),
     maps:update(Tag, Tip + Value, TipSums).
 
-%% This is the sequential update of the total 
+%% This is the sequential update of the total
 update({hour, Ts}, TipSums, SendTo) ->
     SendTo ! {"Tips per rider", TipSums},
     maps:map(fun(_,_) -> 0 end, TipSums);
@@ -447,7 +447,7 @@ isId1({{{id,1}, _}, _, _}) -> true;
 isId1(_) -> false.
 
 isId2({{{id,2}, _}, _, _}) -> true;
-isId2(_) -> false.    
+isId2(_) -> false.
 
 isId3({{{id,3}, _}, _, _}) -> true;
 isId3(_) -> false.
@@ -458,13 +458,13 @@ isHour({{hour, _}, _, _}) -> true;
 isHour(_) -> false.
 
 isWindow({{window, _}, _, _}) -> true;
-isWindow(_) -> false.    
+isWindow(_) -> false.
 
 isTagId1({id,1}) -> true;
 isTagId1(_) -> false.
 
 isTagId2({id,2}) -> true;
-isTagId2(_) -> false.    
+isTagId2(_) -> false.
 
 isTagId3({id,3}) -> true;
 isTagId3(_) -> false.
@@ -476,7 +476,7 @@ isTagHour(hour) -> true;
 isTagHour(_) -> false.
 
 isTagWindow(window) -> true;
-isTagWindow(_) -> false.    
+isTagWindow(_) -> false.
 
 true_pred(_) -> true.
 
@@ -536,7 +536,7 @@ id3_input_with_heartbeats(Node) ->
 
 
 id1_input(Node) ->
-    Inputs = 
+    Inputs =
 	[{1, 15},
 	 {10, 20},
 	 {14, 28},
@@ -553,7 +553,7 @@ id1_input(Node) ->
     [{{{id,1}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
 id2_input(Node) ->
-    Inputs = 
+    Inputs =
 	[{5, 25},
 	 {32, 26},
 	 {41, 10},
@@ -574,7 +574,7 @@ id2_input(Node) ->
     [{{{id,2}, Tip}, Node, Ts} || {Ts, Tip} <- Inputs].
 
 id3_input(Node) ->
-    Inputs = 
+    Inputs =
 	[{11, 15},
 	 {21, 15},
 	 {41, 25},
@@ -599,7 +599,7 @@ id3_input(Node) ->
 %% -------- TESTS -------- %%
 
 output_2() ->
-    Outputs = 
+    Outputs =
 	[#{{id,1} => 58, {id,2} => 58}] ++
 	lists:duplicate(15, #{{id,1} => 60, {id,2} => 60}) ++
 	[#{{id,1} => 68, {id,2} => 60}] ++
@@ -627,7 +627,7 @@ sequential_2_test_() ->
       end} || _ <- Rounds].
 
 output_1() ->
-    Outputs = 
+    Outputs =
 	[{#{{id,1} => 94, {id,2} => 115},0,60},
 	 {#{{id,1} => 46, {id,2} => 105},20,80},
 	 {#{{id,1} => 36, {id,2} => 108},40,100},
@@ -678,9 +678,9 @@ sequential_1_test_() ->
 
 
 output() ->
-    Outputs = 
+    Outputs =
 	[#{{id,1} => 94,{id,2} => 115, {id,3} => 80},
-	 #{{id,1} => 38,{id,2} => 65, {id,3} => 112}, 
+	 #{{id,1} => 38,{id,2} => 65, {id,3} => 112},
 	 #{{id,1} => 56,{id,2} => 30, {id,3} => 51},
 	 #{{id,1} => 36,{id,2} => 66, {id,3} => 62},
 	 #{{id,1} => 12,{id,2} => 48, {id,3} => 52},
@@ -708,4 +708,3 @@ sequential_test_() ->
       fun(ok) ->
 	      ?_assertEqual(ok, testing:test_mfa({?MODULE, sequential_conf}, output()))
       end} || _ <- Rounds].
-
