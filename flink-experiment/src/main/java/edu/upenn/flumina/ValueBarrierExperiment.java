@@ -7,8 +7,10 @@ import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
 import edu.upenn.flumina.sink.TimestampMapper;
 import edu.upenn.flumina.source.BarrierSource;
 import edu.upenn.flumina.source.ValueSource;
+import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.state.MapStateDescriptor;
-import org.apache.flink.api.java.tuple.Tuple2;
+import org.apache.flink.api.java.tuple.Tuple3;
+import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.datastream.BroadcastStream;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -18,13 +20,19 @@ import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.apache.flink.streaming.api.windowing.time.Time;
 import org.apache.flink.util.Collector;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
+import java.io.FileWriter;
+import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.concurrent.TimeUnit;
 
 public class ValueBarrierExperiment {
 
-    // private static final Logger LOG = LogManager.getLogger();
+    private static final Logger LOG = LogManager.getLogger();
 
     public static void main(String[] args) throws Exception {
         // Parse arguments
@@ -49,7 +57,7 @@ public class ValueBarrierExperiment {
         BroadcastStream<BarrierOrHeartbeat> broadcastStream = barrierStream.broadcast(broadcastStateDescriptor);
 
         DataStream<String> output = valueStream.connect(broadcastStream)
-                .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple2<Long, Long>>() {
+                .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple3<Long, Long, Instant>>() {
                     private long valueTimestamp = Long.MIN_VALUE;
                     private long barrierTimestamp = Long.MIN_VALUE;
                     private long sum = 0;
@@ -60,7 +68,7 @@ public class ValueBarrierExperiment {
                     @Override
                     public void processElement(ValueOrHeartbeat valueOrHeartbeat,
                                                ReadOnlyContext ctx,
-                                               Collector<Tuple2<Long, Long>> collector) {
+                                               Collector<Tuple3<Long, Long, Instant>> collector) {
                         valueOrHeartbeat.<Void>match(
                                 value -> {
                                     unprocessedValues.addLast(value);
@@ -75,7 +83,7 @@ public class ValueBarrierExperiment {
                     @Override
                     public void processBroadcastElement(BarrierOrHeartbeat barrierOrHeartbeat,
                                                         Context ctx,
-                                                        Collector<Tuple2<Long, Long>> collector) {
+                                                        Collector<Tuple3<Long, Long, Instant>> collector) {
                         barrierOrHeartbeat.<Void>match(
                                 barrier -> {
                                     unprocessedBarriers.addLast(barrier);
@@ -87,7 +95,7 @@ public class ValueBarrierExperiment {
                         makeProgress(collector);
                     }
 
-                    private void makeProgress(Collector<Tuple2<Long, Long>> collector) {
+                    private void makeProgress(Collector<Tuple3<Long, Long, Instant>> collector) {
                         long currentTime = Math.min(valueTimestamp, barrierTimestamp);
                         while (!unprocessedValues.isEmpty() &&
                                 unprocessedValues.getFirst().getTimestamp() <= currentTime) {
@@ -95,7 +103,7 @@ public class ValueBarrierExperiment {
                             while (!unprocessedBarriers.isEmpty() &&
                                     unprocessedBarriers.getFirst().getTimestamp() < value.getTimestamp()) {
                                 Barrier barrier = unprocessedBarriers.removeFirst();
-                                collector.collect(Tuple2.of(sum, barrier.getTimestamp()));
+                                collector.collect(Tuple3.of(sum, barrier.getTimestamp(), barrier.getLatencyMarker()));
                                 sum = 0;
                             }
                             sum += value.getVal();
@@ -103,19 +111,19 @@ public class ValueBarrierExperiment {
                         while (!unprocessedBarriers.isEmpty() &&
                                 unprocessedBarriers.getFirst().getTimestamp() <= currentTime) {
                             Barrier barrier = unprocessedBarriers.removeFirst();
-                            collector.collect(Tuple2.of(sum, barrier.getTimestamp()));
+                            collector.collect(Tuple3.of(sum, barrier.getTimestamp(), barrier.getLatencyMarker()));
                             sum = 0;
                         }
                     }
                 }).setParallelism(conf.getValueNodes())
-                .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple2<Long, Long>>() {
+                .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple3<Long, Long, Instant>>() {
                     @Override
-                    public Watermark checkAndGetNextWatermark(Tuple2<Long, Long> tuple, long l) {
+                    public Watermark checkAndGetNextWatermark(Tuple3<Long, Long, Instant> tuple, long l) {
                         return new Watermark(l);
                     }
 
                     @Override
-                    public long extractTimestamp(Tuple2<Long, Long> tuple, long l) {
+                    public long extractTimestamp(Tuple3<Long, Long, Instant> tuple, long l) {
                         return tuple.f1;
                     }
                 })
@@ -125,8 +133,19 @@ public class ValueBarrierExperiment {
                     return x;
                 })
                 .map(new TimestampMapper()).setParallelism(1);
-        output.writeAsText(conf.getOutputPath()).setParallelism(1);
+        output.writeAsText(conf.getOutputFile(), FileSystem.WriteMode.OVERWRITE).setParallelism(1);
 
-        env.execute();
+        JobExecutionResult result = env.execute();
+
+        try (FileWriter statisticsFile = new FileWriter(conf.getStatisticsFile())) {
+            long totalEvents = conf.getValueNodes() * conf.getTotalValues() + conf.getTotalValues() / conf.getValueBarrierRatio();
+            long totalTimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
+            long meanThroughput = Math.floorDiv(totalEvents, totalTimeMillis);
+            statisticsFile.write(String.format("Total time (ms): %d%n", totalTimeMillis));
+            statisticsFile.write(String.format("Events processed: %d%n", totalEvents));
+            statisticsFile.write(String.format("Mean throughput (events/ms): %d%n", meanThroughput));
+        } catch (IOException e) {
+            LOG.error("Exception while trying to write to {}: {}", conf.getStatisticsFile(), e.getMessage());
+        }
     }
 }

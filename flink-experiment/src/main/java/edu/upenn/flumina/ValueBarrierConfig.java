@@ -10,21 +10,26 @@ public class ValueBarrierConfig {
     private static final double VALUE_RATE = 10.0;
     private static final int VALUE_BARRIER_RATIO = 1_000;
     private static final int HEARTBEAT_RATIO = 10;
+    private static final String OUTPUT_FILE = Path.CUR_DIR + Path.SEPARATOR + "out.txt";
+    private static final String STATISTICS_FILE = Path.CUR_DIR + Path.SEPARATOR + "statistics.txt";
 
     private final int valueNodes;
     private final int totalValues;
     private final double valueRate;
     private final int valueBarrierRatio;
     private final int heartbeatRatio;
-    private final String outputPath;
+    private final String outputFile;
+    private final String statisticsFile;
 
-    private ValueBarrierConfig(int valueNodes, int totalValues, double valueRate, int valueBarrierRatio, int heartbeatRatio, String outputPath) {
+    private ValueBarrierConfig(int valueNodes, int totalValues, double valueRate, int valueBarrierRatio,
+                               int heartbeatRatio, String outputFile, String statisticsFile) {
         this.valueNodes = valueNodes;
         this.totalValues = totalValues;
         this.valueRate = valueRate;
         this.valueBarrierRatio = valueBarrierRatio;
         this.heartbeatRatio = heartbeatRatio;
-        this.outputPath = outputPath;
+        this.outputFile = outputFile;
+        this.statisticsFile = statisticsFile;
     }
 
     public int getValueNodes() {
@@ -47,8 +52,12 @@ public class ValueBarrierConfig {
         return heartbeatRatio;
     }
 
-    public String getOutputPath() {
-        return outputPath;
+    public String getOutputFile() {
+        return outputFile;
+    }
+
+    public String getStatisticsFile() {
+        return statisticsFile;
     }
 
     public static ValueBarrierConfig fromArgs(String[] args) {
@@ -59,7 +68,8 @@ public class ValueBarrierConfig {
                 parameterTool.getDouble("valueRate", VALUE_RATE),
                 parameterTool.getInt("vbRatio", VALUE_BARRIER_RATIO),
                 parameterTool.getInt("hbRatio", HEARTBEAT_RATIO),
-                parameterTool.get("outputPath", Path.CUR_DIR)
+                parameterTool.get("outputFile", OUTPUT_FILE),
+                parameterTool.get("statisticsFile", STATISTICS_FILE)
         );
     }
 }
