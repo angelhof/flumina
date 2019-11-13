@@ -1,4 +1,4 @@
-# The context for this container should be the root of the streams prototype.
+# The context for this container should be the root of the Flumina prototype.
 # That is, to build the container from the current directory, run the following.
 #
 #   docker build -t erlnode -f Dockerfile ../..

@@ -9,14 +9,14 @@
 netutils=/home/filip/net-utils
 
 # We create a group that will allow special network administration
-# privileges required to run the SOSP experiment.
+# privileges required to run the Flumina experiments.
 
-groupadd sosp-experiment
+groupadd flumina
 
 # Add different users to the group
 
-usermod -a -G sosp-experiment filip
-usermod -a -G sosp-experiment konstantinos
+usermod -a -G flumina filip
+usermod -a -G flumina konstantinos
 
 # A little bit of fiddling with the network namespaces is
 # needed. We are creating another user group to keep everything
@@ -44,7 +44,7 @@ cp /bin/ip ${netutils}
 cp /sbin/brctl ${netutils}
 cp /usr/bin/tunctl ${netutils}
 
-chown root:sosp-experiment ${netutils}/*
+chown root:flumina ${netutils}/*
 chmod 750 ${netutils}/*
 
 setcap cap_net_admin=eip ${netutils}/ip
