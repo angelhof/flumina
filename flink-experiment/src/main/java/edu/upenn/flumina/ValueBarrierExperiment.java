@@ -45,10 +45,14 @@ public class ValueBarrierExperiment {
 
         // Prepare the input streams
         ValueSource valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate());
-        DataStream<ValueOrHeartbeat> valueStream = env.addSource(valueSource).setParallelism(conf.getValueNodes());
+        DataStream<ValueOrHeartbeat> valueStream = env.addSource(valueSource)
+                .setParallelism(conf.getValueNodes())
+                .slotSharingGroup("values");
         BarrierSource barrierSource = new BarrierSource(
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(), conf.getHeartbeatRatio());
-        DataStream<BarrierOrHeartbeat> barrierStream = env.addSource(barrierSource).setParallelism(1);
+        DataStream<BarrierOrHeartbeat> barrierStream = env.addSource(barrierSource)
+                .setParallelism(1)
+                .slotSharingGroup("barriers");
 
         // Broadcast the barrier stream and connect it with the value stream
         // We use a dummy broadcast state descriptor that is never actually used.
@@ -115,7 +119,9 @@ public class ValueBarrierExperiment {
                             sum = 0;
                         }
                     }
-                }).setParallelism(conf.getValueNodes())
+                })
+                .setParallelism(conf.getValueNodes())
+                .slotSharingGroup("values")
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple3<Long, Long, Instant>>() {
                     @Override
                     public Watermark checkAndGetNextWatermark(Tuple3<Long, Long, Instant> tuple, long l) {
@@ -132,8 +138,13 @@ public class ValueBarrierExperiment {
                     x.f0 += y.f0;
                     return x;
                 })
-                .map(new TimestampMapper()).setParallelism(1);
-        output.writeAsText(conf.getOutputFile(), FileSystem.WriteMode.OVERWRITE).setParallelism(1);
+                .slotSharingGroup("barriers")
+                .map(new TimestampMapper())
+                .setParallelism(1)
+                .slotSharingGroup("barriers");
+        output.writeAsText(conf.getOutputFile(), FileSystem.WriteMode.OVERWRITE)
+                .setParallelism(1)
+                .slotSharingGroup("barriers");
 
         JobExecutionResult result = env.execute("Value-Barrier Experiment");
 
