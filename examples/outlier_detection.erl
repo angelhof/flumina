@@ -1,11 +1,15 @@
 -module(outlier_detection).
 
 -export([make_kddcup_generator/2,
-         check_outliers_input/1,
+         check_outliers_input/5,
          seq/0,
          seq_conf/1,
          distr/0,
-         distr_conf/1]).
+         distr_conf/1,
+         experiment_sequential/0,
+         experiment_greedy/0,
+         setup_experiment/6,
+         run_experiment/7]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("type_definitions.hrl").
@@ -22,6 +26,7 @@
 -define(INPUT_FILE_10K, "data/outlier_detection/sample_kddcup_data_10k").
 -define(INPUT_FILE_5K0, "data/outlier_detection/sample_kddcup_data_5k_0").
 -define(INPUT_FILE_5K1, "data/outlier_detection/sample_kddcup_data_5k_1").
+-define(INPUT_FILE_FMT, "data/outlier_detection/sample_kddcup_data_5k_~B").
 -define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
 
 %%%
@@ -548,6 +553,9 @@ update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
               end
       end, LocalOutliers),
 
+    %% This is for latency logging purposes
+    SinkPid ! {check_local_outliers, CheckTimestamp},
+
     SinkPid ! {"end_global_check", CheckTimestamp},
 
     {ItemsetHash, WindowScores, []}.
@@ -560,13 +568,11 @@ update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
 split({_Pred1, _Pred2}, State) ->
     {State, State}.
 
-%% TODO: Really merge the local models
 -spec merge(state(), state()) -> state().
 merge(State1, State2) ->
     {ItemsetHash1, WindowScores1, LocalOutliers1} = State1,
     {ItemsetHash2, WindowScores2, LocalOutliers2} = State2,
 
-    %% TODO: Merge the itemset hashes
     MergedItemsetHash =
         merge_itemsethashes(ItemsetHash1, ItemsetHash2),
 
@@ -618,21 +624,24 @@ update_local({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
 %%
 
 %% Make a generator initializer, used to initialize the computation
--spec make_check_outliers_generator_init(node()) -> producer_init(check_event_tag()).
-make_check_outliers_generator_init(Node) ->
-    [{{fun ?MODULE:check_outliers_input/1, [Node]}, {check_local_outliers, Node}, 100}].
+-spec make_check_outliers_generator_init(node(), integer(), integer(), integer(),
+                                         integer(), integer()) -> producer_init(check_event_tag()).
+make_check_outliers_generator_init(Node, CheckOutliersPeriod, CheckOutliersHeartbeatPeriod,
+                                   BeginTime, EndTime, Rate) ->
+    [{{fun ?MODULE:check_outliers_input/5,
+       [Node, BeginTime, EndTime, CheckOutliersPeriod, CheckOutliersHeartbeatPeriod]},
+      {check_local_outliers, Node}, Rate}].
 
--spec check_outliers_input(node()) -> msg_generator().
-check_outliers_input(Node) ->
-    Input = [{{check_local_outliers, T * 1000}, Node, T * 1000} || T <- lists:seq(1, 10)],
-    Msgs = producer:interleave_heartbeats(Input, {{check_local_outliers, Node}, 10}, 11000),
+-spec check_outliers_input(node(), integer(), integer(), integer(), integer()) -> msg_generator().
+check_outliers_input(Node, From, To, Step, HeartbeatPeriod) ->
+    Input = [{{check_local_outliers, T}, Node, T} || T <- lists:seq(From, To, Step)],
+    Msgs = producer:interleave_heartbeats(Input, {{check_local_outliers, Node}, HeartbeatPeriod}, To + 2),
     producer:list_generator(Msgs).
 
-
 %% Make a generator initializer, used to initialize the computation
--spec make_connection_generator_init(node(), string()) -> producer_init(connection_tag()).
-make_connection_generator_init(Node, Filename) ->
-    [{{fun ?MODULE:make_kddcup_generator/2, [Node, Filename]}, {connection, Node}, 100}].
+-spec make_connection_generator_init(node(), string(), integer()) -> producer_init(connection_tag()).
+make_connection_generator_init(Node, Filename, Rate) ->
+    [{{fun ?MODULE:make_kddcup_generator/2, [Node, Filename]}, {connection, Node}, Rate}].
 
 %% Makes a generator for a kddcup data file, that doesn't add heartbeats
 -spec make_kddcup_generator(node(), string()) -> msg_generator().
@@ -734,7 +743,7 @@ seq() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, seq_conf, [SinkName]),
-    util:sink().
+    util:sink_no_log(30000).
 
 seq_conf(SinkPid) ->
     %% Architecture
@@ -750,8 +759,8 @@ seq_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
 
-    InputStream = make_connection_generator_init(node(), ?INPUT_FILE_10K),
-    CheckInputStream = make_check_outliers_generator_init(node()),
+    InputStream = make_connection_generator_init(node(), ?INPUT_FILE_10K, 100),
+    CheckInputStream = make_check_outliers_generator_init(node(), 1000, 10, 1000, 11000, 100),
     producer:make_producers(InputStream ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -761,7 +770,7 @@ distr() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, distr_conf, [SinkName]),
-    util:sink().
+    util:sink_no_log(30000).
 
 distr_conf(SinkPid) ->
     %% Architecture
@@ -779,9 +788,117 @@ distr_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
 
-    InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0),
-    InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1),
-    CheckInputStream = make_check_outliers_generator_init(node()),
+    InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0, 100),
+    InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1, 100),
+    CheckInputStream = make_check_outliers_generator_init(node(), 1000, 10, 1000, 11000, 100),
     producer:make_producers(InputStream1 ++ InputStream2 ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
+
+%% Notes:
+%%
+%% 1. Spawn a steady timestamp producer
+
+
+experiment_sequential() ->
+    InputStreams = 2,
+    NodeNames = [node() || _ <- lists:seq(0, InputStreams)],
+    setup_experiment(optimizer_sequential, NodeNames, 1000, 10, 1, log_latency_throughput).
+
+experiment_greedy() ->
+    NumHouses = 2,
+    NodeNames = [node() || _ <- lists:seq(0, NumHouses)],
+    setup_experiment(optimizer_greedy, NodeNames, 1000, 10, 1, log_latency_throughput).
+
+setup_experiment(Optimizer, NodeNames, CheckOutliersPeriod,
+                 CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog) ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, run_experiment,
+                          [SinkName, Optimizer, NodeNames, CheckOutliersPeriod,
+                           CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog]),
+    case DoLog of
+        log_latency_throughput ->
+            LoggerInitFun =
+                fun() ->
+                        log_mod:initialize_message_logger_state("sink", sets:from_list([check_local_outliers]))
+                end,
+            util:sink(LoggerInitFun, 30000);
+        no_log ->
+            util:sink_no_log(30000)
+    end.
+
+
+run_experiment(SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
+               CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog) ->
+
+    io:format("Args:~n~p~n", [[SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
+                               CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog]]),
+
+    %% We assume that the first node name is the main node
+    [MainNodeName|OtherNodeNames] = NodeNames,
+
+    %% We assume that there is one node for each input stream and one for main
+    NumInputStreams = length(OtherNodeNames),
+
+    %% ConnectionTags = [connection || _ <- lists:seq(0, NumInputStreams - 1)],
+    Tags = [check_local_outliers, connection],
+
+    %% Some Garbage
+    BeginSimulationTime = 1,
+    EndSimulationTime   = 11000,
+
+    %% Architecture
+    OtherNodeRates = [{OtherNodeName, connection, 1000}
+                      || OtherNodeName <- OtherNodeNames],
+    Rates = [{MainNodeName, check_local_outliers, 1}|OtherNodeRates],
+    Topology =
+        conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Specification =
+	conf_gen:make_specification(state_types_map(), splits_merges(),
+                                    dependencies(), init_state_pair()),
+
+    %% Maybe setup logging
+    LogOptions =
+        case DoLog of
+            log_latency_throughput ->
+                LogTriple = log_mod:make_num_log_triple(),
+                [{log_triple, LogTriple}];
+            no_log ->
+                []
+        end,
+    ConfTree = conf_gen:generate(Specification, Topology,
+                                 LogOptions ++ [{optimizer, Optimizer}]),
+
+    %% Prepare the producers input
+    StreamIds = [{Id, HouseNodeName}
+                 || {Id, HouseNodeName} <- lists:zip(lists:seq(0, NumInputStreams - 1), OtherNodeNames)],
+    InputStreams = lists:flatten([make_connection_generator_init(
+                                    Node, io_lib:format(?INPUT_FILE_FMT, [Id]), RateMultiplier)
+                                  || {Id, Node} <- StreamIds]),
+    CheckInputStream =
+        make_check_outliers_generator_init(node(), CheckOutliersPeriod,
+                                           CheckOutliersHeartbeatPeriod,
+                                           BeginSimulationTime, EndSimulationTime,
+                                           RateMultiplier),
+    ProducerInit = CheckInputStream ++ InputStreams,
+
+    LoggerInitFun =
+        case DoLog of
+            log_latency_throughput ->
+                _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+                fun() ->
+                        log_mod:initialize_message_logger_state("producer",
+                                                                sets:from_list([check_local_outliers]))
+                end;
+            no_log ->
+                fun log_mod:no_message_logger/0
+        end,
+
+    producer:make_producers(ProducerInit, ConfTree, Topology, steady_timestamp,
+                            LoggerInitFun, BeginSimulationTime),
+
+    SinkPid ! finished.
+

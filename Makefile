@@ -60,6 +60,9 @@ outlier_detection_seq:
 outlier_detection_distr:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run outlier_detection distr $(args) $(HALT)
 
+outlier_detection_greedy:
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run outlier_detection experiment_greedy $(args) $(HALT)
+
 exec:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)
 
