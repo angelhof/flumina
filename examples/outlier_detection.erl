@@ -20,13 +20,13 @@
 -define(PARAM_DELTA, 0.3).
 -define(DELTA_SCORE, 10).
 -define(SCORE_WINDOW_SIZE, 40).
--define(MAX_LEVEL, 3).
+-define(MAX_LEVEL, 2).
 
 
 -define(INPUT_FILE_10K, "data/outlier_detection/sample_kddcup_data_10k").
 -define(INPUT_FILE_5K0, "data/outlier_detection/sample_kddcup_data_5k_0").
 -define(INPUT_FILE_5K1, "data/outlier_detection/sample_kddcup_data_5k_1").
--define(INPUT_FILE_FMT, "data/outlier_detection/sample_kddcup_data_5k_~B").
+-define(INPUT_FILE_FMT, "data/outlier_detection/sample_kddcup_data_2.5k_~B").
 -define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
 
 %%%
@@ -122,7 +122,8 @@ state_types_map() ->
 
 -spec splits_merges() -> split_merge_funs().
 splits_merges() ->
-    [{{'state0', 'state', 'state'}, {fun split/2, fun merge/2}}].
+    [{{'state0', 'state', 'state'}, {fun split/2, fun merge/2}},
+     {{'state', 'state', 'state'}, {fun split/2, fun merge/2}}].
 
 -spec dependencies() -> dependencies().
 dependencies() ->
@@ -527,9 +528,9 @@ update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
                 NewState
         end,
 
-    case Timestamp rem 100 == 0 of
+    case Timestamp rem (100 * 1000) == 0 of
         true ->
-            SinkPid ! Timestamp;
+            {Timestamp div 1000, "seconds"};
         false ->
             ok
     end,
@@ -610,9 +611,9 @@ update_local({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
                 NewState
         end,
 
-    case Timestamp rem 100 =< 1 of
+    case Timestamp rem (100 * 1000) =< 1000 of
         true ->
-            SinkPid ! Timestamp;
+            SinkPid ! {Timestamp div 1000, "seconds"};
         false ->
             ok
     end,
@@ -759,8 +760,16 @@ seq_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
 
-    InputStream = make_connection_generator_init(node(), ?INPUT_FILE_10K, 100),
-    CheckInputStream = make_check_outliers_generator_init(node(), 1000, 10, 1000, 11000, 100),
+    InputStream = make_connection_generator_init(node(), ?INPUT_FILE_10K, 1),
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    StartTimeMs = 1 * 1000,
+    EndTimeMs = 11000 * 1000,
+    CheckInputStream =
+        make_check_outliers_generator_init(node(), CheckOutliersPeriodMs,
+                                           CheckOutliersHeartbeatPeriodMs,
+                                           StartTimeMs,
+                                           EndTimeMs, 1),
     producer:make_producers(InputStream ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -788,27 +797,49 @@ distr_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
 
-    InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0, 100),
-    InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1, 100),
-    CheckInputStream = make_check_outliers_generator_init(node(), 1000, 10, 1000, 11000, 100),
+    InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0, 1),
+    InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1, 1),
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    StartTimeMs = 1 * 1000,
+    EndTimeMs = 21000 * 1000,
+    CheckInputStream =
+        make_check_outliers_generator_init(node(), CheckOutliersPeriodMs,
+                                           CheckOutliersHeartbeatPeriodMs,
+                                           StartTimeMs,
+                                           EndTimeMs, 1),
     producer:make_producers(InputStream1 ++ InputStream2 ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
 
 %% Notes:
 %%
-%% 1. Spawn a steady timestamp producer
-
+%% On my machine it can process a bit less than 10 items per second
+%% per worker. Since the timestamps are in round robin, the rate has
+%% to be as much as the throughput of all the processes together.
+%% 1 process: rate ~7-8
+%% 2 process: rate ~15
+%% 4 process: rate ~30
+%% 8 process: rate ~60
+%% 16 process: rate ~120
 
 experiment_sequential() ->
-    InputStreams = 2,
+    InputStreams = 4,
     NodeNames = [node() || _ <- lists:seq(0, InputStreams)],
-    setup_experiment(optimizer_sequential, NodeNames, 1000, 10, 1, log_latency_throughput).
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    Rate = 30,
+    setup_experiment(optimizer_sequential, NodeNames, CheckOutliersPeriodMs,
+                     CheckOutliersHeartbeatPeriodMs, Rate, log_latency_throughput).
 
 experiment_greedy() ->
-    NumHouses = 2,
+    NumHouses = 4,
     NodeNames = [node() || _ <- lists:seq(0, NumHouses)],
-    setup_experiment(optimizer_greedy, NodeNames, 1000, 10, 1, log_latency_throughput).
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    Rate = 30,
+    setup_experiment(optimizer_greedy, NodeNames, CheckOutliersPeriodMs,
+                     CheckOutliersHeartbeatPeriodMs, Rate, log_latency_throughput).
 
 setup_experiment(Optimizer, NodeNames, CheckOutliersPeriod,
                  CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog) ->
@@ -845,8 +876,8 @@ run_experiment(SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
     Tags = [check_local_outliers, connection],
 
     %% Some Garbage
-    BeginSimulationTime = 1,
-    EndSimulationTime   = 11000,
+    BeginSimulationTime = 1 * 1000,
+    EndSimulationTime   = 21000 * 1000,
 
     %% Architecture
     OtherNodeRates = [{OtherNodeName, connection, 1000}
