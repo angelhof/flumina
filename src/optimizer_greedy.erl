@@ -1,6 +1,7 @@
 -module(optimizer_greedy).
 
--export([generate_setup_tree/2]).
+-export([generate_setup_tree/2,
+         generate_setup_tree/3]).
 
 -include("type_definitions.hrl").
 
@@ -33,6 +34,12 @@
 %%
 -spec generate_setup_tree(specification(), topology()) -> temp_setup_tree().
 generate_setup_tree(Specification, Topology) ->
+    generate_setup_tree(Specification, Topology, edge).
+
+%% The third argument dictates whether the workers will be mapped in
+%% one central node, or in edge nodes close to the sources.
+-spec generate_setup_tree(specification(), topology(), 'edge' | 'centralized') -> temp_setup_tree().
+generate_setup_tree(Specification, Topology, IsCentralized) ->
     Dependencies = conf_gen:get_dependencies(Specification),
     ImplTags = conf_gen:get_implementation_tags(Topology),
 
@@ -52,7 +59,7 @@ generate_setup_tree(Specification, Topology) ->
     %% Now we have to run the DP algorithm that given a root tree
     %% returns its optimal mapping to physical nodes. (By optimal
     %% it means less messages exchanged.)
-    RootTree = root_tree_physical_mapping(TagsRootTree, Topology),
+    RootTree = root_tree_physical_mapping(TagsRootTree, Topology, IsCentralized),
     io:format("Root tree: ~n~p~n", [RootTree]),
 
     %% Now that we have the root tree we only need to
@@ -76,8 +83,8 @@ generate_setup_tree(Specification, Topology) ->
 
 %% This algorithm, given a root tree returns its optimal mapping
 %% to physical nodes (based on the message metric).
--spec root_tree_physical_mapping(tag_root_tree(), topology()) -> root_tree().
-root_tree_physical_mapping(TagRootTree, Topology) ->
+-spec root_tree_physical_mapping(tag_root_tree(), topology(), 'edge' | 'centralized') -> root_tree().
+root_tree_physical_mapping(TagRootTree, Topology, IsCentralized) ->
     %% TODO: Implement this
     %%
     %% WARNING: For the moment just assign each root tree node
@@ -85,9 +92,12 @@ root_tree_physical_mapping(TagRootTree, Topology) ->
     %%          handled by the root node.
     NodesRates = conf_gen:get_nodes_rates(Topology),
 
-    %% opt_lib:map_physical_node_root_tree_constant(node(), TagRootTree).
-    opt_lib:map_physical_node_root_tree_max_rate(NodesRates, TagRootTree).
-
+    case IsCentralized of
+        edge ->
+            opt_lib:map_physical_node_root_tree_max_rate(NodesRates, TagRootTree);
+        centralized ->
+            opt_lib:map_physical_node_root_tree_constant(node(), TagRootTree)
+    end.
 
 %% Note: For now we assume that one split is enough, and that there are no
 %%       type conversions or splits needed to reach the option to do the split.
@@ -146,6 +156,14 @@ complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}, Hole
     %% now (which is supposed to be able to handle HTags) that goes to any state that
     %% can handle any child's subtree tags.
     SplitMergeFuns = conf_gen:get_split_merge_funs(Specification),
+
+    %% TODO: Optimization: Instead of just passing each child as a set
+    %% root tree, maybe we could pass child combinations, like a root
+    %% tree that contains one of the children and the rest as its children.
+    %%
+    %% The most important of those is the binary balanced tree.
+    %% ExtendedChildren = generate_deeper_root_trees(Children),
+
     HoledSetupTrees =
         filter_splits_satisfy_any_child(StateTypePair, {HTags, Node}, SplitMergeFuns,
 					    Children, Specification),
@@ -157,6 +175,13 @@ complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}, Hole
 	      [HoleTree(HoleSetupTree) || HoleSetupTree <- HoleSetupTrees]
       end, HoledSetupTrees).
 
+%% TODO: Implement a function that can generate binary root trees from
+%% completely flat root trees.
+-spec generate_binary_root_tree([set_root_tree()]) -> [set_root_tree()].
+generate_binary_root_tree(RootTrees) ->
+    [].
+
+
 %% This function returns all possible pairs of split-merge and set root trees
 %% that can be handled as their children. In essence, what it returns is a
 %% list of temp setup trees with a hole, that will be filled with the rest
@@ -167,6 +192,7 @@ complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}, Hole
 				      [set_root_tree()], specification())
 				     -> [hole_setup_tree()].
 filter_splits_satisfy_any_child(StateTypePair, TagsNode, SplitMergeFuns, SetRootTrees, Specification) ->
+    io:format("Set Root Trees: ~p~n", [SetRootTrees]),
     UniqueRootTrees = unique_root_trees_focus(SetRootTrees),
     DeepHoledSetupTrees =
         [filter_splits_satisfy_child(StateTypePair, TagsNode, SplitMergeFuns, Curr, Rest, Specification)
