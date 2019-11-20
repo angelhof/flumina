@@ -5,6 +5,8 @@
 	 exec/1,
 	 sink/0,
 	 sink/1,
+	 sink_no_log/1,
+         sink/2,
 	 merge_with/3,
 	 take_at_most/2,
 	 map_focus/2,
@@ -48,23 +50,28 @@ sink() ->
     sink(fun log_mod:no_message_logger/0).
 
 sink(MsgLoggerInitFun) ->
+    sink(MsgLoggerInitFun, 15000).
+
+sink_no_log(WaitTime) ->
+    sink(fun log_mod:no_message_logger/0, WaitTime).
+
+sink(MsgLoggerInitFun, WaitTime) ->
     LoggerFun = MsgLoggerInitFun(),
     receive
 	finished ->
 	    io:format("Configuration done~n", []),
-	    sink_loop(LoggerFun)
+	    sink_loop(LoggerFun, WaitTime)
     end.
 
-sink_loop(LoggerFun) ->
+sink_loop(LoggerFun, WaitTime) ->
     receive
 	Msg ->
 	    LoggerFun({Msg, fake_node, 0}),
 	    io:format("~p~n", [Msg]),
-	    sink_loop(LoggerFun)
-    after 
-	15000 ->
-            Wait = 15000,
-            io:format("Didn't receive anything for ~p seconds~n", [Wait]),
+	    sink_loop(LoggerFun, WaitTime)
+    after
+        WaitTime ->
+            io:format("Didn't receive anything for ~p seconds~n", [WaitTime]),
 	    ok
     end.
 

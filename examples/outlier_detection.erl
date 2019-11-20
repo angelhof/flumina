@@ -1,11 +1,15 @@
 -module(outlier_detection).
 
 -export([make_kddcup_generator/2,
-         check_outliers_input/1,
+         check_outliers_input/5,
          seq/0,
          seq_conf/1,
          distr/0,
-         distr_conf/1]).
+         distr_conf/1,
+         experiment_sequential/0,
+         experiment_greedy/0,
+         setup_experiment/6,
+         run_experiment/7]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include("type_definitions.hrl").
@@ -16,12 +20,13 @@
 -define(PARAM_DELTA, 0.3).
 -define(DELTA_SCORE, 10).
 -define(SCORE_WINDOW_SIZE, 40).
--define(MAX_LEVEL, 3).
+-define(MAX_LEVEL, 2).
 
 
 -define(INPUT_FILE_10K, "data/outlier_detection/sample_kddcup_data_10k").
 -define(INPUT_FILE_5K0, "data/outlier_detection/sample_kddcup_data_5k_0").
 -define(INPUT_FILE_5K1, "data/outlier_detection/sample_kddcup_data_5k_1").
+-define(INPUT_FILE_FMT, "data/outlier_detection/sample_kddcup_data_2.5k_~B").
 -define(ITEMSETS_FILE, "data/outlier_detection/kddcup_itemsets.csv").
 
 %%%
@@ -117,7 +122,8 @@ state_types_map() ->
 
 -spec splits_merges() -> split_merge_funs().
 splits_merges() ->
-    [{{'state0', 'state', 'state'}, {fun split/2, fun merge/2}}].
+    [{{'state0', 'state', 'state'}, {fun split/2, fun merge/2}},
+     {{'state', 'state', 'state'}, {fun split/2, fun merge/2}}].
 
 -spec dependencies() -> dependencies().
 dependencies() ->
@@ -522,9 +528,9 @@ update({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
                 NewState
         end,
 
-    case Timestamp rem 100 == 0 of
+    case Timestamp rem (100 * 1000) == 0 of
         true ->
-            SinkPid ! Timestamp;
+            {Timestamp div 1000, "seconds"};
         false ->
             ok
     end,
@@ -548,6 +554,9 @@ update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
               end
       end, LocalOutliers),
 
+    %% This is for latency logging purposes
+    SinkPid ! {check_local_outliers, CheckTimestamp},
+
     SinkPid ! {"end_global_check", CheckTimestamp},
 
     {ItemsetHash, WindowScores, []}.
@@ -560,13 +569,11 @@ update({check_local_outliers, CheckTimestamp}, State, SinkPid) ->
 split({_Pred1, _Pred2}, State) ->
     {State, State}.
 
-%% TODO: Really merge the local models
 -spec merge(state(), state()) -> state().
 merge(State1, State2) ->
     {ItemsetHash1, WindowScores1, LocalOutliers1} = State1,
     {ItemsetHash2, WindowScores2, LocalOutliers2} = State2,
 
-    %% TODO: Merge the itemset hashes
     MergedItemsetHash =
         merge_itemsethashes(ItemsetHash1, ItemsetHash2),
 
@@ -604,9 +611,9 @@ update_local({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
                 NewState
         end,
 
-    case Timestamp rem 100 =< 1 of
+    case Timestamp rem (100 * 1000) =< 1000 of
         true ->
-            SinkPid ! Timestamp;
+            SinkPid ! {Timestamp div 1000, "seconds"};
         false ->
             ok
     end,
@@ -618,21 +625,24 @@ update_local({connection, {Timestamp, Features, Label}}, State, SinkPid) ->
 %%
 
 %% Make a generator initializer, used to initialize the computation
--spec make_check_outliers_generator_init(node()) -> producer_init(check_event_tag()).
-make_check_outliers_generator_init(Node) ->
-    [{{fun ?MODULE:check_outliers_input/1, [Node]}, {check_local_outliers, Node}, 100}].
+-spec make_check_outliers_generator_init(node(), integer(), integer(), integer(),
+                                         integer(), integer()) -> producer_init(check_event_tag()).
+make_check_outliers_generator_init(Node, CheckOutliersPeriod, CheckOutliersHeartbeatPeriod,
+                                   BeginTime, EndTime, Rate) ->
+    [{{fun ?MODULE:check_outliers_input/5,
+       [Node, BeginTime, EndTime, CheckOutliersPeriod, CheckOutliersHeartbeatPeriod]},
+      {check_local_outliers, Node}, Rate}].
 
--spec check_outliers_input(node()) -> msg_generator().
-check_outliers_input(Node) ->
-    Input = [{{check_local_outliers, T * 1000}, Node, T * 1000} || T <- lists:seq(1, 10)],
-    Msgs = producer:interleave_heartbeats(Input, {{check_local_outliers, Node}, 10}, 11000),
+-spec check_outliers_input(node(), integer(), integer(), integer(), integer()) -> msg_generator().
+check_outliers_input(Node, From, To, Step, HeartbeatPeriod) ->
+    Input = [{{check_local_outliers, T}, Node, T} || T <- lists:seq(From, To, Step)],
+    Msgs = producer:interleave_heartbeats(Input, {{check_local_outliers, Node}, HeartbeatPeriod}, To + 2),
     producer:list_generator(Msgs).
 
-
 %% Make a generator initializer, used to initialize the computation
--spec make_connection_generator_init(node(), string()) -> producer_init(connection_tag()).
-make_connection_generator_init(Node, Filename) ->
-    [{{fun ?MODULE:make_kddcup_generator/2, [Node, Filename]}, {connection, Node}, 100}].
+-spec make_connection_generator_init(node(), string(), integer()) -> producer_init(connection_tag()).
+make_connection_generator_init(Node, Filename, Rate) ->
+    [{{fun ?MODULE:make_kddcup_generator/2, [Node, Filename]}, {connection, Node}, Rate}].
 
 %% Makes a generator for a kddcup data file, that doesn't add heartbeats
 -spec make_kddcup_generator(node(), string()) -> msg_generator().
@@ -734,7 +744,7 @@ seq() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, seq_conf, [SinkName]),
-    util:sink().
+    util:sink_no_log(30000).
 
 seq_conf(SinkPid) ->
     %% Architecture
@@ -750,8 +760,16 @@ seq_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
 
-    InputStream = make_connection_generator_init(node(), ?INPUT_FILE_10K),
-    CheckInputStream = make_check_outliers_generator_init(node()),
+    InputStream = make_connection_generator_init(node(), ?INPUT_FILE_10K, 1),
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    StartTimeMs = 1 * 1000,
+    EndTimeMs = 11000 * 1000,
+    CheckInputStream =
+        make_check_outliers_generator_init(node(), CheckOutliersPeriodMs,
+                                           CheckOutliersHeartbeatPeriodMs,
+                                           StartTimeMs,
+                                           EndTimeMs, 1),
     producer:make_producers(InputStream ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
@@ -761,7 +779,7 @@ distr() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, distr_conf, [SinkName]),
-    util:sink().
+    util:sink_no_log(30000).
 
 distr_conf(SinkPid) ->
     %% Architecture
@@ -779,9 +797,139 @@ distr_conf(SinkPid) ->
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
 
-    InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0),
-    InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1),
-    CheckInputStream = make_check_outliers_generator_init(node()),
+    InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0, 1),
+    InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1, 1),
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    StartTimeMs = 1 * 1000,
+    EndTimeMs = 21000 * 1000,
+    CheckInputStream =
+        make_check_outliers_generator_init(node(), CheckOutliersPeriodMs,
+                                           CheckOutliersHeartbeatPeriodMs,
+                                           StartTimeMs,
+                                           EndTimeMs, 1),
     producer:make_producers(InputStream1 ++ InputStream2 ++ CheckInputStream, ConfTree, Topology),
 
     SinkPid ! finished.
+
+%% Notes:
+%%
+%% On my machine it can process a bit less than 10 items per second
+%% per worker. Since the timestamps are in round robin, the rate has
+%% to be as much as the throughput of all the processes together.
+%% 1 process: rate ~7-8
+%% 2 process: rate ~15
+%% 4 process: rate ~30
+%% 8 process: rate ~60
+%% 16 process: rate ~120
+
+experiment_sequential() ->
+    InputStreams = 4,
+    NodeNames = [node() || _ <- lists:seq(0, InputStreams)],
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    Rate = 30,
+    setup_experiment(optimizer_sequential, NodeNames, CheckOutliersPeriodMs,
+                     CheckOutliersHeartbeatPeriodMs, Rate, log_latency_throughput).
+
+experiment_greedy() ->
+    NumHouses = 4,
+    NodeNames = [node() || _ <- lists:seq(0, NumHouses)],
+    CheckOutliersPeriodMs = 1000 * 1000,
+    CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    Rate = 30,
+    setup_experiment(optimizer_greedy, NodeNames, CheckOutliersPeriodMs,
+                     CheckOutliersHeartbeatPeriodMs, Rate, log_latency_throughput).
+
+setup_experiment(Optimizer, NodeNames, CheckOutliersPeriod,
+                 CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog) ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    _ExecPid = spawn_link(?MODULE, run_experiment,
+                          [SinkName, Optimizer, NodeNames, CheckOutliersPeriod,
+                           CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog]),
+    case DoLog of
+        log_latency_throughput ->
+            LoggerInitFun =
+                fun() ->
+                        log_mod:initialize_message_logger_state("sink", sets:from_list([check_local_outliers]))
+                end,
+            util:sink(LoggerInitFun, 30000);
+        no_log ->
+            util:sink_no_log(30000)
+    end.
+
+
+run_experiment(SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
+               CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog) ->
+
+    io:format("Args:~n~p~n", [[SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
+                               CheckOutliersHeartbeatPeriod, RateMultiplier, DoLog]]),
+
+    %% We assume that the first node name is the main node
+    [MainNodeName|OtherNodeNames] = NodeNames,
+
+    %% We assume that there is one node for each input stream and one for main
+    NumInputStreams = length(OtherNodeNames),
+
+    %% ConnectionTags = [connection || _ <- lists:seq(0, NumInputStreams - 1)],
+    Tags = [check_local_outliers, connection],
+
+    %% Some Garbage
+    BeginSimulationTime = 1 * 1000,
+    EndSimulationTime   = 21000 * 1000,
+
+    %% Architecture
+    OtherNodeRates = [{OtherNodeName, connection, 1000}
+                      || OtherNodeName <- OtherNodeNames],
+    Rates = [{MainNodeName, check_local_outliers, 1}|OtherNodeRates],
+    Topology =
+        conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Specification =
+	conf_gen:make_specification(state_types_map(), splits_merges(),
+                                    dependencies(), init_state_pair()),
+
+    %% Maybe setup logging
+    LogOptions =
+        case DoLog of
+            log_latency_throughput ->
+                LogTriple = log_mod:make_num_log_triple(),
+                [{log_triple, LogTriple}];
+            no_log ->
+                []
+        end,
+    ConfTree = conf_gen:generate(Specification, Topology,
+                                 LogOptions ++ [{optimizer, Optimizer}]),
+
+    %% Prepare the producers input
+    StreamIds = [{Id, HouseNodeName}
+                 || {Id, HouseNodeName} <- lists:zip(lists:seq(0, NumInputStreams - 1), OtherNodeNames)],
+    InputStreams = lists:flatten([make_connection_generator_init(
+                                    Node, io_lib:format(?INPUT_FILE_FMT, [Id]), RateMultiplier)
+                                  || {Id, Node} <- StreamIds]),
+    CheckInputStream =
+        make_check_outliers_generator_init(node(), CheckOutliersPeriod,
+                                           CheckOutliersHeartbeatPeriod,
+                                           BeginSimulationTime, EndSimulationTime,
+                                           RateMultiplier),
+    ProducerInit = CheckInputStream ++ InputStreams,
+
+    LoggerInitFun =
+        case DoLog of
+            log_latency_throughput ->
+                _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+                fun() ->
+                        log_mod:initialize_message_logger_state("producer",
+                                                                sets:from_list([check_local_outliers]))
+                end;
+            no_log ->
+                fun log_mod:no_message_logger/0
+        end,
+
+    producer:make_producers(ProducerInit, ConfTree, Topology, steady_timestamp,
+                            LoggerInitFun, BeginSimulationTime),
+
+    SinkPid ! finished.
+
