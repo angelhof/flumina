@@ -561,9 +561,9 @@ make_bs_heartbeats(BNodeName, LengthAStream, RatioAB, HeartbeatBRatio) ->
     LengthBStream = LengthAStream div RatioAB,
     Bs = lists:flatten(
 	   [[{heartbeat, {{b, BNodeName}, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}}
-	     || T <- lists:seq(0, HeartbeatBRatio - 1)]
+	     || T <- lists:seq(0, HeartbeatBRatio - 2)]
 	    ++ [{{b, RatioAB + (RatioAB * BT)}, BNodeName, RatioAB + (RatioAB * BT)}]
-	    || BT <- lists:seq(0,LengthBStream)])
+	    || BT <- lists:seq(0,LengthBStream - 1)])
 	++ [{heartbeat, {{b, BNodeName}, LengthAStream + 1}}],
     producer:list_generator(Bs).
 
