@@ -6,6 +6,22 @@ from lib import *
 import numpy as np
 import matplotlib.pyplot as plt
 
+SMALL_SIZE = 16
+MEDIUM_SIZE = 18
+BIGGER_SIZE = 20
+
+plt.rc('font', size=MEDIUM_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=BIGGER_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=MEDIUM_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+plt.rcParams['mathtext.fontset'] = 'stix'
+plt.rcParams['font.family'] = 'STIXGeneral'
+
+
 def get_throughputs(confs, format_str):
     y_throughputs = []
 
@@ -79,15 +95,16 @@ fig, ax = plt.subplots()
 # ax.plot(num_nodes, diagonal, linewidth=0.3)
 
 ## Plot speedup
-ax.set_ylabel('Speedup')
+ax.set_ylabel('Throughput Improvement')
 ax.set_xlabel('Processing Nodes')
 greedy_speedups = [t / greedy_throughputs[0] for t in greedy_throughputs]
 centralized_greedy_speedups = [t / centralized_greedy_throughputs[0] for t in centralized_greedy_throughputs]
-ax.plot(num_nodes, greedy_speedups, '-o', linewidth=0.5)
+ax.plot(num_nodes, greedy_speedups, '-o', linewidth=0.5, label='Distributed')
 # ax.plot(num_nodes, centralized_greedy_speedups, '-+', linewidth=0.5)
 ## x = y lines
-ax.plot(num_nodes, num_nodes, linewidth=0.3)
-
+ax.plot(num_nodes, num_nodes, '-', color='tab:gray', linewidth=0.5, label='Ideal')
+plt.xticks(num_nodes)
+plt.legend()
 
 plt.tight_layout()
 plt.savefig(os.path.join('plots', "outlier_detection_throughput_scaleup.pdf"))
@@ -107,8 +124,11 @@ ax.set_ylabel('Total Network Load (MB)')
 ax.set_xlabel('Processing Nodes')
 greedy_relative_loads = [t / greedy_network_loads[0] for t in greedy_network_loads]
 centralized_greedy_relative_loads = [t / centralized_greedy_network_loads[0] for t in centralized_greedy_network_loads]
-ax.plot(num_nodes, greedy_network_loads, '-o', linewidth=0.5)
-ax.plot(num_nodes, centralized_greedy_network_loads, '-+', linewidth=0.5)
+
+ax.plot(num_nodes, greedy_network_loads, '-o', linewidth=0.5, label='Distributed')
+ax.plot(num_nodes, centralized_greedy_network_loads, '-+', linewidth=0.5, label='Centralized')
+plt.xticks(num_nodes)
+plt.legend()
 
 plt.tight_layout()
 plt.savefig(os.path.join('plots', "outlier_detection_network_scaleup.pdf"))
