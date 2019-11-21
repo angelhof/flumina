@@ -20,41 +20,58 @@ class NS3Conf:
 
 
 def get_ns3_home():
-    return os.environ.get('NS3_HOME', '.')
+    return os.environ.get('NS3_HOME', os.getcwd())
 
 
-def ns3_preprocess(all_nodes):
-    preprocess_script = path.join('ns3', 'container-pre-ns3.sh')
-    for node in all_nodes:
+def ns3_preprocess(nodes):
+    preprocess_script = path.join(os.getcwd(), 'ns3', 'container-pre-ns3.sh')
+    for node in nodes:
         subprocess.run([preprocess_script, node])
 
 
-def start_ns3_process(conf, main_node, nodes):
-    ns3_preprocess([main_node] + nodes)
+def start_ns3_process(conf, nodes):
+    ns3_preprocess(nodes)
     ns3_home = get_ns3_home()
     waf = path.join(ns3_home, 'waf')
-    args = f'scratch/tap-vm {conf.get_args()} --MainNode={main_node} ' + ' '.join(nodes)
+    args = f'scratch/tap-vm {conf.get_args()} --MainNode={nodes[0]} ' + ' '.join(nodes[1:])
     return subprocess.Popen([waf, '--run', args], cwd=ns3_home)
 
 
-def ns3_postprocess(all_nodes):
-    postprocess_script = path.join('ns3', 'container-post-ns3.sh')
-    for node in all_nodes:
+def ns3_postprocess(nodes):
+    postprocess_script = path.join(os.getcwd(), 'ns3', 'container-post-ns3.sh')
+    for node in nodes:
         subprocess.run([postprocess_script, node])
 
 
-def wait_ns3_process(proc, main_node, nodes):
+def stop_ns3_process(proc, nodes):
+    proc.terminate()
     # TODO: subprocess.Popen.wait() is a busy loop; replace with asyncio coroutine
     #       asyncio.create_subprocess_exec()
     proc.wait()
-    ns3_postprocess([main_node] + nodes)
+    ns3_postprocess(nodes)
 
 
 def start_network(node, pid, ip_addr):
-    start_network_script = path.join('ns3', 'container-start-network.sh')
+    start_network_script = path.join(os.getcwd(), 'ns3', 'container-start-network.sh')
     subprocess.run([start_network_script, node, pid, ip_addr])
 
 
 def stop_network(node, pid):
-    stop_network_script = path.join('ns3', 'container-stop-network.sh')
+    stop_network_script = path.join(os.getcwd(), 'ns3', 'container-stop-network.sh')
     subprocess.run([stop_network_script, node, pid])
+
+
+def ip_address_generator(n, prefix):
+    q, r = divmod(n, 254)
+    yield from ('.'.join([prefix, str(x), str(y)])
+                for x in range(q + 1)
+                for y in range(1, r + 1 if x == q else 255))
+
+
+def ip_address_map(nodes, prefix='10.12'):
+    return dict(zip(nodes, ip_address_generator(len(nodes), prefix)))
+
+
+def write_hosts(ip_addr_map, hosts_file):
+    with open(hosts_file, 'w') as f:
+        f.writelines(f'{node}\t{ip}\n' for node, ip in ip_addr_map.items())
