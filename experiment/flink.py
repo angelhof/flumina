@@ -34,10 +34,6 @@ class ValueBarrierExperiment:
     def _with_ns3(self):
         return self.ns3_conf is not None
 
-    def _approx_ns3_time(self):
-        approx_time = 1.2 * (float(self.total_values) / self.value_rate / 1000.0 + self.total_value_nodes + 17.0)
-        return int(approx_time)
-
     def run(self):
         self._prepare()
 
@@ -47,7 +43,7 @@ class ValueBarrierExperiment:
 
             # Give it a couple of seconds to start
             # TODO: Better synchronization
-            time.sleep(2)
+            time.sleep(3)
 
         self._start_jobmanager()
         self._start_taskmanagers()
