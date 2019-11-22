@@ -5,7 +5,7 @@ import edu.upenn.flumina.data.Heartbeat;
 import edu.upenn.flumina.data.cases.BarrierOrHeartbeat;
 
 import java.util.Iterator;
-import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
@@ -45,12 +45,14 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
         //
         // We add one heartbeat with timestamp totalValues at the end.
         final int totalBarrierOrHeartbeats = totalValues / vbRatio * hbRatio;
-        final Stream<BarrierOrHeartbeat> barriers = IntStream.rangeClosed(1, totalBarrierOrHeartbeats)
+        final Stream<BarrierOrHeartbeat> barriers = LongStream.rangeClosed(1, totalBarrierOrHeartbeats)
                 .mapToObj(i -> {
                     if (i % hbRatio == 0) {
-                        return new Barrier(i * vbRatio / hbRatio - 1);
+                        // Multiply vbRatio / hbRatio first to avoid potential overflow.
+                        // Assumes that hbRatio divides vbRatio.
+                        return new Barrier(i * (vbRatio / hbRatio) - 1);
                     } else {
-                        return new Heartbeat(i * vbRatio / hbRatio - 1);
+                        return new Heartbeat(i * (vbRatio / hbRatio) - 1);
                     }
                 });
         final Stream<BarrierOrHeartbeat> withFinalHeartbeat =

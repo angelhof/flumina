@@ -5,7 +5,7 @@ import edu.upenn.flumina.data.Value;
 import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
 
 import java.util.Iterator;
-import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 public class ValueGenerator implements Generator<ValueOrHeartbeat> {
@@ -29,7 +29,7 @@ public class ValueGenerator implements Generator<ValueOrHeartbeat> {
     public Iterator<ValueOrHeartbeat> getIterator() {
         // Prepare a stream of Value objects with timestamps ranging from 0 to totalValues-1.
         // Add one heartbeat with timestamp totalValues at the end.
-        final Stream<Value> values = IntStream.range(0, totalValues).mapToObj(t -> new Value(t + 1, t));
+        final Stream<Value> values = LongStream.range(0, totalValues).mapToObj(t -> new Value(t + 1, t));
         final Stream<ValueOrHeartbeat> withFinalHeartbeat =
                 Stream.concat(values, Stream.of(new Heartbeat(totalValues)));
         return withFinalHeartbeat.iterator();
