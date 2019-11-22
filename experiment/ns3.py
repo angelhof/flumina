@@ -4,7 +4,7 @@ from os import path
 
 
 class NS3Conf:
-    def __init__(self, total_time, data_rate='1Gbps', delay='5000ns', file_prefix='ns3_log', tracing=False):
+    def __init__(self, total_time=120, data_rate='1Gbps', delay='5000ns', file_prefix='ns3_log', tracing=False):
         self.total_time = total_time
         self.data_rate = data_rate
         self.delay = delay
@@ -34,7 +34,7 @@ def start_ns3_process(conf, nodes):
     ns3_home = get_ns3_home()
     waf = path.join(ns3_home, 'waf')
     args = f'scratch/tap-vm {conf.get_args()} --MainNode={nodes[0]} ' + ' '.join(nodes[1:])
-    return subprocess.Popen([waf, '--run', args], cwd=ns3_home)
+    return subprocess.Popen([waf, '--run', args], cwd=ns3_home, restore_signals=False)
 
 
 def ns3_postprocess(nodes):
@@ -44,7 +44,8 @@ def ns3_postprocess(nodes):
 
 
 def stop_ns3_process(proc, nodes):
-    proc.terminate()
+    # proc.terminate()
+    # proc.send_signal(signal.SIGINT)
     # TODO: subprocess.Popen.wait() is a busy loop; replace with asyncio coroutine
     #       asyncio.create_subprocess_exec()
     proc.wait()
@@ -74,4 +75,4 @@ def ip_address_map(nodes, prefix='10.12'):
 
 def write_hosts(ip_addr_map, hosts_file):
     with open(hosts_file, 'w') as f:
-        f.writelines(f'{node}\t{ip}\n' for node, ip in ip_addr_map.items())
+        f.writelines(f'{ip}\t{node}\n' for node, ip in ip_addr_map.items())

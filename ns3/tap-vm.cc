@@ -21,12 +21,12 @@
 //
 // The actual steps required to configure the virtual machines can be rather
 // involved, so we don't go into that here.  Please have a look at one of
-// our HOWTOs on the nsnam wiki for more details about how to get the 
-// system confgured.  For an example, have a look at "HOWTO Use Linux 
-// Containers to set up virtual networks" which uses this code as an 
+// our HOWTOs on the nsnam wiki for more details about how to get the
+// system confgured.  For an example, have a look at "HOWTO Use Linux
+// Containers to set up virtual networks" which uses this code as an
 // example.
 //
-// The configuration you are after is explained in great detail in the 
+// The configuration you are after is explained in great detail in the
 // HOWTO, but looks like the following:
 //
 //  +----------+                           +----------+
@@ -131,7 +131,7 @@ void Statistics::ProcessPacket(Ptr<const Packet> p) {
 
     Ipv4Header ipv4Head;
     copy->RemoveHeader(ipv4Head);
-    
+
     uint32_t src = ipv4Head.GetSource().Get();
     uint32_t dst = ipv4Head.GetDestination().Get();
     SrcDstPair pair = std::make_tuple(src, dst);
@@ -140,7 +140,7 @@ void Statistics::ProcessPacket(Ptr<const Packet> p) {
       totalData.emplace(pair, 0);
     }
     totalData[pair] += p->GetSize();
-  }  
+  }
 }
 
 void Statistics::GenerateStatistics() {
@@ -149,11 +149,11 @@ void Statistics::GenerateStatistics() {
   std::size_t start = 0;
   while (start < packetSeries.size() && std::get<1>(packetSeries[start]) < 10)
     start++;
-  
+
   std::size_t end = packetSeries.size();
   while (end > start && std::get<1>(packetSeries[end - 1]) < 10)
     end--;
-  
+
   if (start == end) {
     // There are no intervals with 10 or more packets :'(
     return;
@@ -162,7 +162,7 @@ void Statistics::GenerateStatistics() {
   std::vector<uint32_t> percentile;
   for (auto it = packetSeries.cbegin() + start; it != packetSeries.cbegin() + end; it++) {
     percentile.emplace_back(std::get<2>(*it));
-  }  
+  }
   std::sort(percentile.begin(), percentile.end());
 
   percentile10 = percentile[percentile.size() / 10 + (percentile.size() % 10 == 0 ? 0 : 1)];
@@ -207,11 +207,11 @@ void Statistics::PrintTimeSeries(std::ostream& os) const {
   }
 }
 
-void handle_sigterm(int sig) {
+void handle_sigint(int sig) {
   Simulator::Stop();
 }
 
-int 
+int
 main (int argc, char *argv[])
 {
   double TotalTime = 120.0;
@@ -253,7 +253,7 @@ main (int argc, char *argv[])
   FilenamePrefix = ss.str();
 
   //
-  // We are interacting with the outside, real, world.  This means we have to 
+  // We are interacting with the outside, real, world.  This means we have to
   // interact in real-time and therefore means we have to use the real-time
   // simulator and take the time to calculate checksums.
   //
@@ -268,7 +268,7 @@ main (int argc, char *argv[])
   nodes.Create (NumNodes);
 
   //
-  // Use a CsmaHelper to get a CSMA channel created, and the needed net 
+  // Use a CsmaHelper to get a CSMA channel created, and the needed net
   // devices installed on both of the nodes.  The data rate and delay for the
   // channel can be set through the command-line parser.  For example,
   //
@@ -280,7 +280,7 @@ main (int argc, char *argv[])
   //
   // Use the TapBridgeHelper to connect to the pre-configured tap devices.
   // We go with "UseBridge" mode since the CSMA devices support
-  // promiscuous mode and can therefore make it appear that the bridge is 
+  // promiscuous mode and can therefore make it appear that the bridge is
   // extended into ns-3.  The install method essentially bridges the specified
   // tap to the specified CSMA device.
   //
@@ -314,7 +314,7 @@ main (int argc, char *argv[])
   // Run the simulation for TotalTime seconds to give the user time to play around
   //
   NS_LOG_UNCOND ("Running simulation in csma mode");
-  std::signal(SIGTERM, handle_sigterm);
+  std::signal(SIGINT, handle_sigint);
   Simulator::Stop (Seconds (TotalTime));
   Simulator::Run ();
   Simulator::Destroy ();

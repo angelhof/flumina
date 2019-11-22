@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import time
 from os import path
@@ -19,16 +20,30 @@ class ValueBarrierExperiment:
         self.stats_file = path.join('/opt/flink/out', stats_file)
         self.ns3_conf = ns3_conf
         self.ns3_proc = None
-        self.nodes = ['job'] + [f'{n:02}' for n in range(1, total_value_nodes + 2)]
+        self.nodes = ['job'] + [f'task{n:02}' for n in range(1, total_value_nodes + 2)]
+
+    def __str__(self):
+        return 'ValueBarrierExperiment(' \
+               f'value_nodes={self.total_value_nodes}, ' \
+               f'values={self.total_values}, ' \
+               f'value_rate={self.value_rate:.1f}, ' \
+               f'vb_ratio={self.vb_ratio}, ' \
+               f'hb_ratio={self.hb_ratio}, ' \
+               f'ns3={self._with_ns3()})'
 
     def _with_ns3(self):
         return self.ns3_conf is not None
+
+    def _approx_ns3_time(self):
+        approx_time = 1.2 * (float(self.total_values) / self.value_rate / 1000.0 + self.total_value_nodes + 17.0)
+        return int(approx_time)
 
     def run(self):
         self._prepare()
 
         if self._with_ns3():
-            self.ns3_proc = ns3.start_ns3_process(self.ns3_conf, self.nodes[0], self.nodes[1:])
+            self.ns3_conf.total_time = self._approx_ns3_time()
+            self.ns3_proc = ns3.start_ns3_process(self.ns3_conf, self.nodes)
 
             # Give it a couple of seconds to start
             # TODO: Better synchronization
@@ -61,7 +76,8 @@ class ValueBarrierExperiment:
 
     def _wait_on_pipe(self):
         with open(self.notify, 'r') as p:
-            p.read()
+            result = p.read()
+            print(f'Notification pipe: {result}')
 
     def _start_jobmanager(self):
         self._start_node(self.nodes[0], 'jobmanager', ['--wait-taskmanagers', f'{self.total_value_nodes + 1}'])
@@ -77,8 +93,8 @@ class ValueBarrierExperiment:
 
     def _start_node(self, node, command, extra_args):
         network = 'none' if self._with_ns3() else 'temp'
-        args = ['docker', 'run',
-                '-di',
+        args = ['/usr/bin/docker', 'run',
+                '-d',
                 '--rm',
                 f'--network={network}',
                 f'--name={node}',
@@ -96,8 +112,7 @@ class ValueBarrierExperiment:
             ns3.start_network(node, pid, self.ip_addr_map[node])
 
     def _run_job(self):
-        subprocess.run(['docker', 'exec',
-                        '-i',
+        subprocess.run(['/usr/bin/docker', 'exec',
                         self.nodes[0],
                         '/opt/flink/bin/flink',
                         'run',
@@ -114,7 +129,23 @@ class ValueBarrierExperiment:
         if self._with_ns3():
             for node in self.nodes:
                 ns3.stop_network(node, self.pid_map[node])
-        subprocess.run(['docker', 'stop'] + self.nodes)
+        subprocess.run(['/usr/bin/docker', 'stop'] + self.nodes)
 
     def _cleanup(self):
         os.unlink(self.notify)
+
+    def archive_results(self, to_path):
+        exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}'
+        exp_path = path.join(to_path, exp_dir_name)
+        if path.isdir(exp_path):
+            shutil.rmtree(exp_path)
+        shutil.move(self.out_path, exp_path)
+        if self._with_ns3():
+            ns3_home = ns3.get_ns3_home()
+            files = [
+                path.join(ns3_home, f)
+                for f in os.listdir(ns3_home)
+                if f.startswith(self.ns3_conf.file_prefix)
+            ]
+            for f in files:
+                shutil.move(f, exp_path)
