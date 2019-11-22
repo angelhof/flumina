@@ -42,7 +42,7 @@ class ValueBarrierExperiment:
         self._prepare()
 
         if self._with_ns3():
-            self.ns3_conf.total_time = self._approx_ns3_time()
+            # self.ns3_conf.total_time = self._approx_ns3_time()
             self.ns3_proc = ns3.start_ns3_process(self.ns3_conf, self.nodes)
 
             # Give it a couple of seconds to start

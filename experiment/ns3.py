@@ -1,10 +1,11 @@
 import os
+import signal
 import subprocess
 from os import path
 
 
 class NS3Conf:
-    def __init__(self, total_time=120, data_rate='1Gbps', delay='5000ns', file_prefix='ns3_log', tracing=False):
+    def __init__(self, total_time=600, data_rate='1Gbps', delay='5000ns', file_prefix='ns3_log', tracing=False):
         self.total_time = total_time
         self.data_rate = data_rate
         self.delay = delay
@@ -44,8 +45,13 @@ def ns3_postprocess(nodes):
 
 
 def stop_ns3_process(proc, nodes):
-    # proc.terminate()
-    # proc.send_signal(signal.SIGINT)
+    # We want to send the SIGINT signal, but not to proc itself, since it is
+    # the python process managing the NS3 simulation. We actually want to find
+    # the process called tap-vm and signal it directly.
+    pidof = subprocess.run(['pidof', '-s', 'tap-vm'], capture_output=True)
+    tapvm = int(pidof.stdout)
+    os.kill(tapvm, signal.SIGINT)
+
     # TODO: subprocess.Popen.wait() is a busy loop; replace with asyncio coroutine
     #       asyncio.create_subprocess_exec()
     proc.wait()
