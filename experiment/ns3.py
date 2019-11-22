@@ -2,6 +2,7 @@ import os
 import signal
 import subprocess
 from os import path
+from subprocess import PIPE
 
 
 class NS3Conf:
@@ -48,7 +49,7 @@ def stop_ns3_process(proc, nodes):
     # We want to send the SIGINT signal, but not to proc itself, since it is
     # the python process managing the NS3 simulation. We actually want to find
     # the process called tap-vm and signal it directly.
-    pidof = subprocess.run(['pidof', '-s', 'tap-vm'], capture_output=True)
+    pidof = subprocess.run(['pidof', '-s', 'tap-vm'], stdout=PIPE)
     tapvm = int(pidof.stdout)
     os.kill(tapvm, signal.SIGINT)
 
