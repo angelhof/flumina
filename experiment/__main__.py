@@ -4,6 +4,7 @@ from os import path
 
 from flink import ValueBarrierExperiment
 from ns3 import NS3Conf
+from results import process
 
 
 class ExperimentSuite:
@@ -60,6 +61,7 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-s', '--suite', help='Run the given experiment suite')
     group.add_argument('-l', '--list', help='List experiment suites', action='store_true')
+    group.add_argument('-r', '--results', help='Process results from the given output directory')
     args = parser.parse_args()
 
     if args.list:
@@ -67,6 +69,10 @@ def main():
             print('\n\t'.join(
                 [f'{name}:\n' + '=' * (1 + len(name))]
                 + [str(exp) for exp in suite.experiments]) + '\n')
+        exit(0)
+
+    if args.results is not None:
+        process(args.results)
         exit(0)
 
     if args.suite not in suites:
