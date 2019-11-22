@@ -23,15 +23,25 @@ suites = {
         [ValueBarrierExperiment(18, 1_000_000, rate, 1_000, 10, ns3_conf=NS3Conf())
          for rate in range(10, 35, 2)]
     ),
+    'exp1-10Gbps': ExperimentSuite(
+        'exp1-10Gbps',
+        [ValueBarrierExperiment(18, 1_000_000, rate, 1_000, 10, ns3_conf=NS3Conf(data_rate='10Gbps'))
+         for rate in range(10, 35, 2)]
+    ),
     'exp2': ExperimentSuite(
         'exp2',
         [ValueBarrierExperiment(n, 1_000_000, 15.0, 1_000, 10, ns3_conf=NS3Conf())
          for n in range(2, 33, 2)]
     ),
+    'exp2-10Gbps': ExperimentSuite(
+        'exp2-10Gbps',
+        [ValueBarrierExperiment(n, 1_000_000, 15.0, 1_000, 10, ns3_conf=NS3Conf(data_rate='10Gbps'))
+         for n in range(2, 33, 2)]
+    ),
     'exp3': ExperimentSuite(
         'exp3',
         [ValueBarrierExperiment(5, 1_000_000, 15.0, vb_ratio, 10, ns3_conf=NS3Conf())
-         for vb_ratio in [10, 20, 50, 100, 200, 500, 1_000]]
+         for vb_ratio in [30, 40, 50, 100, 200, 500, 1_000]]
     ),
     'exp5': ExperimentSuite(
         'exp5',
