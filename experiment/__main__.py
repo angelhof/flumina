@@ -2,9 +2,9 @@ import argparse
 import os
 from os import path
 
+import results
 from flink import ValueBarrierExperiment
 from ns3 import NS3Conf
-from results import process
 
 
 class ExperimentSuite:
@@ -61,7 +61,8 @@ def main():
     group = parser.add_mutually_exclusive_group()
     group.add_argument('-s', '--suite', help='Run the given experiment suite')
     group.add_argument('-l', '--list', help='List experiment suites', action='store_true')
-    group.add_argument('-r', '--results', help='Process results from the given output directory')
+    group.add_argument('-f', '--flink-results', help='Process Flink results from the given output directory')
+    group.add_argument('-e', '--erlang-results', help='Process Erlang results from the given output directory')
     args = parser.parse_args()
 
     if args.list:
@@ -71,8 +72,22 @@ def main():
                 + [str(exp) for exp in suite.experiments]) + '\n')
         exit(0)
 
-    if args.results is not None:
-        process(args.results)
+    if args.flink_results is not None:
+        p10, p50, p90 = results.get_flink_latencies(args.flink_results)
+        throughput = results.get_flink_throughput(args.flink_results)
+        network_data = results.get_network_data(args.flink_results) / 1024.0 / 1024.0
+        print(f'Latency percentiles (ms):  {p10:.0f}  {p50:.0f}  {p90:.0f}')
+        print(f'Mean throughput (events/ms): {throughput}')
+        print(f'Network data (MB): {network_data:0.1f}')
+        exit(0)
+
+    if args.erlang_results is not None:
+        p10, p50, p90 = results.get_erlang_latencies(args.erlang_results)
+        throughput = results.get_erlang_throughput(args.erlang_results)
+        network_data = results.get_network_data(args.erlang_results) / 1024.0 / 1024.0
+        print(f'Latency percentiles (ms):  {p10:.0f}  {p50:.0f}  {p90:.0f}')
+        print(f'Mean throughput (events/ms): {throughput}')
+        print(f'Network data (MB): {network_data:0.1f}')
         exit(0)
 
     if args.suite not in suites:
