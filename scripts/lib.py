@@ -77,8 +77,8 @@ def read_preprocess_latency_data(log_dir_name):
         file_data = list(map(parse_sink_line, lines))
         sink_data += file_data
         
-    print(producer_data[:10])
-    print(sink_data[:10])
+    # print(producer_data[:10])
+    # print(sink_data[:10])
     
     # print producer_data[-10:]
     # print sink_data[-10:]

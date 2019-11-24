@@ -6,9 +6,9 @@ from lib import *
 import numpy as np
 import matplotlib.pyplot as plt
 
-SMALL_SIZE = 16
-MEDIUM_SIZE = 18
-BIGGER_SIZE = 20
+SMALL_SIZE = 22
+MEDIUM_SIZE = 24
+BIGGER_SIZE = 26
 
 plt.rc('font', size=MEDIUM_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=BIGGER_SIZE)     # fontsize of the axes title
@@ -95,7 +95,7 @@ fig, ax = plt.subplots()
 # ax.plot(num_nodes, diagonal, linewidth=0.3)
 
 ## Plot speedup
-ax.set_ylabel('Throughput Improvement')
+ax.set_ylabel('Relative Throughput')
 ax.set_xlabel('Processing Nodes')
 greedy_speedups = [t / greedy_throughputs[0] for t in greedy_throughputs]
 centralized_greedy_speedups = [t / centralized_greedy_throughputs[0] for t in centralized_greedy_throughputs]
@@ -105,6 +105,8 @@ ax.plot(num_nodes, greedy_speedups, '-o', linewidth=0.5, label='Distributed')
 ax.plot(num_nodes, num_nodes, '-', color='tab:gray', linewidth=0.5, label='Ideal')
 plt.xticks(num_nodes)
 plt.legend()
+
+print(greedy_speedups)
 
 plt.tight_layout()
 plt.savefig(os.path.join('plots', "outlier_detection_throughput_scaleup.pdf"))

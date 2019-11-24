@@ -77,7 +77,7 @@ def run_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_n
     args = '[[%s],%d,%d,%d,%s].' % (exec_nodes_string, rate_multiplier, ratio_ab, heartbeat_rate, optimizer)
     exec_suffix = ' -s erlang halt'
     exec_string = exec_prefix + args + exec_suffix
-    print exec_string
+    print(exec_string)
     simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
     if run_ns3:
         file_prefix = "ns3_log"
@@ -105,7 +105,7 @@ def run_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_n
 
 
 ## SAD COPY PASTE FROM THE FUNCTION ABOVE
-def run_realistic_configuration(rate_multiplier, num_houses, optimizer, run_ns3=False, ns3_conf=NS3Conf()):
+def run_debs_configuration(rate_multiplier, num_houses, optimizer, run_ns3=False, ns3_conf=NS3Conf()):
     house_nodes_names = ['house%d' % (node) for node in range(0,num_houses)]
     exec_house_nodes = [format_node(node_name) for node_name in house_nodes_names]
     exec_main_node = format_node("main")
@@ -118,7 +118,7 @@ def run_realistic_configuration(rate_multiplier, num_houses, optimizer, run_ns3=
                                        'log_latency_throughput')
     exec_suffix = ' -s erlang halt'
     exec_string = exec_prefix + args + exec_suffix
-    print exec_string
+    print(exec_string)
     simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
     ## Change this to run THE REALISTIC EXAMPLE
     if run_ns3:
@@ -147,13 +147,69 @@ def run_realistic_configuration(rate_multiplier, num_houses, optimizer, run_ns3=
 
 
 ## ANOTHER SAD COPY PASTE...
-def run_realistic_configurations(rate_multiplier, num_houses, optimizers, run_ns3=False, ns3_conf=NS3Conf()):
+def run_debs_configurations(rate_multiplier, num_houses, optimizers, run_ns3=False, ns3_conf=NS3Conf()):
     ## Find a better way to do this than
     ## indented for loops :'(
     for rate_m in rate_multipliers:
         for house_node in num_houses:
             for optimizer in optimizers:
-                run_realistic_configuration(rate_m, house_node, optimizer, run_ns3, ns3_conf)
+                run_debs_configuration(rate_m, house_node, optimizer, run_ns3, ns3_conf)
+
+
+def run_outlier_detection_configuration(rate_multiplier, num_houses, optimizer,
+                                        run_ns3=False, ns3_conf=NS3Conf()):
+    house_nodes_names = ['str%d' % (node) for node in range(0,num_houses)]
+    exec_house_nodes = [format_node(node_name) for node_name in house_nodes_names]
+    exec_main_node = format_node("main")
+    exec_nodes_string = ",".join([exec_main_node] + exec_house_nodes)
+    exec_prefix = '-noshell -run util exec outlier_detection. setup_experiment. '
+    check_outlier_period_ms = 1000 * 1000
+    check_outlier_heartbeat_period_ms = 10 * 1000
+    total_rate_multiplier = rate_multiplier
+    args = '[%s,[%s],%d,%d,%d,%s].' % (optimizer, exec_nodes_string, check_outlier_period_ms,
+                                       check_outlier_heartbeat_period_ms, total_rate_multiplier,
+                                       'log_latency_throughput')
+    exec_suffix = ' -s erlang halt'
+    exec_string = exec_prefix + args + exec_suffix
+    print(exec_string)
+    simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
+    ## Change this to run THE REALISTIC EXAMPLE
+    if run_ns3:
+        file_prefix = "ns3_log"
+        ns3_args = ns3_conf.generate_args(file_prefix)
+        simulator_args.extend(["-n", ns3_args])
+    simulator_args.extend(house_nodes_names)
+    subprocess.check_call(simulator_args)
+
+    ## 1st argument is the name of the folder to gather the logs
+    dir_prefix = 'outlier_detection'
+    nodes = ['main'] + house_nodes_names
+    conf_string = '%s_%s_%s_%s' % (rate_multiplier, num_houses, optimizer, run_ns3)
+    
+    ## Make the directory to save the current logs
+    ## TODO: Also add a timestamp?
+    dir_name = dir_prefix + '_' + conf_string
+    to_dir_path = os.path.join('archive', dir_name)
+
+    log_folders = [os.path.join('var', 'log', node) for node in nodes]
+
+    copy_logs_from_to(log_folders, to_dir_path)
+    ## TODO: Make this runnable for the ns3 script
+    if run_ns3:
+        move_ns3_logs(file_prefix, to_dir_path)
+
+
+## ANOTHER SAD COPY PASTE...
+def run_outlier_detection_configurations(rate_multiplier, num_houses,
+                                         optimizers, run_ns3=False, ns3_conf=NS3Conf()):
+    ## Find a better way to do this than
+    ## indented for loops :'(
+    for rate_m in rate_multipliers:
+        for house_node in num_houses:
+            for optimizer in optimizers:
+                run_outlier_detection_configuration(rate_m, house_node, optimizer, run_ns3, ns3_conf)
+
+
 
 def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf()):
     ## Find a better way to do this than
@@ -294,4 +350,16 @@ rate_multipliers = [360]
 num_houses = [20]
 optimizers = ["optimizer_greedy"]
 
-#run_realistic_configurations(rate_multipliers, num_houses, optimizers, run_ns3=True, ns3_conf=NS3Conf(total_time="7500"))
+#run_debs_configurations(rate_multipliers, num_houses, optimizers, run_ns3=True, ns3_conf=NS3Conf(total_time="7500"))
+
+
+## Outlier Detection
+## =================
+
+rate_multipliers = [32]
+num_streams = [4, 8]
+optimizers = ["optimizer_greedy"]
+
+# run_outlier_detection_configurations(rate_multipliers, num_streams, optimizers, run_ns3=True, ns3_conf=NS3Conf(total_time="7500"))
+
+run_outlier_detection_configurations(rate_multipliers, num_streams, optimizers, run_ns3=False)

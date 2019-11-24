@@ -111,7 +111,7 @@ do
       --hostname "${node}.local" \
       -v "${workdir}/var/conf/${node}":/conf \
       -v "${workdir}/var/log/${node}":/proto/logs \
-      -v "${HOME}/data":/proto/data \
+      -v "${workdir}/data":/proto/data \
       erlnode
 
     docker inspect --format '{{ .State.Pid }}' "${node}.local" > ${workdir}/var/run/${node}.pid
@@ -130,6 +130,7 @@ docker run \
   --hostname "${main}.local" \
   -v "${workdir}/var/conf/${main}":/conf \
   -v "${workdir}/var/log/${main}":/proto/logs \
+  -v "${workdir}/data":/proto/data \
   erlnode
 
 docker inspect --format '{{ .State.Pid }}' "${main}.local" > ${workdir}/var/run/${main}.pid
