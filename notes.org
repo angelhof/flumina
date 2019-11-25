@@ -1,34 +1,13 @@
 ** Work TODO
 
 *** TODO Implement the output vector timestamps so that the sink gets output in correct order
-
 *** TODO Write a test where the mailbox has completely independent messages
-
-*** TODO Setup all the generators for the debs smart home experiments
-
-  - [ ] Implement the hour-window generators
-  - [X] Split the big file into house files without heartbeats
-  - [X] Add heartbeats to the files of each house
-    + [X] In order to do this I have to implement a function that interleaves
-          generators with heartbeats
-    + [X] I have to extend generate_heartbeat to generate all heartbeats up
-          to a point, and not only the last one.
-    + [X] I have to extend interleave_heartbeats to handle many messages from generate
-          heartbeats.
-  - [ ] Implement a setup that doesn't copy the hearbeat files, 
-        but gives access to the house files to all docker containers,
-        and then each one reads from its own file
-  - [ ] Implement an erlang function that gets the latest and first timestamp 
-        of the file, or find by hand the latest and earliest timestamp of each 
-        file and add it.
-
 *** TODO Start Erlang nodes programmaticaly using the slave module
 
 Instead of starting the erlang nodes when starting the docker
 containers, we can start the nodes programmatically, from inside
 Erlang, by using the slave module. This way, we will be sure that
 Erlang nodes have started, when the experiment starts running.
-
 
 *** TODO Setup a nice testing infrastructure
 
@@ -40,15 +19,6 @@ rates, and the system should be able to run it.
 
 This requires a setup script that given a configuration file sets up
 the infrastructure that is given there (docker containers and nodes mostly).
-
-*** TODO Implement the redis example in Flumina
-
-*** TODO Make the abexample use a tags and not a1 a2 now that we have correct spec/impl
-
-This would actually make some experiments go wrong 
-(because we wouldn't be able to setup different a's arriving on the same node)
-In a sense, addind key to the tags allows us to create artificial implementation tags to
-experiment.
 
 *** TODO Allow the configuration generator to search for a sequence of splits to satisfy a split
 
@@ -219,7 +189,6 @@ The following should be configurable:
 
 Also the node that they spawn in must be configurable
 
-*** TODO Implement an example with a key value store and write read incr for each key
 *** TODO Implement a reset feature
 
 Instead of splitting the new state, it might be the case that the state can just be reset after the update,
@@ -259,11 +228,6 @@ we expect. We should make sure that tests fail if we get more messages than expe
 
 The implementation cannot break the tie between two messages with the same tag and timestamp
 
-*** TODO Make sure that the dependencies that each node keeps are indeed the correct ones
-
-WARNING: MAKE SURE THAT NO ASSUMPTION ABOUT THE RELATIONS OF THE PREDICATES IN THE DEPENDENCIES AND THE
-         NODES ARE NEEDED.
-
 *** TODO Allow dependencies to be based on predicates rather than tags
 
 At the moment there is a mismatch between tags and predicates and I need to decide on which of
@@ -283,11 +247,6 @@ seems that usually an or-merge could/shpould be different than the and-merge.
 *** TODO Implement infastructure that allows for a separate msg and split predicate
 
 At the moment the message predicate of a node is the same as its split predicate
-
-*** TODO Improve the simplicity of implementing something in our framework
-
-Test how easy it is implement complicated queries in our intermediate language.
-Try to push its expresiveness.
 
 *** DONE Organize state of each process to be in a record
 
