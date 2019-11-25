@@ -1,10 +1,5 @@
 ** Work TODO
 
-*** TODO Think of a proper Flumina interface
-
-At the moment, writing a Flumina program is simple, but executing it requires a big mess, of
-calling different producers, etc etc.
-
 *** TODO Implement the output vector timestamps so that the sink gets output in correct order
 *** TODO Write a test where the mailbox has completely independent messages
 *** TODO Start Erlang nodes programmaticaly using the slave module

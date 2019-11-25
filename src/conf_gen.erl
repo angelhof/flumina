@@ -1,6 +1,7 @@
 -module(conf_gen).
 
--export([generate/3,
+-export([generate_for_module/3,
+         generate/3,
 	 make_specification/4,
 	 make_topology/2,
 	 get_state_type_tags_upd/2,
@@ -24,6 +25,10 @@
 %% and contains the functions related to the data structures
 %% specifying the computation and the topology of the network.
 %%
+-spec generate_for_module(module(), topology(), conf_gen_options()) -> configuration().
+generate_for_module(Module, Topology, Options) ->
+    generate(Module:specification(), Topology, Options).
+
 -spec generate(specification(), topology(), conf_gen_options()) -> configuration().
 generate(Specification, Topology, Options) ->
     OptionsRecord = update_options(Options, default_options()),
@@ -35,6 +40,7 @@ generate0(Specification, Topology, #options{optimizer = OptimizerModule} = Optio
     Dependencies = get_dependencies(Specification),
     SinkPid = get_sink_pid(Topology),
     ImplTags = get_implementation_tags(Topology),
+    %% TODO: If the erlang nodes don't exist, create them.
     configuration:create(SetupTree, Dependencies, OptionsRec, SinkPid, ImplTags).
 
 
@@ -108,7 +114,7 @@ update_option({log_triple, Value}, OptionsRecord) ->
     OptionsRecord#options{log_triple = Value};
 update_option({checkpoint, Value}, OptionsRecord) ->
     OptionsRecord#options{checkpoint = Value};
-update_option(Option, OptionsRecord) ->
+update_option(Option, _OptionsRecord) ->
     util:err("Unknown option ~p in module ~p~n", [Option, ?MODULE]),
     util:crash(1,1).
 
@@ -128,7 +134,7 @@ no_checkpoint(_Msg, _State) ->
 
 %% This function checkpoints the state to a file in a human readable form
 -spec always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
-always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
+always_checkpoint({_MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
         io_lib:format("logs/checkpoint_~s_~s_messages.log",
 		      [pid_to_list(self()), atom_to_list(node())]),
@@ -140,7 +146,7 @@ always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
 %% This function checkpoints the state to a file in a binary form.
 %% It is faster than the one above, but it is not readable.
 -spec binary_always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
-binary_always_checkpoint({MsgOrMerge, {_Tag, Ts, _V}}, State) ->
+binary_always_checkpoint({_MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
         io_lib:format("logs/binary_checkpoint_~s_~s_messages.log",
 		      [pid_to_list(self()), atom_to_list(node())]),
