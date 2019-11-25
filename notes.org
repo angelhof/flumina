@@ -1,5 +1,10 @@
 ** Work TODO
 
+*** TODO Think of a proper Flumina interface
+
+At the moment, writing a Flumina program is simple, but executing it requires a big mess, of
+calling different producers, etc etc.
+
 *** TODO Implement the output vector timestamps so that the sink gets output in correct order
 *** TODO Write a test where the mailbox has completely independent messages
 *** TODO Start Erlang nodes programmaticaly using the slave module
@@ -21,6 +26,15 @@ This requires a setup script that given a configuration file sets up
 the infrastructure that is given there (docker containers and nodes mostly).
 
 *** TODO Allow the configuration generator to search for a sequence of splits to satisfy a split
+
+*** TODO Implement pre/post-fork-join and reset
+
+Instead of just having a fork and a join, extend the system with pre/post-fork join functions
+and a reset instead of a join, when nothing needs to be sent back. On its own, this is 
+not a big deal, but would allow for much better expressivity of the model.
+
+Instead of splitting the new state, it might be the case that the state can just be reset after the update,
+thus sending one less message for every merge.
 
 *** TODO Clean up calls to functions in mailbox and node to use their state records
 
@@ -188,11 +202,6 @@ The following should be configurable:
   - [ ] Whether or not to reorder data that are independent
 
 Also the node that they spawn in must be configurable
-
-*** TODO Implement a reset feature
-
-Instead of splitting the new state, it might be the case that the state can just be reset after the update,
-thus sending one less message for every merge.
 
 *** TODO Implement the possibility of each state type having its own dependency relation
 
