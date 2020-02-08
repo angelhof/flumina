@@ -1,4 +1,4 @@
-** Work TODO
+** List of TODO items (issues/extensions)
 
 *** TODO Implement the output vector timestamps so that the sink gets output in correct order
 *** TODO Write a test where the mailbox has completely independent messages
