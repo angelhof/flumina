@@ -3,8 +3,7 @@
 This repo contains a prototype implementation of Flumina, a
 programming model for stateful streaming computations. It is still in
 a research prototype state, and there are several issues and
-extensions that need to be implemented. Most of them are written in
-[notes.org](https://github.com/angelhof/flumina/blob/master/notes.org).
+extensions that need to be implemented.
 
 A repository containing examples of streaming application implement on
 Flumina can be found
