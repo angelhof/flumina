@@ -5,7 +5,7 @@ programming model for stateful streaming computations. It is still in
 a research prototype state, and there are several issues and
 extensions that need to be implemented.
 
-A repository containing examples of streaming application implement on
+A repository containing examples of streaming applications implemented on
 Flumina can be found
 [here](https://github.com/angelhof/flumina-examples/).
 
