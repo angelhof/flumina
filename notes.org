@@ -1,5 +1,10 @@
 ** List of TODO items (issues/extensions)
 
+*** TODO Heuristic for the optimizer to better handle Fork-Join pairs that don't change the state type
+
+Optimizer should have an optimization when searching using fork-join pairs that don't change the state type.
+These should be easy to handle since subtrees that only use them can be thought as non-binary.
+
 *** TODO Implement the output vector timestamps so that the sink gets output in correct order
 *** TODO Write a test where the mailbox has completely independent messages
 *** TODO Start Erlang nodes programmaticaly using the slave module
