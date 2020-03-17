@@ -4,6 +4,9 @@
 	 make_producers/4,
 	 make_producers/5,
          make_producers/6,
+	 route_steady_retimestamp_rate_source/4,
+	 route_steady_retimestamp_rate_source/5,
+	 steady_retimestamp_rate_source/5,
 	 route_steady_timestamp_rate_source/4,
 	 route_steady_timestamp_rate_source/5,
 	 steady_timestamp_rate_source/5,
@@ -27,9 +30,11 @@
 
 -include("type_definitions.hrl").
 
+-define(SLEEP_GRANULARITY_MILLIS, 10).
+
 %%%
 %%% This module contains code that will be usually used by producer nodes
-%%% 
+%%%
 -spec make_producers(gen_producer_init(), configuration(), topology()) -> ok.
 make_producers(InputGens, Configuration, Topology) ->
     make_producers(InputGens, Configuration, Topology, constant).
@@ -76,13 +81,14 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 				    [ImplTag, Pid, Node]),
 			  Pid;
 		      steady_timestamp ->
-			  Pid = spawn_link(Node, producer, route_steady_timestamp_rate_source, 
+			  Pid = spawn_link(Node, producer, route_steady_retimestamp_rate_source, 
 					   [ImplTag, MsgGenInit, Rate, 
 					    Configuration, MessageLoggerInitFun]),
 			  io:format("Spawning steady timestamp rate producer for" 
 				    "impl tag: ~p with pid: ~p in node: ~p~n", 
 				    [ImplTag, Pid, Node]),
 			  Pid
+                      %% TODO: Add the new steady_timestamp here
 		  end
 	  end, InputGens),
 
@@ -104,13 +110,13 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 %% it shouldn't be expected to return the same results every time.
 %%
 %% TODO: Find a better name
--spec route_steady_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
-route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration) ->
-    route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, fun log_mod:no_message_logger/0).
+-spec route_steady_retimestamp_rate_source(impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
+route_steady_retimestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration) ->
+    route_steady_retimestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_steady_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(), 
-				  configuration(), message_logger_init_fun()) -> ok.
-route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, MessageLoggerInitFun) ->
+-spec route_steady_retimestamp_rate_source(impl_tag(), msg_generator_init(), integer(), 
+                                           configuration(), message_logger_init_fun()) -> ok.
+route_steady_retimestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, MessageLoggerInitFun) ->
     log_mod:init_debug_log(),
     log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
 		      [util:local_timestamp(),self(), ImplTag, node()]),
@@ -128,17 +134,17 @@ route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, Mes
 	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message: ~p~n", 
 			      [util:local_timestamp(), self(), BeginningOfTime])
     end,
-    steady_timestamp_rate_source(MsgGen, Rate, BeginningOfTime, SendTo, MessageLoggerInitFun).
+    steady_retimestamp_rate_source(MsgGen, Rate, BeginningOfTime, SendTo, MessageLoggerInitFun).
 
--spec steady_timestamp_rate_source(msg_generator(), Rate::integer(), integer(), 
-				   mailbox(), message_logger_init_fun()) -> ok.
-steady_timestamp_rate_source(MsgGen, Rate, BeginningOfTime, SendTo, MsgLoggerInitFun) ->
+-spec steady_retimestamp_rate_source(msg_generator(), Rate::integer(), integer(), 
+                                     mailbox(), message_logger_init_fun()) -> ok.
+steady_retimestamp_rate_source(MsgGen, Rate, BeginningOfTime, SendTo, MsgLoggerInitFun) ->
     LoggerFun = MsgLoggerInitFun(),
-    steady_timestamp_rate_source_loop(MsgGen, Rate, BeginningOfTime, SendTo, LoggerFun).
+    steady_retimestamp_rate_source_loop(MsgGen, Rate, BeginningOfTime, SendTo, LoggerFun).
 
--spec steady_timestamp_rate_source_loop(msg_generator(), Rate::integer(), PrevTs::integer(), 
-				   mailbox(), message_logger_log_fun()) -> ok.
-steady_timestamp_rate_source_loop(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
+-spec steady_retimestamp_rate_source_loop(msg_generator(), Rate::integer(), PrevTs::integer(), 
+                                          mailbox(), message_logger_log_fun()) -> ok.
+steady_retimestamp_rate_source_loop(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
     %% First compute how much time the process has to wait
     %% to send the next message.
     case messages_to_send(MsgGen, Rate, PrevTs) of
@@ -149,7 +155,112 @@ steady_timestamp_rate_source_loop(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun)
 	{NewMsgGen, MsgsToSend, NewTs} ->
 	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),
 	    [timestamp_send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun) || Msg <- MsgsToSend],
-	    steady_timestamp_rate_source_loop(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
+	    steady_retimestamp_rate_source_loop(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
+    end.
+
+%%
+%% This producer sends a stream of messages with a rate that depends
+%% on the message timestamps (like the one below). This producer tries
+%% to solve lagging issues by keeping track of a starting time
+%%
+%% WARNING: This producer assumes that all producers start their
+%% timers at the same time!! Any differences there will lead to a
+%% constant skew between different producers.
+%%
+-spec route_steady_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
+route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration) ->
+    route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, fun log_mod:no_message_logger/0).
+
+-spec route_steady_timestamp_rate_source(impl_tag(), msg_generator_init(), integer(),
+                                         configuration(), message_logger_init_fun()) -> ok.
+route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, MessageLoggerInitFun) ->
+    log_mod:init_debug_log(),
+    log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n",
+		      [util:local_timestamp(),self(), ImplTag, node()]),
+    %% Initialize the generator
+    MsgGen = init_generator(MsgGenInit),
+    %% Find where to route the message in the configuration tree
+    {Tag, Node} = ImplTag,
+    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
+    log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n",
+		      [util:local_timestamp(), self(), SendTo]),
+    %% Every producer should synchronize, so that they produce
+    %% messages in the same order
+    receive
+	{start, FirstTimestamp} ->
+            StartMonotonicTime = erlang:monotonic_time(millisecond),
+	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message: ~p at time: ~p~n",
+			      [util:local_timestamp(), self(), FirstTimestamp, StartMonotonicTime])
+    end,
+    steady_timestamp_rate_source(MsgGen, Rate, StartMonotonicTime, SendTo, MessageLoggerInitFun).
+
+-spec steady_timestamp_rate_source(msg_generator(), Rate::integer(),
+                                   StartMonotonicTimestamp::integer(),
+				   mailbox(), message_logger_init_fun()) -> ok.
+steady_timestamp_rate_source(MsgGen, Rate, StartMonotonicTimestamp,
+                             SendTo, MsgLoggerInitFun) ->
+    LoggerFun = MsgLoggerInitFun(),
+    steady_timestamp_rate_source_loop(MsgGen, Rate, StartMonotonicTimestamp, SendTo, LoggerFun).
+
+-spec steady_timestamp_rate_source_loop(msg_generator(), Rate::integer(),
+                                        StartMonoTime::integer(),
+                                        mailbox(), message_logger_log_fun()) -> ok.
+steady_timestamp_rate_source_loop(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun) ->
+    %% First get the current elapsed monotonic time from the start of
+    %% the producer.
+    BatchStartMonoTime = erlang:monotonic_time(millisecond) - StartMonoTime,
+    %% Then find the least amount of time the producer must sleep
+    %% until (normalized based on the rate). The producer can then
+    %% safely release all messages that have a timestamp until then.
+    SleepAtLeastUntil = (BatchStartMonoTime + ?SLEEP_GRANULARITY_MILLIS) * Rate,
+    %% Then compute all the messages that have to be sent, and send them
+    case send_messages_until(MsgGen, SleepAtLeastUntil, SendTo, MsgLoggerLogFun) of
+	done ->
+	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n",
+			      [util:local_timestamp(), self()]),
+	    ok;
+	{NewMsgGen, NewSleepUntil} ->
+            %% Now that all messages are released, get the current
+            %% time, and wait for what is left.
+            CurrentMonoTime = erlang:monotonic_time(millisecond) - StartMonoTime,
+            %% Sleep until the next event (or not at all if we delayed by sending these events)
+            SleepTime = NewSleepUntil / Rate - CurrentMonoTime,
+            case SleepTime > 0 of
+                true ->
+                    timer:sleep(round(SleepTime));
+                false ->
+                    log_mod:debug_log("Ts: ~s -- Warning! Producer ~p is lagging behind by ~p ms ~n",
+                                      [util:local_timestamp(), self(), SleepTime])
+            end,
+	    steady_timestamp_rate_source_loop(NewMsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun)
+    end.
+
+%% This function sends all messages until a specific timestamp
+-spec send_messages_until(msg_generator(), Until::integer(), mailbox(), message_logger_log_fun())
+                         -> 'done' | {msg_generator(), NewUntil::integer()}.
+send_messages_until(MsgGen, Until, SendTo, MsgLoggerLogFun) ->
+    case MsgGen() of
+	done ->
+            done;
+        {Msg, NewMsgGen} ->
+	    %% io:format("Checking message: ~p~n", [Msg]),
+            %% {sink, node()} ! {check_message, Msg},
+	    Ts =
+		case Msg of
+		    {heartbeat, {_Tag, Ts0}} ->
+			Ts0;
+		    {{_Tag, V}, _N, Ts0} ->
+			Ts0
+		end,
+	    case Ts =< Until of
+		true ->
+                    send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun),
+                    send_messages_until(NewMsgGen, Until, SendTo, MsgLoggerLogFun);
+		false ->
+		    %% If the message is after our sleep time, then
+		    %% just keep its timestamp to wait until it.
+		    {MsgGen, Ts0}
+            end
     end.
 
 %%
@@ -213,30 +324,32 @@ timestamp_rate_source_loop(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
 	    timestamp_rate_source_loop(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
     end.
 
-%% This function gathers the messages to send in the next batch, 
-%% and waits the correct amount of time before collecting them.
-%% It returns a new message generator, the new PrevTs, and the
-%% messages to be sent.
+%% This function gathers the messages to send in the next batch, and
+%% waits the correct amount of time before collecting them. It
+%% returns a new message generator, the new PrevTs, and the messages
+%% to be sent.
 -spec messages_to_send(msg_generator(), Rate::integer(), PrevTs::integer())
 		      -> 'done' | {msg_generator(), [gen_message_or_heartbeat()], NewPrevTs::integer()}.
 messages_to_send(MsgGen, Rate, PrevTs) ->
     messages_to_send(MsgGen, Rate, PrevTs, 0.0, []).
 
--spec messages_to_send(msg_generator(), Rate::integer(), PrevTs::integer(), 
+-spec messages_to_send(msg_generator(), Rate::integer(), PrevTs::integer(),
 		       Wait::float(), [gen_message_or_heartbeat()])
 		      -> 'done' | {msg_generator(), [gen_message_or_heartbeat()], NewPrevTs::integer()}.
 messages_to_send(MsgGen, Rate, PrevTs, Wait, Acc) ->
-    %% We have to compute the time to wait before sending the next message,
-    %% but since we can only wait for more than 10ms, we have to make sure
-    %% that we send more messages in one batch if the rate * diff is too small.
-    
-    %% So this function gathers enough messages so that we have to wait at least 10ms
-    %% before sending them. 
+    %% We have to compute the time to wait before sending the next
+    %% message, but since we can only wait for more than 10ms, we have
+    %% to make sure that we send more messages in one batch if the
+    %% rate * diff is too small.
+
+    %% So this function gathers enough messages so that we have to
+    %% wait at least 10ms before sending them.
     %%
-    %% WARNING: The problem with that is that if there are a lot of messages
-    %% that are to be sent without any waiting, and then there is a message
-    %% to be sent after a long wait, all the first messages will be delayed
-    %% until the timestamp of the last message.
+    %% WARNING: The problem with that is that if there are a lot of
+    %% messages that are to be sent without any waiting, and then
+    %% there is a message to be sent after a long wait, all the first
+    %% messages will be delayed until the timestamp of the last
+    %% message.
     case MsgGen() of
 	done ->
 	    case Acc of
@@ -268,8 +381,8 @@ messages_to_send(MsgGen, Rate, PrevTs, Wait, Acc) ->
 		    messages_to_send(NewMsgGen, Rate, Ts, NewWait, [Msg|Acc])
 	    end
     end.
-	    
-	    
+
+
 
 %%
 %% This producer, sends a sequence of messages one by one
