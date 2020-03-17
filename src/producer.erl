@@ -80,15 +80,23 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 				    "impl tag: ~p with pid: ~p in node: ~p~n", 
 				    [ImplTag, Pid, Node]),
 			  Pid;
-		      steady_timestamp ->
-			  Pid = spawn_link(Node, producer, route_steady_retimestamp_rate_source, 
-					   [ImplTag, MsgGenInit, Rate, 
+		      steady_retimestamp ->
+			  Pid = spawn_link(Node, producer, route_steady_retimestamp_rate_source,
+					   [ImplTag, MsgGenInit, Rate,
 					    Configuration, MessageLoggerInitFun]),
-			  io:format("Spawning steady timestamp rate producer for" 
-				    "impl tag: ~p with pid: ~p in node: ~p~n", 
+			  io:format("Spawning steady timestamp rate producer for"
+				    "impl tag: ~p with pid: ~p in node: ~p~n",
+				    [ImplTag, Pid, Node]),
+			  Pid;
+		      steady_timestamp ->
+			  Pid = spawn_link(Node, producer, route_steady_timestamp_rate_source,
+					   [ImplTag, MsgGenInit, Rate,
+					    Configuration, MessageLoggerInitFun]),
+			  io:format("Spawning steady timestamp rate producer for"
+				    "impl tag: ~p with pid: ~p in node: ~p~n",
 				    [ImplTag, Pid, Node]),
 			  Pid
-                      %% TODO: Add the new steady_timestamp here
+
 		  end
 	  end, InputGens),
 
