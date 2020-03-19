@@ -231,9 +231,9 @@ get_relevant_predicates0(Attachee, {node, _NotAttachee, _NNN, _MNN, {_SpecPrec, 
 
 %% It returns the pairs of mailbox and father ids
 -spec find_node_mailbox_father_pid_pairs(configuration()) -> [{mailbox(), mailbox() | 'undef'}].
-find_node_mailbox_father_pid_pairs({node, _NPid, _NNN, MboxNameNode, _Preds, Children}) ->
+find_node_mailbox_father_pid_pairs({node, _NPid, NodeNameNode, MboxNameNode, _Preds, Children}) ->
     ChildrenPairs = lists:flatten([find_node_mailbox_father_pid_pairs(C) || C <- Children]),
-    [{MboxNameNode, undef}|[add_father_if_undef(ChildPair, MboxNameNode) || ChildPair <- ChildrenPairs]].
+    [{MboxNameNode, undef}|[add_father_if_undef(ChildPair, NodeNameNode) || ChildPair <- ChildrenPairs]].
 
 -spec add_father_if_undef({mailbox(), mailbox() | 'undef'}, mailbox()) -> {mailbox(), mailbox()}.
 add_father_if_undef({ChildMPid, undef}, Father) -> {ChildMPid, Father};
