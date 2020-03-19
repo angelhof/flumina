@@ -178,13 +178,6 @@ mailbox(MboxState) ->
 	    %% io:format("~p -- ~p~n", [self(), erlang:process_info(self(), message_queue_len)]),
             NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
             mailbox(NewMboxState);
-	{state, State} ->
-            log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p has ~p unread messages~n",
-                              [util:local_timestamp(),self(), node(), process_info(self(), message_queue_len)]),
-	    %% This is the reply of a child node with its state
-            Attachee = MboxState#mb_st.attachee,
-	    Attachee ! {state, State},
-	    mailbox(MboxState);
 	{iheartbeat, ImplTagTs} ->
 	    %% WARNING: I am not sure about that
 	    %% Whenever a heartbeat first arrives into the system we have to send it to all nodes
@@ -222,7 +215,13 @@ mailbox(MboxState) ->
 			       erlang:process_info(self(), message_queue_len),
 			       buffers_length(BuffersTimers)]),
 	    Attachee ! {get_message_log, ReplyTo},
-	    mailbox(MboxState)
+	    mailbox(MboxState);
+        What ->
+            %% Mailboxes should never receive anything else. If they
+            %% do they should report it and crash immediatelly.
+            log_mod:debug_log("Ts: ~s -- ERROR! Mailbox ~p in ~p received unknown message format: ~p~n",
+			      [util:local_timestamp(),self(), node(), What]),
+            error({unknown_message_format, What})
     end.
 
 %% This function handles a message, by updating the relative buffers
