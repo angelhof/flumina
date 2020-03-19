@@ -106,33 +106,34 @@ worker(WorkerState = #wr_st{log={LogFun, ResetFun, LogState}}) ->
 %% children, then it receives their states, then acts on the message,
 %% and then splits back the state. If it has no children, then it just
 %% acts on the message.
--spec handle_message(gen_impl_message() | merge_request(), worker_state()) 
-                    -> {num_log_state(), State::any()}. 
+-spec handle_message(gen_impl_message() | merge_request(), worker_state())
+                    -> {num_log_state(), State::any()}.
 handle_message(MessageMerge, WorkerState = #wr_st{log={LogFun, ResetFun, _} = Log}) ->
     ConfTree = WorkerState#wr_st.conf,
     %% The mailbox has cleared this message so we don't need to check for pred
-    case configuration:find_children_mbox_pids(self(), ConfTree) of
+    ConfNode = configuration:find_node(self(), ConfTree),
+    case configuration:get_children_mbox_pids(ConfNode) of
         [] ->
             act_on_message(MessageMerge, WorkerState);
         Children ->
             {_IsMsgMerge, {{Tag, _Payload}, Node, Ts}} = MessageMerge,
             ImplTag = {Tag, Node},
             #wr_funs{mrg=MFun, spl=SFun} = WorkerState#wr_st.funs,
-            {LogState1, [State1, State2]} = 
+            {LogState1, [State1, State2]} =
                 receive_states({ImplTag, Ts}, Children, Log),
             MergedState = MFun(State1, State2),
-            MergedWorkerState = 
+            MergedWorkerState =
                 WorkerState#wr_st{state=MergedState,
                                   log={LogFun, ResetFun, LogState1}},
-            {LogState2, NewState0} = 
+            {LogState2, NewState0} =
                 act_on_message(MessageMerge, MergedWorkerState),
             {[SpecPred1, SpecPred2], _} = WorkerState#wr_st.child_preds,
             {NewState1, NewState2} = SFun({SpecPred1, SpecPred2}, NewState0),
             %% Instead of sending the state to the children mailboxes,
             %% we send it straight to the node, because it is a
             %% blocking message.
-            %% TODO: ChildrenNodes = ...
-            [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
+            ChildrenNameNodes = configuration:get_children_node_names(ConfNode),
+            [C ! {state, NS} || {C, NS} <- lists:zip(ChildrenNameNodes, [NewState1, NewState2])],
             {LogState2, NewState0}
     end.
 

@@ -3,6 +3,9 @@
 -export([create/4,
 	 create/5,
          get_mailbox_name_node/1,
+         get_children/1,
+	 get_children_mbox_pids/1,
+         get_children_node_names/1,
 	 find_node/2,
 	 find_children/2,
 	 find_children_mbox_pids/2,
@@ -110,6 +113,22 @@ send_conf_tree(ConfTree, {{_NodePid, {_NodeName, MailboxName, Node}}, ChildrenPi
 get_mailbox_name_node({node, _Pid, _NNN, MboxNameNode, _Preds, _Children}) ->
     MboxNameNode.
 
+%% This function returns the children of some node in the pid tree
+-spec get_children(configuration()) -> [configuration()].
+get_children({node, _Pid, _NNN, _MboxNN, _Preds, Children}) ->
+    Children.
+
+%% This function returns the pids of the children nodes of a node in the tree
+-spec get_children_mbox_pids(configuration()) -> [mailbox()].
+get_children_mbox_pids(ConfNode) ->
+    [MPNodeName || {node, _, _NNN, MPNodeName,  _, _} <- get_children(ConfNode)].
+
+%% This function returns the names and nodes of the children nodes of a node in the tree
+-spec get_children_node_names(configuration()) -> [mailbox()].
+get_children_node_names(ConfNode) ->
+    [NodeNameNode || {node, _, NodeNameNode, _MPNodeName,  _, _} <- get_children(ConfNode)].
+
+
 %% This function finds a node in the configuration tree
 -spec find_node(pid(), configuration()) -> configuration().
 find_node(Pid, ConfTree) ->
@@ -125,13 +144,14 @@ find_node0(Pid, {node, _Pid, _NNN, _MboxNN, _Preds, Children}) ->
 %% This function returns the children of some node in the pid tree
 -spec find_children(pid(), configuration()) -> [configuration()].
 find_children(Pid, ConfTree) ->
-    {node, Pid, _NNN, _MboxNN, _Preds, Children} = find_node(Pid, ConfTree),
-    Children.
+    ConfNode = find_node(Pid, ConfTree),
+    get_children(ConfNode).
 
 %% This function returns the pids of the children nodes of a node in the tree
 -spec find_children_mbox_pids(pid(), configuration()) -> [mailbox()].
 find_children_mbox_pids(Pid, ConfTree) ->
-    [MPNodeName || {node, _, _NNN, MPNodeName,  _, _} <- find_children(Pid, ConfTree)].
+    ConfNode = find_node(Pid, ConfTree),
+    get_children_mbox_pids(ConfNode).
 
 -spec find_children_node_pids(pid(), configuration()) -> [pid()].
 find_children_node_pids(Pid, ConfTree) ->
