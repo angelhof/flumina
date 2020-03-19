@@ -210,7 +210,7 @@ get_relevant_predicates0(Attachee, {node, Attachee, _NNN, _MNN, {_SpecPred, Pred
 	end,
     [{acc, ReturnPred}, {rest, Pred}];
 get_relevant_predicates0(Attachee, {node, _NotAttachee, _NNN, _MNN, {_SpecPrec, Pred}, Children}) ->
-    ChildrenPredicates = 
+    ChildrenPredicates =
 	lists:flatten([get_relevant_predicates0(Attachee, C) || C <- Children]),
     case lists:partition(fun(C) -> is_acc(C) end, ChildrenPredicates) of
 	{[], _} ->
@@ -221,9 +221,9 @@ get_relevant_predicates0(Attachee, {node, _NotAttachee, _NNN, _MNN, {_SpecPrec, 
 	    ReturnPred =
 		fun(Msg) ->
 			%% My child's pred, or my predicate without the other children predicates
-			ChildPred(Msg) 
-			    orelse 
-			      (Pred(Msg) andalso 
+			ChildPred(Msg)
+			    orelse
+			      (Pred(Msg) andalso
 			       not lists:any(fun({rest, Pr}) -> Pr(Msg) end, Rest))
 		end,
 	    [{acc, ReturnPred}, {rest, Pred}]
