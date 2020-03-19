@@ -1,17 +1,17 @@
 -module(node).
 
 -export([init/9,
-	 init_worker/5]).
+	 init_worker/7]).
 
 -include("type_definitions.hrl").
 
 %% Initializes and spawns a node and its mailbox
--spec init(State::any(), mailbox(), impl_message_predicate(), spec_functions(), 
+-spec init(State::any(), node_and_mailbox(), impl_message_predicate(), spec_functions(),
            conf_gen_options_rec(), dependencies(), mailbox(), integer(),
-           impl_tags()) 
-          -> {pid(), mailbox()}.
-init(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun}, 
-     #options{log_triple = LogTriple, checkpoint = CheckFun}, Dependencies, 
+           impl_tags())
+          -> {pid(), node_and_mailbox()}.
+init(State, {NodeName, MailboxName, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
+     #options{log_triple = LogTriple, checkpoint = CheckFun}, Dependencies,
      Output, Depth, ImplTags) ->
     Funs = #wr_funs{upd = UpdateFun, spl = SplitFun, mrg = MergeFun},
 
@@ -22,23 +22,33 @@ init(State, {Name, Node}, Pred, {UpdateFun, SplitFun, MergeFun},
 	    0 -> CheckFun;
 	    _ -> fun conf_gen:no_checkpoint/2
 	end,
-    NodePid = spawn_link(Node, ?MODULE, init_worker, 
-			 [State, Funs, LogTriple, NodeCheckpointFun, Output]),
-    _MailboxPid = spawn_link(Node, mailbox, init_mailbox, 
-			    [Name, Dependencies, Pred, NodePid, {master, node()}, ImplTags]),
+    NodePid = spawn_link(Node, ?MODULE, init_worker,
+			 [State, Funs, LogTriple, NodeCheckpointFun, Output, NodeName, {master, node()}]),
+    _MailboxPid = spawn_link(Node, mailbox, init_mailbox,
+                             [MailboxName, Dependencies, Pred, NodePid, {master, node()}, ImplTags]),
     %% Make sure that the mailbox has registered its name
     receive
-	{registered, Name} ->
-	    {NodePid, {Name, Node}}
+	{registered, MailboxName} ->
+            %% Make sure that the node is also registered
+            receive
+                {registered, NodeName} ->
+                    {NodePid, {NodeName, MailboxName, Node}}
+            end
     end.
 
 
 %%
 %% Main Processing Node
 %%
--spec init_worker(State::any(), #wr_funs{}, num_log_triple(), 
-                  checkpoint_predicate(), mailbox()) -> no_return().
-init_worker(State, Funs, LogTriple, CheckPred, Output) ->
+-spec init_worker(State::any(), #wr_funs{}, num_log_triple(),
+                  checkpoint_predicate(), mailbox(),
+                  Name::atom(), mailbox()) -> no_return().
+init_worker(State, Funs, LogTriple, CheckPred, Output, Name, Master) ->
+
+    %% Register the node and inform the master
+    true = register(Name, self()),
+    Master ! {registered, Name},
+
     log_mod:init_debug_log(),
     %% Before executing the main loop receive the
     %% Configuration tree, which can only be received
@@ -118,6 +128,10 @@ handle_message(MessageMerge, WorkerState = #wr_st{log={LogFun, ResetFun, _} = Lo
                 act_on_message(MessageMerge, MergedWorkerState),
             {[SpecPred1, SpecPred2], _} = WorkerState#wr_st.child_preds,
             {NewState1, NewState2} = SFun({SpecPred1, SpecPred2}, NewState0),
+            %% Instead of sending the state to the children mailboxes,
+            %% we send it straight to the node, because it is a
+            %% blocking message.
+            %% TODO: ChildrenNodes = ...
             [C ! {state, NS} || {C, NS} <- lists:zip(Children, [NewState1, NewState2])],
             {LogState2, NewState0}
     end.
@@ -146,8 +160,8 @@ respond_to_merge(Father, State, LogTriple, ConfTree) ->
     %% We have to send our mailbox's pid to our parent
     %% so that they can recognize where does this state message come from
     Self = self(),
-    {node, Self, MboxNameNode, _P, _Children} = 
-	configuration:find_node(Self, ConfTree),
+    Node = configuration:find_node(Self, ConfTree),
+    MboxNameNode = configuration:get_mailbox_name_node(Node),
     Father ! {state, {MboxNameNode, State}},
     receive_new_state_or_get_message_log(LogTriple).
 
@@ -166,6 +180,8 @@ receive_new_state_or_get_message_log({LogFun, ResetFun, LogState}) ->
     %%          It searches through the whole mailbox for a state
     %%          message. If the load is unhandleable, then it might
     %%          create overheads.
+    log_mod:debug_log("Ts: ~s -- Node ~p in ~p has ~p unread messages~n",
+                      [util:local_timestamp(),self(), node(), process_info(self(), message_queue_len)]),
     receive
 	{state, NewState} ->
 	    {LogState, NewState};
@@ -188,6 +204,8 @@ receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, LogState}}) ->
     %%          It searches through the whole mailbox for a state
     %%          message. If the load is unhandleable, then it might
     %%          create overheads.
+    log_mod:debug_log("Ts: ~s -- Node ~p in ~p has ~p unread messages~n",
+                      [util:local_timestamp(),self(), node(), process_info(self(), message_queue_len)]),
     receive
 	{state, {C, State}} ->
 	    {[State|States], {LogFun, ResetFun, LogState}};

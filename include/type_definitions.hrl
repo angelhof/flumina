@@ -71,6 +71,7 @@
 -type buffers_timers() :: {buffers(), timers()}.
 
 -type mailbox() :: {Name::atom(), node()}.
+-type node_and_mailbox() :: {NodeName::atom(), MailboxName::atom(), node()}.
 
 -type children_predicates() :: {[message_predicate()], [impl_message_predicate()]}.
 
@@ -78,10 +79,10 @@
 
 %% The configuration tree, contains the pid and the mailbox pid of each node
 %% as well as a predicate that represents which messages does this node process.
--type configuration() :: {'node', Node::pid(), mailbox(),
+-type configuration() :: {'node', Node::pid(), NodeNameNode::mailbox(), MboxNameNode::mailbox(),
 			  {tag_predicate(), impl_message_predicate()}, [configuration()]}.
 
--type pid_tree() :: {{pid(), mailbox()}, [pid_tree()]}.
+-type pid_tree() :: {{pid(), node_and_mailbox()}, [pid_tree()]}.
 -type temp_setup_tree() :: {State::any(), node(), {tag_predicate(), impl_message_predicate()},
 			    spec_functions(), [temp_setup_tree()]}.
 

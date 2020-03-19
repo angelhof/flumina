@@ -89,10 +89,10 @@ find_one_responsible(Tree, Msg) ->
 %% so the lowest nodes that can process it.
 -spec find_lowest_responsibles(configuration(), gen_impl_message()) -> [mailbox()].
 find_lowest_responsibles(Tree, Msg) ->
-    [MboxNameNode || {node, _NP, MboxNameNode, _Preds, _Cs} <- find_lowest_responsible_subtrees(Tree, Msg)].
+    [MboxNameNode || {node, _NP, _NNN, MboxNameNode, _Preds, _Cs} <- find_lowest_responsible_subtrees(Tree, Msg)].
 
 -spec find_lowest_responsible_subtrees(configuration(), gen_impl_message()) -> [configuration()].
-find_lowest_responsible_subtrees({node, _NodePid, _MailboxPid, {_SpecPred, Pred}, Children} = Node, Msg) ->
+find_lowest_responsible_subtrees({node, _NodePid, _NNN, _MailboxPid, {_SpecPred, Pred}, Children} = Node, Msg) ->
     case lists:flatmap(fun(C) -> find_lowest_responsible_subtrees(C, Msg) end, Children) of
 	[] ->
 	    %% None of my children are responsible so I could be
@@ -105,14 +105,14 @@ find_lowest_responsible_subtrees({node, _NodePid, _MailboxPid, {_SpecPred, Pred}
     end.
 
 -spec find_responsibles(configuration(), gen_impl_message()) -> [mailbox()].
-find_responsibles({node, _NodePid, MboxNameNode, {_SpecPred, Pred}, Children}, Msg) ->
+find_responsibles({node, _NodePid, _NNN, MboxNameNode, {_SpecPred, Pred}, Children}, Msg) ->
     ChildrenResponsibles = lists:flatmap(fun(C) -> find_responsibles(C, Msg) end, Children),
     case Pred(Msg) of
 	true -> [MboxNameNode|ChildrenResponsibles];
 	false -> ChildrenResponsibles
     end.
 
-		 
+
 -spec all_pids(configuration()) -> [mailbox()].
-all_pids({node, _NodePid, MboxNameNode, _, Children}) ->
+all_pids({node, _NodePid, _NNN, MboxNameNode, _, Children}) ->
     [MboxNameNode|lists:flatmap(fun all_pids/1, Children)].

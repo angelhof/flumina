@@ -179,6 +179,8 @@ mailbox(MboxState) ->
             NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
             mailbox(NewMboxState);
 	{state, State} ->
+            log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p has ~p unread messages~n",
+                              [util:local_timestamp(),self(), node(), process_info(self(), message_queue_len)]),
 	    %% This is the reply of a child node with its state
             Attachee = MboxState#mb_st.attachee,
 	    Attachee ! {state, State},
