@@ -132,7 +132,7 @@ route_steady_retimestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, M
     MsgGen = init_generator(MsgGenInit),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
-    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
+    SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
     log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
 		      [util:local_timestamp(), self(), SendTo]),
     %% Every producer should synchronize, so that they 
@@ -189,7 +189,7 @@ route_steady_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, Mes
     MsgGen = init_generator(MsgGenInit),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
-    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
+    SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
     log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n",
 		      [util:local_timestamp(), self(), SendTo]),
     %% Every producer should synchronize, so that they produce
@@ -298,7 +298,7 @@ route_timestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, MessageLog
     MsgGen = init_generator(MsgGenInit),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
-    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
+    SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
     log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
 		      [util:local_timestamp(), self(), SendTo]),
     %% Every producer should synchronize, so that they 
@@ -454,7 +454,7 @@ route_constant_rate_source(ImplTag, MsgGenInit, Period, Configuration, MessageLo
     Messages = generator_to_list(MsgGen),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
-    [{SendTo, undef}|_] = router:find_responsible_subtree_pids(Configuration, {{Tag, undef}, Node, 0}),
+    SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
     receive
 	{start, _BeginningOfTime} ->
 	    ok

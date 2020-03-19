@@ -140,10 +140,10 @@ handle_message(MessageMerge, WorkerState = #wr_st{log={LogFun, ResetFun, _} = Lo
 %% This function acts on a message. If it is a simple message, then it
 %% just runs the update, otherwise if it is a merge, it responds to
 %% the parent.
--spec act_on_message(gen_impl_message() | merge_request(), worker_state()) 
+-spec act_on_message(gen_impl_message() | merge_request(), worker_state())
 		    -> {num_log_state(), State::any()}.
 act_on_message({msg, Msg}, #wr_st{state=State, output=Output, funs=Funs, log={_, _, LogState}}) ->
-    UFun = Funs#wr_funs.upd, 
+    UFun = Funs#wr_funs.upd,
     {LogState, update_on_msg(Msg, State, Output, UFun)};
 act_on_message({merge, {{_Tag, Father}, _Node, _Ts}}, #wr_st{state=State, log=Log, conf=Conf}) ->
     respond_to_merge(Father, State, Log, Conf).

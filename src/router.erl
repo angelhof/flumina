@@ -1,11 +1,13 @@
 -module(router).
 
--export([init/1, 
+-export([init/1,
 	 loop/1,
 	 or_route/2,
 	 and_route/2,
 	 heartbeat_route/2,
-	 find_responsible_subtree_pids/2
+         find_responsible_subtree_child_father_pids/2,
+	 find_responsible_subtree_pids/2,
+         find_responsible_subtree_root/2
 	]).
 
 -include("type_definitions.hrl").
@@ -60,11 +62,29 @@ loop(Tree) ->
 	    loop(Tree)
     end.
 
--spec find_responsible_subtree_pids(configuration(), gen_impl_message()) 
-				   -> [{mailbox(), mailbox() | 'undef'}].
-find_responsible_subtree_pids(Tree, Msg) ->
+%% This function returns the subtree pids together with their father's
+%% Node! pid. This is used for state exchange at forks-joins, when
+%% nodes talk directly without their mailboxes.
+-spec find_responsible_subtree_child_father_pids(configuration(), gen_impl_message())
+                                                -> [{mailbox(), NodeFatherName::mailbox() | 'undef'}].
+find_responsible_subtree_child_father_pids(Tree, Msg) ->
     Subtree = find_responsible_subtree(Tree, Msg),
     configuration:find_node_mailbox_father_pid_pairs(Subtree).
+
+-spec find_responsible_subtree_pids(configuration(), gen_impl_message())
+				   -> [mailbox()].
+find_responsible_subtree_pids(Tree, Msg) ->
+    Subtree = find_responsible_subtree(Tree, Msg),
+    FatherChildPairs = configuration:find_node_mailbox_father_pid_pairs(Subtree),
+    [Child || {Child, _Father} <- FatherChildPairs].
+
+
+-spec find_responsible_subtree_root(configuration(), gen_impl_message())
+				   -> mailbox().
+find_responsible_subtree_root(Tree, Msg) ->
+    [SendTo|_] = find_responsible_subtree_pids(Tree, Msg),
+    SendTo.
+
 
 %% This functions finds and returns **ONE OF** the responsible
 %% subtrees for this message

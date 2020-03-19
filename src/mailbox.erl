@@ -404,7 +404,7 @@ add_to_buffer(Msg, Buffer) ->
 -spec route_message_and_merge_requests(gen_impl_message(), configuration()) -> 'ok'.
 route_message_and_merge_requests(Msg, ConfTree) ->
     %% This finds the head node of the subtree
-    [{SendTo, undef}|Rest] = router:find_responsible_subtree_pids(ConfTree, Msg),
+    [{SendTo, undef}|Rest] = router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
     SendTo ! {msg, Msg},
     {{Tag,  _Payload}, Node, Ts} = Msg,
     [To ! {merge, {{Tag, ToFather}, Node, Ts}} || {To, ToFather} <- Rest],
@@ -418,9 +418,8 @@ broadcast_heartbeat({ImplTag, Ts}, ConfTree) ->
     {Tag, Node} = ImplTag,
     %% WARNING: WE HAVE MADE THE ASSUMPTION THAT EACH ROOT NODE PROCESSES A DIFFERENT
     %%          SET OF TAGS. SO THE OR-SPLIT NEVER REALLY CHOOSES BETWEEN TWO AT THE MOMENT
-    [{SendTo, undef}|Rest] = router:find_responsible_subtree_pids(ConfTree, {{Tag, heartbeat}, Node, Ts}),
-    SendTo ! {heartbeat, {ImplTag, Ts}},
-    [To ! {heartbeat, {ImplTag, Ts}} || {To, _ToFather} <- Rest].
+    Pids = router:find_responsible_subtree_pids(ConfTree, {{Tag, heartbeat}, Node, Ts}),
+    [To ! {heartbeat, {ImplTag, Ts}} || To <- Pids].
     %% Old implementation of broadcast heartbeat
     %% AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
     %% [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
