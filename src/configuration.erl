@@ -18,6 +18,7 @@
 	 get_relevant_predicates/2]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %%
 %% This function creates the configuration

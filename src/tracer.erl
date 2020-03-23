@@ -8,6 +8,7 @@
 %% NOTE: This module only works when we have local execution
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 -type trace_msg() :: {'send', pid(), any(), pid()}.
 -type message_map() :: #{{pid(), pid()} := integer()}.

@@ -3,31 +3,32 @@
 -export([initialize_message_logger_state/2,
 	 maybe_log_message/2,
 	 no_message_logger/0,
-	
+
 	 init_num_log_state/0,
 	 reset_num_log_state/1,
 	 incr_num_log_state/2,
 	 make_num_log_triple/0,
 	 no_log_triple/0,
-	
+
 	 num_logger_process/2,
 
 	 init_debug_log/0,
 	 debug_log/2]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 -spec initialize_message_logger_state(string(), sets:set(tag())) -> message_logger_log_fun().
 initialize_message_logger_state(Prefix, Tags) ->
     Filename =
-        io_lib:format("logs/~s_~s_~s_messages.log", 
-		      [Prefix, pid_to_list(self()), atom_to_list(node())]), 
+        io_lib:format("~s/~s_~s_~s_messages.log",
+		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
     {ok, IoDevice} = file:open(Filename, [append]),
     ok = file:truncate(IoDevice),
     fun(Msg) ->
 	    maybe_log_message(Msg, {Tags, IoDevice})
     end.
-    
+
 %% Generalize the predicate to be anything instead of just a tag set
 %% WARNING: At the moment this only logs messages, not heartbeats
 -spec maybe_log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
@@ -86,8 +87,8 @@ no_log_triple() ->
 num_logger_process(Prefix, Configuration) ->
     register('num_messages_logger_process', self()),
     Filename =
-        io_lib:format("logs/~s_~s_~s_num_messages.log", 
-		      [Prefix, pid_to_list(self()), atom_to_list(node())]),
+        io_lib:format("~s/~s_~s_~s_num_messages.log", 
+		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
     {ok, IoDevice} = file:open(Filename, [append]),
     ok = file:truncate(IoDevice),
     num_logger_process_loop(IoDevice, Configuration).
@@ -140,11 +141,11 @@ append_log_in_file({Mbox, Log}, CurrentTimestamp, IoDevice) ->
 %%
 
 %% This function creates and truncates the debug log file
--spec init_debug_log() -> ok. 
+-spec init_debug_log() -> ok.
 init_debug_log() ->
     Filename =
-        io_lib:format("logs/debug_~s_~s.log", 
-		      [pid_to_list(self()), atom_to_list(node())]),
+        io_lib:format("~s/debug_~s_~s.log",
+		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
     {ok, IoDevice} = file:open(Filename, [write]),
     ok = file:truncate(IoDevice),
     ok = file:close(IoDevice).
@@ -152,7 +153,7 @@ init_debug_log() ->
 -spec debug_log(string(), [any()]) -> ok.
 debug_log(Format, Args) ->
     Filename =
-        io_lib:format("logs/debug_~s_~s.log", 
-		      [pid_to_list(self()), atom_to_list(node())]),    
+        io_lib:format("~s/debug_~s_~s.log",
+		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
     Data = io_lib:format(Format, Args),
     ok = file:write_file(Filename, Data, [append]).

@@ -6,6 +6,7 @@
 ]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 % generate_implementation_tags
 % Given a set of specification tags and a number of tags for each ID, generate a set of implementation tags.

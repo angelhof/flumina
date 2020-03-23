@@ -4,6 +4,7 @@
 	 init_worker/7]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %% Initializes and spawns a node and its mailbox
 -spec init(State::any(), node_and_mailbox(), impl_message_predicate(), spec_functions(),

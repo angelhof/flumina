@@ -11,6 +11,7 @@
 	]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %% This is the router process that
 %% holds the configuration tree in its state

@@ -3,6 +3,7 @@
 -export([generate_setup_tree/2]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %%
 %% This is the trivial sequential optimizer that just allocates

@@ -29,6 +29,7 @@
 	]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 -define(SLEEP_GRANULARITY_MILLIS, 10).
 

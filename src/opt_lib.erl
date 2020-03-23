@@ -10,6 +10,7 @@
 	 temp_setup_tree_height/1]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %%
 %% This is a library with code that is common to 

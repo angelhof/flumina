@@ -26,6 +26,7 @@
          cartesian/1]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 err(Format, Args) ->
     io:format(" -- ERROR: " ++ Format, Args).
@@ -74,6 +75,7 @@ sink_loop(LoggerFun, WaitTime) ->
             io:format("Didn't receive anything for ~p seconds~n", [WaitTime]),
 	    ok
     end.
+
 
 %% This function accepts a merging function that takes a 
 %% key and the two associated values and then merges them.

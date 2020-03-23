@@ -4,6 +4,7 @@
          generate_setup_tree/3]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %%
 %% This is a very simple greedy optimizer. It sorts tags based on increasing

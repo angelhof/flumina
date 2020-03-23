@@ -19,6 +19,7 @@
 	]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %%
 %% This module is the configuration generation frontend
@@ -136,8 +137,8 @@ no_checkpoint(_Msg, _State) ->
 -spec always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
 always_checkpoint({_MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
-        io_lib:format("logs/checkpoint_~s_~s_messages.log",
-		      [pid_to_list(self()), atom_to_list(node())]),
+        io_lib:format("~s/checkpoint_~s_~s_messages.log",
+		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
     ok = file:write_file(Filename, io_lib:format("~p.~n", [{Ts, State}])),
     fun(Msg1, State1) ->
 	    always_checkpoint(Msg1, State1)
@@ -148,8 +149,8 @@ always_checkpoint({_MsgOrMerge, {_Tag, Ts, _V}}, State) ->
 -spec binary_always_checkpoint(gen_message_or_merge(), State::any()) -> checkpoint_predicate().
 binary_always_checkpoint({_MsgOrMerge, {_Tag, Ts, _V}}, State) ->
     Filename =
-        io_lib:format("logs/binary_checkpoint_~s_~s_messages.log",
-		      [pid_to_list(self()), atom_to_list(node())]),
+        io_lib:format("~s/binary_checkpoint_~s_~s_messages.log",
+		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
     ok = file:write_file(Filename, term_to_binary({Ts, State})),
     fun(Msg1, State1) ->
 	    binary_always_checkpoint(Msg1, State1)

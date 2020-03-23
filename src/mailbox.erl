@@ -3,6 +3,7 @@
 -export([init_mailbox/6]).
 
 -include("type_definitions.hrl").
+-include("config.hrl").
 
 %%
 %% Mailbox
