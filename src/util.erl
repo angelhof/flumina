@@ -72,9 +72,22 @@ sink_loop(LoggerFun, WaitTime) ->
 	    sink_loop(LoggerFun, WaitTime)
     after
         WaitTime ->
+            log_sink_finish_time(WaitTime),
             io:format("Didn't receive anything for ~p seconds~n", [WaitTime]),
 	    ok
     end.
+
+-spec log_sink_finish_time(integer()) -> ok.
+log_sink_finish_time(WaitTime) ->
+    Filename =
+        io_lib:format("~s/sink_time.log",
+		      [?LOG_DIR]),
+    FinalTimestamp = erlang:monotonic_time(),
+    WaitingTimestamp = erlang:convert_time_unit(WaitTime, millisecond, native),
+    FinalTimeWithoutWait = FinalTimestamp - WaitingTimestamp,
+    Data = io_lib:format("Sink: ~p finished at time: ~p. Final time with wait: ~p",
+                         [self(), FinalTimeWithoutWait, FinalTimestamp]),
+    ok = file:write_file(Filename, Data).
 
 
 %% This function accepts a merging function that takes a 
