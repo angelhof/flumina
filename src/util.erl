@@ -61,6 +61,7 @@ sink(MsgLoggerInitFun, WaitTime) ->
     receive
 	finished ->
 	    io:format("Configuration done~n", []),
+            log_sink_configuration_finish_time(),
 	    sink_loop(LoggerFun, WaitTime)
     end.
 
@@ -77,6 +78,20 @@ sink_loop(LoggerFun, WaitTime) ->
 	    ok
     end.
 
+%% This can be used as an approximation for throughput, but it is not
+%% exact, since producers might have already started producing values,
+%% or they might wait to output the first message.
+-spec log_sink_configuration_finish_time() -> ok.
+log_sink_configuration_finish_time() ->
+    Filename =
+        io_lib:format("~s/sink_time.log",
+		      [?LOG_DIR]),
+    CurrentTimestamp = erlang:monotonic_time(),
+    Data = io_lib:format("Sink: ~p received a message that configuration finished at: ~p~n",
+                         [self(), CurrentTimestamp]),
+    ok = file:write_file(Filename, Data).
+
+
 -spec log_sink_finish_time(integer()) -> ok.
 log_sink_finish_time(WaitTime) ->
     Filename =
@@ -85,9 +100,9 @@ log_sink_finish_time(WaitTime) ->
     FinalTimestamp = erlang:monotonic_time(),
     WaitingTimestamp = erlang:convert_time_unit(WaitTime, millisecond, native),
     FinalTimeWithoutWait = FinalTimestamp - WaitingTimestamp,
-    Data = io_lib:format("Sink: ~p finished at time: ~p. Final time with wait: ~p",
+    Data = io_lib:format("Sink: ~p finished at time: ~p. Final time with wait: ~p~n",
                          [self(), FinalTimeWithoutWait, FinalTimestamp]),
-    ok = file:write_file(Filename, Data).
+    ok = file:write_file(Filename, Data, [append]).
 
 
 %% This function accepts a merging function that takes a 
