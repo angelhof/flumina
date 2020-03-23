@@ -195,6 +195,7 @@
 -type msg_generator_init() :: {fun((...) -> msg_generator()), Args::[any()]}.
 -type producer_type() :: 'constant'
 		       | 'timestamp_based'
+		       | 'steady_retimestamp'
 		       | 'steady_timestamp'.
 -type producer_init(Tags) :: [{msg_generator_init(), {Tags, node()}, integer()}].
 -type gen_producer_init() :: producer_init(tag()).
