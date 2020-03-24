@@ -1,5 +1,7 @@
 ** List of TODO items (issues/extensions)
 
+*** TODO Make generators output number of messages/heartbeats when they are done
+*** TODO Cleanup unused generator functions and move generators in their own file
 *** TODO Heuristic for the optimizer to better handle Fork-Join pairs that don't change the state type
 
 Optimizer should have an optimization when searching using fork-join pairs that don't change the state type.
