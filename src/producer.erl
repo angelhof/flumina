@@ -125,6 +125,28 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
       end, ProducerPids).
 
 %%
+%% Common initialization for all producers
+%%
+-spec init_producer(impl_tag(), msg_generator_init(), configuration(), message_logger_init_fun())
+                   -> {msg_generator(), mailbox(), message_logger_log_fun()}.
+init_producer(ImplTag, MsgGenInit, Configuration, MsgLoggerInitFun) ->
+    log_mod:init_debug_log(),
+    log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n",
+		      [util:local_timestamp(),self(), ImplTag, node()]),
+    %% Initialize the generator
+    MsgGen = init_generator(MsgGenInit),
+    %% Find where to route the message in the configuration tree
+    {Tag, Node} = ImplTag,
+    SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
+    log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n",
+		      [util:local_timestamp(), self(), SendTo]),
+    %% Initialize the latency logger
+    LoggerFun = MsgLoggerInitFun(),
+    {MsgGen, SendTo, LoggerFun}.
+
+
+
+%%
 %% This producer sends a stream of messages with a rate that depends
 %% on the message timestamps (like the one below). However, since
 %% it seems like producers like that could drift far from each
@@ -132,7 +154,7 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 %% timestamps the messages on its own before sending them.
 %%
 %% WARNING: Because these producers timestamp the messages on their own
-%% the result of the computation will be different each time, so 
+%% the result of the computation will be different each time, so
 %% it shouldn't be expected to return the same results every time.
 %%
 %% TODO: Find a better name
@@ -140,48 +162,33 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 route_steady_retimestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration) ->
     route_steady_retimestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, fun log_mod:no_message_logger/0).
 
--spec route_steady_retimestamp_rate_source(impl_tag(), msg_generator_init(), integer(), 
+-spec route_steady_retimestamp_rate_source(impl_tag(), msg_generator_init(), integer(),
                                            configuration(), message_logger_init_fun()) -> ok.
 route_steady_retimestamp_rate_source(ImplTag, MsgGenInit, Rate, Configuration, MessageLoggerInitFun) ->
-    log_mod:init_debug_log(),
-    log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n", 
-		      [util:local_timestamp(),self(), ImplTag, node()]),
-    %% Initialize the generator
-    MsgGen = init_generator(MsgGenInit),
-    %% Find where to route the message in the configuration tree
-    {Tag, Node} = ImplTag,
-    SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
-    log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n", 
-		      [util:local_timestamp(), self(), SendTo]),
-    %% Every producer should synchronize, so that they 
+    {MsgGen, SendTo, LoggerFun} = init_producer(ImplTag, MsgGenInit, Configuration, MessageLoggerInitFun),
+    %% Every producer should synchronize, so that they
     %% produce messages in the same order
     receive
 	{start, BeginningOfTime, _} ->
-	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message: ~p~n", 
+	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message: ~p~n",
 			      [util:local_timestamp(), self(), BeginningOfTime])
     end,
-    steady_retimestamp_rate_source(MsgGen, Rate, BeginningOfTime, SendTo, MessageLoggerInitFun).
+    steady_retimestamp_rate_source(MsgGen, Rate, BeginningOfTime, SendTo, LoggerFun).
 
--spec steady_retimestamp_rate_source(msg_generator(), Rate::integer(), integer(), 
-                                     mailbox(), message_logger_init_fun()) -> ok.
-steady_retimestamp_rate_source(MsgGen, Rate, BeginningOfTime, SendTo, MsgLoggerInitFun) ->
-    LoggerFun = MsgLoggerInitFun(),
-    steady_retimestamp_rate_source_loop(MsgGen, Rate, BeginningOfTime, SendTo, LoggerFun).
-
--spec steady_retimestamp_rate_source_loop(msg_generator(), Rate::integer(), PrevTs::integer(), 
+-spec steady_retimestamp_rate_source(msg_generator(), Rate::integer(), PrevTs::integer(),
                                           mailbox(), message_logger_log_fun()) -> ok.
-steady_retimestamp_rate_source_loop(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
+steady_retimestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
     %% First compute how much time the process has to wait
     %% to send the next message.
     case messages_to_send(MsgGen, Rate, PrevTs) of
 	done ->
-	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n", 
+	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n",
 			      [util:local_timestamp(), self()]),
 	    ok;
 	{NewMsgGen, MsgsToSend, NewTs} ->
 	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),
 	    [timestamp_send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun) || Msg <- MsgsToSend],
-	    steady_retimestamp_rate_source_loop(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
+	    steady_retimestamp_rate_source(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
     end.
 
 %%
