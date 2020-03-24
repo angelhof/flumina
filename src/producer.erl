@@ -6,10 +6,6 @@
          make_producers/6,
          init_producer/5,
          init_producer/6,
-	 constant_rate_source/3,
-	 constant_rate_source/4,
-	 route_constant_rate_source/4,
-	 route_constant_rate_source/5,
 	 dumper/2,
 	 interleave_heartbeats/3,
 	 interleave_heartbeats/4,
@@ -58,24 +54,13 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 		  %% {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
 		  {Tag, Node} = ImplTag,
 		  %% Log producer creation
-		  case ProducerType of
-		      constant ->
-			  Pid = spawn_link(Node, producer, route_constant_rate_source, 
-					   [ImplTag, MsgGenInit, Rate, 
-					    Configuration, MessageLoggerInitFun]),
-			  io:format("Spawning constant rate producer for impl tag: ~p" 
-				    "with pid: ~p in node: ~p~n", 
-				    [ImplTag, Pid, Node]),
-			  Pid;
-		      _ ->
-			  Pid = spawn_link(Node, producer, init_producer,
-					   [ProducerType, ImplTag, MsgGenInit, Rate,
-					    Configuration, MessageLoggerInitFun]),
-			  io:format("Spawning '~p' producer for"
-				    "impl tag: ~p with pid: ~p in node: ~p~n",
-				    [ProducerType, ImplTag, Pid, Node]),
-			  Pid
-		  end
+                  Pid = spawn_link(Node, producer, init_producer,
+                                   [ProducerType, ImplTag, MsgGenInit, Rate,
+                                    Configuration, MessageLoggerInitFun]),
+                  io:format("Spawning '~p' producer for"
+                            "impl tag: ~p with pid: ~p in node: ~p~n",
+                            [ProducerType, ImplTag, Pid, Node]),
+                  Pid
 	  end, InputGens),
 
     %% Get a global start timestamp to give to all producers.
@@ -128,6 +113,8 @@ sync_producer(ProducerType, MsgGen, Rate, SendTo, LoggerFun) ->
                                GlobalStartTime, LocalStartTime])
     end,
     case ProducerType of
+        constant ->
+            constant_rate_source(MsgGen, Rate, SendTo, LoggerFun);
         timestamp_based ->
             timestamp_rate_source(MsgGen, Rate, FirstGeneratorTimestamp, SendTo, LoggerFun);
         steady_retimestamp ->
@@ -347,33 +334,11 @@ messages_to_send(MsgGen, Rate, PrevTs, Wait, Acc) ->
 %% but it rather sends a message, then waits for Period, and then repeat. So
 %% the real period is Period + Time of sending one message.
 %%
--spec route_constant_rate_source(impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
-route_constant_rate_source(ImplTag, MsgGenInit, Period, Configuration) ->
-    route_constant_rate_source(ImplTag, MsgGenInit, Period, Configuration, fun log_mod:no_message_logger/0).
-
--spec route_constant_rate_source(impl_tag(), msg_generator_init(), integer(), 
-				 configuration(), message_logger_init_fun()) -> ok.
-route_constant_rate_source(ImplTag, MsgGenInit, Period, Configuration, MessageLoggerInitFun) ->
-    MsgGen = init_generator(MsgGenInit),
+-spec constant_rate_source(msg_generator(), integer(), mailbox(),
+			   message_logger_log_fun()) -> ok.
+constant_rate_source(MsgGen, Period, SendTo, LoggerFun) ->
+    %% Get list of messages
     Messages = generator_to_list(MsgGen),
-    %% Find where to route the message in the configuration tree
-    {Tag, Node} = ImplTag,
-    SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
-    receive
-	{start, _BeginningOfTime, _} ->
-	    ok
-    end,
-    constant_rate_source(Messages, Period, SendTo, MessageLoggerInitFun).
-
--spec constant_rate_source([gen_message_or_heartbeat()], integer(), mailbox()) -> ok.
-constant_rate_source(Messages, Period, SendTo) ->
-    constant_rate_source(Messages, Period, SendTo, fun log_mod:no_message_logger/0).
-
--spec constant_rate_source([gen_message_or_heartbeat()], integer(), mailbox(), 
-			   message_logger_init_fun()) -> ok.
-constant_rate_source(Messages, Period, SendTo, MsgLoggerInitFun) ->
-    %% Initialize the logger, to get the message logger fun
-    LoggerFun = MsgLoggerInitFun(),
     case Period =< 10000 of
 	true ->
 	    constant_rate_source_fast(Messages, 10000 div Period, SendTo, LoggerFun);
