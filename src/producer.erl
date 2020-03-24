@@ -21,7 +21,7 @@
 -include("config.hrl").
 
 -define(SLEEP_GRANULARITY_MILLIS, 10).
--define(GLOBAL_START_TIME_DELAY, 1000).
+-define(GLOBAL_START_TIME_DELAY_MS, 1000).
 
 %%%
 %%% This module contains code that will be usually used by producer nodes
@@ -61,7 +61,7 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
 
     %% Get a global start timestamp to give to all producers.
     %%
-    %% Note: We delay the timestamp by GLOBAL_START_TIME_DELAY so that
+    %% Note: We delay the timestamp by GLOBAL_START_TIME_DELAY_MS so that
     %% there is no initial spike of events.
     GlobalStartTime = erlang:monotonic_time(millisecond),
 
@@ -71,7 +71,7 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
     %% Synchronize the producers by starting them all together
     lists:foreach(
       fun(ProducerPid) ->
-	      ProducerPid ! {start, BeginningOfTime, GlobalStartTime + ?GLOBAL_START_TIME_DELAY}
+	      ProducerPid ! {start, BeginningOfTime, GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS}
       end, ProducerPids).
 
 -spec log_producers_spawn_finish_time() -> ok.
@@ -485,7 +485,7 @@ interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, Until) ->
 				     -> msg_generator().
 interleave_heartbeats_generator(StreamGen, {ImplTag, Period}, From, Until) ->
     case Period of
-	0 -> 
+	0 ->
 	    StreamGen;
 	_ ->
 	    interleave_heartbeats_generator(StreamGen, ImplTag, From, Period, Until)
@@ -515,7 +515,7 @@ interleave_heartbeats_generator(MsgGen, {Tag, Node} = ImplTag, NextHeartbeat, Pe
                                                                 NewNextHeartbeat, Period, Until)
                         end)
     end.
-	
+
 -spec append_gens(msg_generator(), fun(() -> msg_generator())) -> msg_generator().
 append_gens(MsgGen1, MsgGen2) ->
     case MsgGen1() of
@@ -529,7 +529,7 @@ append_gens(MsgGen1, MsgGen2) ->
 
 
 
-    
+
 -spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 			        message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
 send_message_or_heartbeat({heartbeat, Heartbeat}, SendTo, _MessageLoggerInitFun) ->
@@ -552,7 +552,7 @@ timestamp_send_message_or_heartbeat({{Tag, Value}, Node, _Ts}, SendTo, MessageLo
 
 %%
 %% Message Generator
-%% Those can either be file implementations, or lists that 
+%% Those can either be file implementations, or lists that
 %% return the next element each time.
 %%
 -spec list_generator([gen_message_or_heartbeat()]) -> msg_generator().
@@ -588,7 +588,7 @@ file_generator0(IoDevice, LineParser) ->
 file_generator_with_heartbeats(Filename, LineParser, {ImplTag, Period}, From, Until) ->
     FileGen = file_generator(Filename, LineParser),
     interleave_heartbeats_generator(FileGen, {ImplTag, Period}, From, Until).
-    
+
 
 -spec generator_to_list(msg_generator()) -> [gen_message_or_heartbeat()].
 generator_to_list(Gen) ->
