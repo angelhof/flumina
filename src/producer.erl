@@ -42,11 +42,11 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 
 %% TODO: Instead of sending the beginning of time, we should pass it as an argument
 %% TODO: Abstract the possible options away in a list or struct
--spec make_producers(gen_producer_init(), configuration(), 
+-spec make_producers(gen_producer_init(), configuration(),
 		     topology(), producer_type(), message_logger_init_fun(), integer()) -> ok.
 make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun, BeginningOfTime) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
-    ProducerPids = 
+    ProducerPids =
 	lists:map(
 	  fun({MsgGenInit, ImplTag, Rate}) ->
 		  %% Old way of finding node
@@ -69,11 +69,25 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
     %% there is no initial spike of events.
     GlobalStartTime = erlang:monotonic_time(millisecond),
 
+    %% Log the time that producers where done spawning.
+    log_producers_spawn_finish_time(),
+
     %% Synchronize the producers by starting them all together
     lists:foreach(
       fun(ProducerPid) ->
 	      ProducerPid ! {start, BeginningOfTime, GlobalStartTime + ?GLOBAL_START_TIME_DELAY}
       end, ProducerPids).
+
+-spec log_producers_spawn_finish_time() -> ok.
+log_producers_spawn_finish_time() ->
+    Filename =
+        io_lib:format("~s/producers_time.log",
+		      [?LOG_DIR]),
+    CurrentTimestamp = erlang:monotonic_time(),
+    Data = io_lib:format("Ts: ~s -- Pid: ~p@~p -- Producers are all spawned at time: ~p~n",
+                         [util:local_timestamp(), self(), node(), CurrentTimestamp]),
+    ok = file:write_file(Filename, Data).
+
 
 %%
 %% Common initialization for all producers
