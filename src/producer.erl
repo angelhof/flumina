@@ -543,14 +543,13 @@ send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
 %% This function ignores the message timestamp and sends it with its own timestamp
 -spec timestamp_send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 					  message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
-timestamp_send_message_or_heartbeat({heartbeat, {ImplTag, _}}, SendTo, _MessageLoggerInitFun) ->
+timestamp_send_message_or_heartbeat({heartbeat, {ImplTag, _}}, SendTo, MessageLoggerInitFun) ->
     Ts = erlang:system_time(),
-    SendTo ! {iheartbeat, {ImplTag, Ts}};
+    send_message_or_heartbeat({heartbeat, {ImplTag, Ts}}, SendTo, MessageLoggerInitFun);
 timestamp_send_message_or_heartbeat({{Tag, Value}, Node, _Ts}, SendTo, MessageLoggerInitFun) ->
     Ts = erlang:system_time(),
     Msg = {{Tag, Value}, Node, Ts},
-    ok = MessageLoggerInitFun(Msg),
-    SendTo ! {imsg, Msg}.
+    send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun).
 
 %%
 %% Message Generator
