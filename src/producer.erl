@@ -72,7 +72,12 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
     lists:foreach(
       fun(ProducerPid) ->
 	      ProducerPid ! {start, BeginningOfTime, GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS}
-      end, ProducerPids).
+      end, ProducerPids),
+
+    %% Sleep to return from this function as close as possible to the
+    %% producer start time
+    SleepingTime = GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS - erlang:monotonic_time(millisecond),
+    timer:sleep(SleepingTime).
 
 -spec log_producers_spawn_finish_time() -> ok.
 log_producers_spawn_finish_time() ->
