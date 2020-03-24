@@ -1,6 +1,7 @@
 -module(testing).
 
--export([test_mfa/2,
+-export([test_mf/2,
+         test_mfa/3,
 	 test_sink/2,
 	 unregister_names/0]).
 
@@ -12,11 +13,15 @@
 %% WARNING: The way testing is implemented now,
 %%          it succeeds if we get at least as many messages as
 %%          the expected output, if we get more it doesn't fail.
--spec test_mfa({atom(), atom()}, Messages::[any()]) -> 'ok'.
-test_mfa({M, F}, ExpOutput) ->
+-spec test_mf({atom(), atom()}, Messages::[any()]) -> 'ok'.
+test_mf({M, F}, ExpOutput) ->
+    test_mfa({M, F}, [], ExpOutput).
+
+-spec test_mfa({atom(), atom()}, Args::[any()], Messages::[any()]) -> 'ok'.
+test_mfa({M, F}, Args, ExpOutput) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(M, F, [SinkName]),
+    ExecPid = spawn_link(M, F, [SinkName] ++ Args),
     test_sink(ExpOutput, testing).
 
 %% This is just a sink function that compares whatever it gets 
