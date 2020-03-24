@@ -100,8 +100,8 @@ log_sink_finish_time(WaitTime) ->
     FinalTimestamp = erlang:monotonic_time(),
     WaitingTimestamp = erlang:convert_time_unit(WaitTime, millisecond, native),
     FinalTimeWithoutWait = FinalTimestamp - WaitingTimestamp,
-    Data = io_lib:format("Sink: ~p finished at time: ~p. Final time with wait: ~p~n",
-                         [self(), FinalTimeWithoutWait, FinalTimestamp]),
+    Data = io_lib:format("Sink: ~p finished at time(without wait): ~p~n",
+                         [self(), FinalTimeWithoutWait]),
     ok = file:write_file(Filename, Data, [append]).
 
 

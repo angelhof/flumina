@@ -80,8 +80,10 @@ log_producers_spawn_finish_time() ->
         io_lib:format("~s/producers_time.log",
 		      [?LOG_DIR]),
     CurrentTimestamp = erlang:monotonic_time(),
-    Data = io_lib:format("Ts: ~s -- Pid: ~p@~p -- Producers are all spawned at time: ~p~n",
-                         [util:local_timestamp(), self(), node(), CurrentTimestamp]),
+    ProducerStartTime = CurrentTimestamp +
+        erlang:convert_time_unit(?GLOBAL_START_TIME_DELAY_MS, millisecond, native),
+    Data = io_lib:format("Ts: ~s -- Pid: ~p@~p -- Producers are going to start at time: ~p~n",
+                         [util:local_timestamp(), self(), node(), ProducerStartTime]),
     ok = file:write_file(Filename, Data).
 
 
