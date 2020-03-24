@@ -44,15 +44,11 @@ make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerIn
 %% TODO: Abstract the possible options away in a list or struct
 -spec make_producers(gen_producer_init(), configuration(),
 		     topology(), producer_type(), message_logger_init_fun(), integer()) -> ok.
-make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun, BeginningOfTime) ->
-    NodesRates = conf_gen:get_nodes_rates(Topology),
+make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerInitFun, BeginningOfTime) ->
     ProducerPids =
 	lists:map(
 	  fun({MsgGenInit, ImplTag, Rate}) ->
-		  %% Old way of finding node
-		  %% TODO: Maybe at some point I will use the real given rate
-		  %% {Node, Tag, _Rate} = lists:keyfind(Tag, 2, NodesRates),
-		  {Tag, Node} = ImplTag,
+		  {_Tag, Node} = ImplTag,
 		  %% Log producer creation
                   Pid = spawn_link(Node, producer, init_producer,
                                    [ProducerType, ImplTag, MsgGenInit, Rate,
@@ -230,7 +226,7 @@ send_messages_until(MsgGen, Until, SendTo, MsgLoggerLogFun) ->
 		case Msg of
 		    {heartbeat, {_Tag, Ts0}} ->
 			Ts0;
-		    {{_Tag, V}, _N, Ts0} ->
+		    {{_Tag, _V}, _N, Ts0} ->
 			Ts0
 		end,
 	    case Ts =< Until of
@@ -315,7 +311,7 @@ messages_to_send(MsgGen, Rate, PrevTs, Wait, Acc) ->
 		case Msg of
 		    {heartbeat, {_Tag, Ts0}} ->
 			Ts0;
-		    {{_Tag, V}, _N, Ts0} ->
+		    {{_Tag, _V}, _N, Ts0} ->
 			Ts0
 		end,
 	    NewWait = Wait + ((Ts - PrevTs) / Rate),
@@ -536,7 +532,7 @@ append_gens(MsgGen1, MsgGen2) ->
     
 -spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 			        message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
-send_message_or_heartbeat({heartbeat, Heartbeat}, SendTo, MessageLoggerInitFun) ->
+send_message_or_heartbeat({heartbeat, Heartbeat}, SendTo, _MessageLoggerInitFun) ->
     SendTo ! {iheartbeat, Heartbeat};
 send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
     ok = MessageLoggerInitFun(Msg),
@@ -545,7 +541,7 @@ send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
 %% This function ignores the message timestamp and sends it with its own timestamp
 -spec timestamp_send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 					  message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
-timestamp_send_message_or_heartbeat({heartbeat, {ImplTag, _}}, SendTo, MessageLoggerInitFun) ->
+timestamp_send_message_or_heartbeat({heartbeat, {ImplTag, _}}, SendTo, _MessageLoggerInitFun) ->
     Ts = erlang:system_time(),
     SendTo ! {iheartbeat, {ImplTag, Ts}};
 timestamp_send_message_or_heartbeat({{Tag, Value}, Node, _Ts}, SendTo, MessageLoggerInitFun) ->
