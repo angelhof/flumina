@@ -51,7 +51,7 @@ sink() ->
     sink(fun log_mod:no_message_logger/0).
 
 sink(MsgLoggerInitFun) ->
-    sink(MsgLoggerInitFun, 15000).
+    sink(MsgLoggerInitFun, ?SINK_WAITING_TIME_MS).
 
 sink_no_log(WaitTime) ->
     sink(fun log_mod:no_message_logger/0, WaitTime).
@@ -84,7 +84,7 @@ sink_loop(LoggerFun, WaitTime) ->
 -spec log_sink_configuration_finish_time() -> ok.
 log_sink_configuration_finish_time() ->
     Filename =
-        io_lib:format("~s/sink_time.log",
+        io_lib:format("~s/sink_stats.log",
 		      [?LOG_DIR]),
     CurrentTimestamp = erlang:monotonic_time(),
     Data = io_lib:format("Sink: ~p received a message that configuration finished at: ~p~n",
@@ -95,7 +95,7 @@ log_sink_configuration_finish_time() ->
 -spec log_sink_finish_time(integer()) -> ok.
 log_sink_finish_time(WaitTime) ->
     Filename =
-        io_lib:format("~s/sink_time.log",
+        io_lib:format("~s/sink_stats.log",
 		      [?LOG_DIR]),
     FinalTimestamp = erlang:monotonic_time(),
     WaitingTimestamp = erlang:convert_time_unit(WaitTime, millisecond, native),
