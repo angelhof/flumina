@@ -75,9 +75,15 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
       end, ProducerPids),
 
     %% Sleep to return from this function as close as possible to the
-    %% producer start time
-    SleepingTime = GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS - erlang:monotonic_time(millisecond),
-    timer:sleep(SleepingTime).
+    %% producer start time (if the producers all sync to this global
+    %% time).
+    case ProducerType of
+        steady_sync_timestamp ->
+            SleepingTime = GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS - erlang:monotonic_time(millisecond),
+            timer:sleep(SleepingTime);
+        _ ->
+            ok
+    end.
 
 -spec log_producers_spawn_finish_time() -> ok.
 log_producers_spawn_finish_time() ->
