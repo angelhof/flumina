@@ -217,10 +217,12 @@ steady_timestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFu
             SleepTime = NewSleepUntil / Rate - CurrentMonoTime,
             case SleepTime > 0 of
                 true ->
+                    log_mod:debug_log("Ts: ~s -- Producer ~p is going to sleep for ~p ms ~n",
+                                      [util:local_timestamp(), self(), SleepTime]),
                     timer:sleep(round(SleepTime));
                 false ->
                     log_mod:debug_log("Ts: ~s -- Warning! Producer ~p is lagging behind by ~p ms ~n",
-                                      [util:local_timestamp(), self(), SleepTime])
+                                      [util:local_timestamp(), self(), -SleepTime])
             end,
 	    steady_timestamp_rate_source(NewMsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun)
     end.
