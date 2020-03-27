@@ -20,7 +20,7 @@
 -include("type_definitions.hrl").
 -include("config.hrl").
 
--define(SLEEP_GRANULARITY_MILLIS, 10).
+-define(SLEEP_GRANULARITY_MILLIS, 2).
 -define(GLOBAL_START_TIME_DELAY_MS, 1000).
 
 %%%
@@ -217,9 +217,10 @@ steady_timestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFu
             SleepTime = NewSleepUntil / Rate - CurrentMonoTime,
             case SleepTime > 0 of
                 true ->
-                    log_mod:debug_log("Ts: ~s -- Producer ~p is going to sleep for ~p ms ~n",
-                                      [util:local_timestamp(), self(), SleepTime]),
-                    timer:sleep(round(SleepTime));
+                    timer:sleep(round(SleepTime)),
+                    log_mod:debug_log("Ts: ~s -- Producer ~p went to sleep for ~p ms and slept for ~p ms ~n",
+                                      [util:local_timestamp(), self(), round(SleepTime),
+                                       ?GET_SYSTEM_TIME(millisecond) - (CurrentMonoTime + StartMonoTime)]);
                 false ->
                     log_mod:debug_log("Ts: ~s -- Warning! Producer ~p is lagging behind by ~p ms ~n",
                                       [util:local_timestamp(), self(), -SleepTime])
