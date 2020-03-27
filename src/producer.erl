@@ -23,6 +23,17 @@
 -define(SLEEP_GRANULARITY_MILLIS, 10).
 -define(GLOBAL_START_TIME_DELAY_MS, 1000).
 
+%% This time is not monotonic, however it can be used to synchronize
+%% processes residing in different machines. Erlang monotonic time is
+%% unique to one erlang vm and does not have anything to do with the
+%% others.
+%%
+%% Consider changing that to erlang:system_time. Could this be more
+%% efficient? Or have some other benefit?
+-define(GET_SYSTEM_TIME(), os:system_time()). %% This is in nanoseconds
+-define(GET_SYSTEM_TIME(TimeUnit), os:system_time(TimeUnit)).
+
+
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%%
@@ -63,7 +74,7 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
     %%
     %% Note: We delay the timestamp by GLOBAL_START_TIME_DELAY_MS so that
     %% there is no initial spike of events.
-    GlobalStartTime = erlang:monotonic_time(millisecond),
+    GlobalStartTime = ?GET_SYSTEM_TIME(millisecond),
 
     %% Log the time that producers where done spawning.
     log_producers_spawn_finish_time(),
@@ -79,7 +90,7 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
     %% time).
     case ProducerType of
         steady_sync_timestamp ->
-            SleepingTime = GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS - erlang:monotonic_time(millisecond),
+            SleepingTime = GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS - ?GET_SYSTEM_TIME(millisecond),
             timer:sleep(SleepingTime);
         _ ->
             ok
@@ -90,7 +101,7 @@ log_producers_spawn_finish_time() ->
     Filename =
         io_lib:format("~s/producers_time.log",
 		      [?LOG_DIR]),
-    CurrentTimestamp = erlang:monotonic_time(),
+    CurrentTimestamp = ?GET_SYSTEM_TIME(),
     ProducerStartTime = CurrentTimestamp +
         erlang:convert_time_unit(?GLOBAL_START_TIME_DELAY_MS, millisecond, native),
     Data = io_lib:format("Ts: ~s -- Pid: ~p@~p -- Producers are going to start at time: ~p~n",
@@ -129,7 +140,7 @@ sync_producer(ProducerType, MsgGen, Rate, SendTo, LoggerFun) ->
     %% timestamp).
     receive
 	{start, FirstGeneratorTimestamp, GlobalStartTime} ->
-            LocalStartTime = erlang:monotonic_time(millisecond),
+            LocalStartTime = ?GET_SYSTEM_TIME(millisecond),
 	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message ~p"
                               " with global start timestamp: ~p. Local start timestamp is: ~p~n",
 			      [util:local_timestamp(), self(), FirstGeneratorTimestamp,
@@ -198,7 +209,7 @@ steady_retimestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
 steady_timestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun) ->
     %% First get the current elapsed monotonic time from the start of
     %% the producer.
-    BatchStartMonoTime = erlang:monotonic_time(millisecond) - StartMonoTime,
+    BatchStartMonoTime = ?GET_SYSTEM_TIME(millisecond) - StartMonoTime,
     %% Then find the least amount of time the producer must sleep
     %% until (normalized based on the rate). The producer can then
     %% safely release all messages that have a timestamp until then.
@@ -212,7 +223,7 @@ steady_timestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFu
 	{NewMsgGen, NewSleepUntil} ->
             %% Now that all messages are released, get the current
             %% time, and wait for what is left.
-            CurrentMonoTime = erlang:monotonic_time(millisecond) - StartMonoTime,
+            CurrentMonoTime = ?GET_SYSTEM_TIME(millisecond) - StartMonoTime,
             %% Sleep until the next event (or not at all if we delayed by sending these events)
             SleepTime = NewSleepUntil / Rate - CurrentMonoTime,
             case SleepTime > 0 of
