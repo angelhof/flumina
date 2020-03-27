@@ -86,7 +86,7 @@ log_sink_configuration_finish_time() ->
     Filename =
         io_lib:format("~s/sink_stats.log",
 		      [?LOG_DIR]),
-    CurrentTimestamp = erlang:monotonic_time(),
+    CurrentTimestamp = ?GET_SYSTEM_TIME(),
     Data = io_lib:format("Sink: ~p received a message that configuration finished at: ~p~n",
                          [self(), CurrentTimestamp]),
     ok = file:write_file(Filename, Data).
@@ -97,7 +97,7 @@ log_sink_finish_time(WaitTime) ->
     Filename =
         io_lib:format("~s/sink_stats.log",
 		      [?LOG_DIR]),
-    FinalTimestamp = erlang:monotonic_time(),
+    FinalTimestamp = ?GET_SYSTEM_TIME(),
     WaitingTimestamp = erlang:convert_time_unit(WaitTime, millisecond, native),
     FinalTimeWithoutWait = FinalTimestamp - WaitingTimestamp,
     Data = io_lib:format("Sink: ~p finished at time(without wait): ~p~n",

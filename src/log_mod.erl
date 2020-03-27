@@ -44,10 +44,7 @@ maybe_log_message(Msg, LoggerState) ->
 
 -spec log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
 log_message(Msg, {_Tags, File}) ->
-    %% WARNING: The timestamp is monotonic, so we should only 
-    %%          compare timestamps taken on the same machine
-    %% TODO: Maybe we should change this to os:timestamp
-    CurrentTimestamp = erlang:monotonic_time(),
+    CurrentTimestamp = ?GET_SYSTEM_TIME(),
     %% CurrentTimestamp = erlang:system_time(nanosecond),
     PidNode = {self(), node()},
     Data = io_lib:format("~w~n", [{Msg, PidNode, CurrentTimestamp}]),
@@ -109,7 +106,7 @@ num_logger_process_loop(IoDevice, Configuration) ->
     ReceivedLogs = receive_message_logs(PidMboxPairs, []),
 
     %% Log all the answers in the file (with a current timestamp)
-    CurrentTimestamp = erlang:monotonic_time(),
+    CurrentTimestamp = ?GET_SYSTEM_TIME(),
     append_logs_in_file(ReceivedLogs, CurrentTimestamp, IoDevice),
     num_logger_process_loop(IoDevice, Configuration).
 
