@@ -5,7 +5,7 @@
 #   docker build -t flumina .
 #
 
-from erlang:21.0
+from erlang:22
 
 ENV ERL_TOP /usr/local
 
