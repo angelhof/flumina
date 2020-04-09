@@ -1,0 +1,17 @@
+*** TODO Create a makefile rule that pulls and makes the Flumina base in a subdirectory
+*** TODO Find a way to remove the dialyzer warning for unknown Flumina functions.
+
+That could be solvable by installing Flumina as an Erlang application (e.g. mnesia, etc)
+
+
+*** TODO Clean up the experiment running scripts and remove everything that is not needed anymore
+
+*** TODO Make the abexample use a tags and not a1 a2 now that we have correct spec/impl
+
+This would actually make some experiments go wrong 
+(because we wouldn't be able to setup different a's arriving on the same node)
+In a sense, addind key to the tags allows us to create artificial implementation tags to
+experiment.
+
+
+*** TODO Implement an example with a key value store and write read incr for each key
