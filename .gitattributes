@@ -1,0 +1,6 @@
+experiments/archive/* linguist-generated
+experiments/data/* linguist-generated
+experiments/examples/* -linguist-documentation
+experiments/logs/* linguist-generated
+experiments/ns3/* linguist-generated
+experiments/output/* linguist-generated
