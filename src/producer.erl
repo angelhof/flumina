@@ -77,8 +77,9 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
     %% Sleep to return from this function as close as possible to the
     %% producer start time (if the producers all sync to this global
     %% time).
-    case ProducerType of
-        steady_sync_timestamp ->
+    case ProducerType =:= steady_sync_timestamp
+        orelse ProducerType =:= steady_retimestamp of
+        true ->
             SleepingTime = GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS - ?GET_SYSTEM_TIME(millisecond),
             timer:sleep(SleepingTime);
         _ ->
@@ -140,18 +141,20 @@ sync_producer(ProducerType, MsgGen, Rate, SendTo, LoggerFun) ->
             constant_rate_source(MsgGen, Rate, SendTo, LoggerFun);
         timestamp_based ->
             timestamp_rate_source(MsgGen, Rate, FirstGeneratorTimestamp, SendTo, LoggerFun);
-        steady_retimestamp ->
-            steady_retimestamp_rate_source(MsgGen, Rate, FirstGeneratorTimestamp, SendTo, LoggerFun);
+        steady_retimestamp_old ->
+            steady_retimestamp_rate_source_old(MsgGen, Rate, FirstGeneratorTimestamp, SendTo, LoggerFun);
         steady_timestamp ->
             steady_timestamp_rate_source(MsgGen, Rate, LocalStartTime, SendTo, LoggerFun);
+        %% This producer sends a stream of messages with a rate that depends
+        %% on the message timestamps (like the one below). This producer tries
+        %% to solve lagging issues by keeping track of a starting time
+        %%
+        %% In contrast to the simple timestamp producer, this one uses a given
+        %% timestamp as the starting point.
         steady_sync_timestamp ->
-            %% This producer sends a stream of messages with a rate that depends
-            %% on the message timestamps (like the one below). This producer tries
-            %% to solve lagging issues by keeping track of a starting time
-            %%
-            %% In contrast to the simple timestamp producer, this one uses a given
-            %% timestamp as the starting point.
-            steady_timestamp_rate_source(MsgGen, Rate, GlobalStartTime, SendTo, LoggerFun)
+            steady_timestamp_rate_source(MsgGen, Rate, GlobalStartTime, SendTo, LoggerFun);
+        steady_retimestamp ->
+            steady_retimestamp_rate_source(MsgGen, Rate, GlobalStartTime, SendTo, LoggerFun)
     end.
 
 
@@ -167,9 +170,16 @@ sync_producer(ProducerType, MsgGen, Rate, SendTo, LoggerFun) ->
 %% it shouldn't be expected to return the same results every time.
 %%
 %% TODO: Find a better name
--spec steady_retimestamp_rate_source(msg_generator(), Rate::integer(), PrevTs::integer(),
+-spec steady_retimestamp_rate_source(msg_generator(), Rate::integer(), StartMonoTime::integer(),
                                      mailbox(), message_logger_log_fun()) -> ok.
-steady_retimestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
+steady_retimestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun) ->
+    SendFun = fun timestamp_send_message_or_heartbeat/3,
+    steady_timestamp_rate_source_base(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun, SendFun).
+
+%% This is the old design
+-spec steady_retimestamp_rate_source_old(msg_generator(), Rate::integer(), PrevTs::integer(),
+                                         mailbox(), message_logger_log_fun()) -> ok.
+steady_retimestamp_rate_source_old(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
     %% First compute how much time the process has to wait
     %% to send the next message.
     case messages_to_send(MsgGen, Rate, PrevTs) of
@@ -180,8 +190,9 @@ steady_retimestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
 	{NewMsgGen, MsgsToSend, NewTs} ->
 	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),
 	    [timestamp_send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun) || Msg <- MsgsToSend],
-	    steady_retimestamp_rate_source(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
+	    steady_retimestamp_rate_source_old(NewMsgGen, Rate, NewTs, SendTo, MsgLoggerLogFun)
     end.
+
 
 %%
 %% This producer sends a stream of messages with a rate that depends
@@ -238,7 +249,7 @@ steady_timestamp_rate_source_base(MsgGen, Rate, StartMonoTime, SendTo, MsgLogger
                     log_mod:debug_log("Ts: ~s -- Warning! Producer ~p is lagging behind by ~p ms ~n",
                                       [util:local_timestamp(), self(), -SleepTime])
             end,
-	    steady_timestamp_rate_source(NewMsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun)
+	    steady_timestamp_rate_source_base(NewMsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun, SendFun)
     end.
 
 %% This function sends all messages until a specific timestamp
@@ -573,10 +584,10 @@ send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
 -spec timestamp_send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 					  message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
 timestamp_send_message_or_heartbeat({heartbeat, {ImplTag, _}}, SendTo, MessageLoggerInitFun) ->
-    Ts = erlang:system_time(),
+    Ts = ?GET_SYSTEM_TIME(),
     send_message_or_heartbeat({heartbeat, {ImplTag, Ts}}, SendTo, MessageLoggerInitFun);
 timestamp_send_message_or_heartbeat({{Tag, Value}, Node, _Ts}, SendTo, MessageLoggerInitFun) ->
-    Ts = erlang:system_time(),
+    Ts = ?GET_SYSTEM_TIME(),
     Msg = {{Tag, Value}, Node, Ts},
     send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun).
 
