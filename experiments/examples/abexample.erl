@@ -105,7 +105,7 @@ distr_big_conf(SinkPid) ->
 greedy_big() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, greedy_big_conf, [SinkName, steady_sync_timestamp]),
+    _ExecPid = spawn_link(?MODULE, greedy_big_conf, [SinkName, steady_retimestamp]),
     LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
