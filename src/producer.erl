@@ -196,6 +196,19 @@ steady_retimestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
                                         StartMonoTime::integer(),
                                         mailbox(), message_logger_log_fun()) -> ok.
 steady_timestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun) ->
+    SendFun = fun send_message_or_heartbeat/3,
+    steady_timestamp_rate_source_base(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun, SendFun).
+
+
+%%
+%% This is the base producer function. It is pretty accurate and can
+%% also retimestamp events given the correct send function.
+%%
+-spec steady_timestamp_rate_source_base(msg_generator(), Rate::integer(),
+                                        StartMonoTime::integer(),
+                                        mailbox(), message_logger_log_fun(),
+                                        producer_send_fun()) -> ok.
+steady_timestamp_rate_source_base(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun, SendFun) ->
     %% First get the current elapsed monotonic time from the start of
     %% the producer.
     BatchStartMonoTime = ?GET_SYSTEM_TIME(millisecond) - StartMonoTime,
@@ -204,7 +217,7 @@ steady_timestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFu
     %% safely release all messages that have a timestamp until then.
     SleepAtLeastUntil = (BatchStartMonoTime + ?SLEEP_GRANULARITY_MILLIS) * Rate,
     %% Then compute all the messages that have to be sent, and send them
-    case send_messages_until(MsgGen, SleepAtLeastUntil, SendTo, MsgLoggerLogFun) of
+    case send_messages_until(MsgGen, SleepAtLeastUntil, SendTo, MsgLoggerLogFun, SendFun) of
 	done ->
 	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n",
 			      [util:local_timestamp(), self()]),
@@ -229,9 +242,10 @@ steady_timestamp_rate_source(MsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFu
     end.
 
 %% This function sends all messages until a specific timestamp
--spec send_messages_until(msg_generator(), Until::integer(), mailbox(), message_logger_log_fun())
+-spec send_messages_until(msg_generator(), Until::integer(), mailbox(),
+                          message_logger_log_fun(), producer_send_fun())
                          -> 'done' | {msg_generator(), NewUntil::integer()}.
-send_messages_until(MsgGen, Until, SendTo, MsgLoggerLogFun) ->
+send_messages_until(MsgGen, Until, SendTo, MsgLoggerLogFun, SendFun) ->
     case MsgGen() of
 	done ->
             done;
@@ -247,8 +261,8 @@ send_messages_until(MsgGen, Until, SendTo, MsgLoggerLogFun) ->
 		end,
 	    case Ts =< Until of
 		true ->
-                    send_message_or_heartbeat(Msg, SendTo, MsgLoggerLogFun),
-                    send_messages_until(NewMsgGen, Until, SendTo, MsgLoggerLogFun);
+                    SendFun(Msg, SendTo, MsgLoggerLogFun),
+                    send_messages_until(NewMsgGen, Until, SendTo, MsgLoggerLogFun, SendFun);
 		false ->
 		    %% If the message is after our sleep time, then
 		    %% just keep its timestamp to wait until it.
@@ -544,7 +558,8 @@ append_gens(MsgGen1, MsgGen2) ->
     end.
 
 
-
+-type producer_send_fun() :: fun((gen_message_or_heartbeat(), mailbox(), message_logger_log_fun())
+                                 -> gen_imessage_or_iheartbeat()).
 
 -spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 			        message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
