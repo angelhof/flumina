@@ -36,13 +36,13 @@
 from erlang:22 as builder
 
 ENV ERL_TOP /usr/local
-ENV FLUMINA_TOP /flumina
 
-COPY . $FLUMINA_TOP
-WORKDIR $FLUMINA_TOP
+COPY . /flumina
+WORKDIR /flumina
 RUN make clean && make all
 
-WORKDIR $FLUMINA_TOP/experiments
+ENV FLUMINA_TOP /flumina
+WORKDIR /flumina/experiments
 RUN make clean && make all
 
 ### Stage 2: copy the binaries to the alpine version
@@ -53,8 +53,6 @@ from erlang:22-alpine
 #   - sudo -- needed for editing /etc/hosts
 RUN apk add --no-cache sudo
 
-ENV FLUMINA_TOP /flumina
-
 ARG uid
 ARG gid
 
@@ -64,26 +62,26 @@ ARG gid
 
 RUN set -x && \
   addgroup -g $gid flumina && \
-  adduser -D -H -G flumina -h $FLUMINA_TOP -u $uid flumina && \
+  adduser -D -H -G flumina -h /flumina -u $uid flumina && \
   addgroup flumina wheel && \
   sed -e 's/^# \(%wheel.*NOPASSWD.*\)/\1/g' -i /etc/sudoers && \
-  mkdir $FLUMINA_TOP && \
-  chown flumina:flumina $FLUMINA_TOP
+  mkdir /flumina && \
+  chown flumina:flumina /flumina
 
 COPY --from=builder \
      --chown=flumina:flumina \
-     $FLUMINA_TOP/ebin \
-     $FLUMINA_TOP/ebin
+     /flumina/ebin \
+     /flumina/ebin
 COPY --from=builder \
      --chown=flumina:flumina \
-     $FLUMINA_TOP/experiments/ebin \
-     $FLUMINA_TOP/ebin
+     /flumina/experiments/ebin \
+     /flumina/ebin
 COPY --chown=flumina:flumina \
      experiments/docker/flumina/wrapper.sh \
-     $FLUMINA_TOP/wrapper.sh
-RUN chmod +x $FLUMINA_TOP/wrapper.sh
+     /flumina/wrapper.sh
+RUN chmod +x /flumina/wrapper.sh
 
-WORKDIR $FLUMINA_TOP
+WORKDIR /flumina
 USER flumina:flumina
 
-ENTRYPOINT [ "$FLUMINA_TOP/wrapper.sh" ]
+ENTRYPOINT [ "/flumina/wrapper.sh" ]
