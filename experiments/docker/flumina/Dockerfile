@@ -53,6 +53,8 @@ from erlang:22-alpine
 #   - sudo -- needed for editing /etc/hosts
 RUN apk add --no-cache sudo
 
+ENV FLUMINA_TOP /flumina
+
 ARG uid
 ARG gid
 
