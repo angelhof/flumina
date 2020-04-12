@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Should be run from the root directory of the prototype
+# Should be run from the root directory of the repo
 
 FLINK_VERSION="1.9.2"
 SCALA_VERSION="2.11"
-FLUMINA_EXPERIMENT_JAR="flink-experiment/target/flink-experiment-1.0-SNAPSHOT.jar"
+FLUMINA_EXPERIMENT_JAR="experiments/flink-experiment/target/flink-experiment-1.0-SNAPSHOT.jar"
 
 # Download Flink if it is not already present
 
@@ -24,7 +24,7 @@ fi
 
 if [ ! -f "${FLUMINA_EXPERIMENT_JAR}" ]; then
   echo "Couldn't find ${FLUMINA_EXPERIMENT_JAR}"
-  echo "Did you forget to run 'mvn package' in flink-experiment?"
+  echo "Did you forget to run 'mvn package' in experiments/flink-experiment?"
   exit 2
 fi
 
@@ -33,6 +33,6 @@ docker build \
   --build-arg job_artifact="${FLUMINA_EXPERIMENT_JAR}" \
   --build-arg uid=$(id -u) \
   --build-arg gid=$(id -g) \
-  -f docker/flinknode/Dockerfile \
-  -t flinknode \
+  -f experiments/docker/flink/Dockerfile \
+  -t flumina-flink \
   .

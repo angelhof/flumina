@@ -84,7 +84,7 @@ done
 
 mkfifo ${workdir}/var/conf/${main}/notify
 
-# Run the docker containers. Assumes existence of an image called erlnode.
+# Run the docker containers. Assumes existence of an image called flumina.
 
 log "Starting the docker containers..."
 
@@ -101,6 +101,8 @@ fi
 
 # Run the non-main nodes
 
+# TODO: Change the way parameters are passed to the container
+
 for node in ${nodes[@]}
 do
   if [ "${node}" != "${main}" ]
@@ -116,7 +118,7 @@ do
       -v "${workdir}/var/conf/${node}":/conf \
       -v "${workdir}/var/log/${node}":/flumina/logs \
       -v "${workdir}/data":/flumina/data \
-      erlnode
+      flumina
 
     docker inspect --format '{{ .State.Pid }}' "${node}.local" > ${workdir}/var/run/${node}.pid
   fi
@@ -135,7 +137,7 @@ docker run \
   -v "${workdir}/var/conf/${main}":/conf \
   -v "${workdir}/var/log/${main}":/flumina/logs \
   -v "${workdir}/data":/flumina/data \
-  erlnode
+  flumina
 
 docker inspect --format '{{ .State.Pid }}' "${main}.local" > ${workdir}/var/run/${main}.pid
 

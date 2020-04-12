@@ -4,7 +4,17 @@
 # below that disables bridge traffic going through iptables etc. may
 # need to be changed for other distributions.
 
-# Change this to a desired directory
+# Change 'netutils' to a directory where you want to store the copies of the
+# tools: brctl, ip, and tunctl. We are copying these tools to a dedicated
+# location, as we will be changing their capabilities and adjusting their owner
+# and group.
+#
+# Note: Below we copy the system version of the ip tool. However, in newer
+# versions (mid-2018 and later), ip drops the CAP_NET_ADMIN capability -- we DO
+# NOT want that! So if your system version of ip is too recent, you may want to
+# download the source code of iproute2, edit the file 'ip/ip.c', and comment out
+# the line that calls 'drop_cap()'. Then compile the sources and use the
+# obtained 'ip' executable.
 
 netutils=/home/filip/net-utils
 
@@ -13,7 +23,7 @@ netutils=/home/filip/net-utils
 
 groupadd flumina
 
-# Add different users to the group
+# Add different users to the group; change as needed
 
 usermod -a -G flumina filip
 usermod -a -G flumina konstantinos
@@ -38,7 +48,7 @@ chmod 775 /var/run/netns
 
 # We make copies of the required network utilities. The copies are
 # equipped with the CAP_NET_ADMIN capability. We allow only the
-# sosp-experiment users to execute these utilities.
+# flumina users to execute these utilities.
 
 cp /bin/ip ${netutils}
 cp /sbin/brctl ${netutils}
@@ -73,4 +83,3 @@ service procps restart
 # before applying the rules from above.
 
 echo br_netfilter > /etc/modules-load.d/bridge.conf
-

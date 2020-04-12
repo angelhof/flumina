@@ -97,7 +97,7 @@ class ValueBarrierExperiment:
                 f'--hostname={node}',
                 f'--volume={self.out_path}:/opt/flink/out',
                 f'--volume={self.conf_path}:/conf',
-                'flinknode',
+                'flumina-flink',
                 command] \
                + (['--with-ns3'] if self._with_ns3() else []) \
                + extra_args

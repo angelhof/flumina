@@ -1,11 +1,25 @@
 #!/bin/sh
 
-# Read the configuration
+function usage {
+  echo "Usage: $(basename ${0}) ( [--with-ns3] <node> <args> | help )"
+}
 
-NODE=$(cat /conf/node)
-ARGS=$(cat /conf/args)
-NS3=$(cat /conf/ns3)
+if [ "${1}" == "help" ]
+then
+  usage
+  exit 0
+fi
 
+if [ "${1}" == "--with-ns3" ]
+then
+  NS3=1
+  shift
+else
+  NS3=0
+fi
+
+NODE="${1}"
+ARGS="${2}"
 LOG=/flumina/logs/wrapper-${NODE}.log
 PIPE=/conf/notify
 

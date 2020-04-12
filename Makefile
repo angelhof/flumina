@@ -45,5 +45,8 @@ exec:
 prepare_dialyzer:
 	dialyzer --build_plt --apps erts stdlib kernel
 
+docker:
+	./experiments/docker/build_flumina.sh
+
 clean:
 	rm -f $(EBIN_DIR)/*
