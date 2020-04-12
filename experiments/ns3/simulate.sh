@@ -52,37 +52,23 @@ done
 
 # Create configuration, logging, taps, and bridges
 
+rm -rf ${workdir}/var/conf
+mkdir -p ${workdir}/var/conf
+cp ${hosts} ${workdir}/var/conf/hosts
+
+# Create the notification pipe for the main node
+mkfifo ${workdir}/var/conf/notify
+
 for node in ${nodes[@]}
 do
-  if [ "${node}" = "${main}" ]
-  then
-    args="${erlArgs}"
-  else
-    args=""
-  fi
-
-  ## First delete any old data in the
-  ## log and conf directory
   rm -rf ${workdir}/var/log/${node}
-  rm -rf ${workdir}/var/conf/${node}
-
   mkdir -p ${workdir}/var/log/${node}
-  mkdir -p ${workdir}/var/conf/${node}
-
-  echo -n ${node} > ${workdir}/var/conf/${node}/node
-  echo -n ${args} > ${workdir}/var/conf/${node}/args
-  echo -n ${ns3} > ${workdir}/var/conf/${node}/ns3
-  cp ${hosts} ${workdir}/var/conf/${node}/hosts
 
   if [ "${ns3}" -eq "1" ]
   then
     ./ns3/singleSetup.sh ${node} ${USER}
   fi
 done
-
-# Create the notification pipe for the main node
-
-mkfifo ${workdir}/var/conf/${main}/notify
 
 # Run the docker containers. Assumes existence of an image called flumina.
 
@@ -95,30 +81,31 @@ mkdir -p ${workdir}/var/run
 if [ "${ns3}" -eq "1" ]
 then
   net="none"
+  ns3_arg="--with-ns3"
 else
   net="temp"
+  ns3_arg=""
 fi
 
 # Run the non-main nodes
-
-# TODO: Change the way parameters are passed to the container
 
 for node in ${nodes[@]}
 do
   if [ "${node}" != "${main}" ]
   then
-    # --user $(id -u):$(id -g) \
     docker run \
       -dit \
       --rm \
       --privileged \
-      --net=${net} \
+      --net="${net}" \
       --name "${node}.local" \
       --hostname "${node}.local" \
-      -v "${workdir}/var/conf/${node}":/conf \
+      -v "${workdir}/var/conf":/conf \
       -v "${workdir}/var/log/${node}":/flumina/logs \
       -v "${workdir}/data":/flumina/data \
-      flumina
+      flumina \
+      ${ns3_arg} \
+      "${node}"
 
     docker inspect --format '{{ .State.Pid }}' "${node}.local" > ${workdir}/var/run/${node}.pid
   fi
@@ -131,13 +118,16 @@ docker run \
   -dit \
   --rm \
   --privileged \
-  --net=${net} \
+  --net="${net}" \
   --name "${main}.local" \
   --hostname "${main}.local" \
-  -v "${workdir}/var/conf/${main}":/conf \
+  -v "${workdir}/var/conf":/conf \
   -v "${workdir}/var/log/${main}":/flumina/logs \
   -v "${workdir}/data":/flumina/data \
-  flumina
+  flumina \
+  ${ns3_arg} \
+  "${main}" \
+  "${erlArgs}"
 
 docker inspect --format '{{ .State.Pid }}' "${main}.local" > ${workdir}/var/run/${main}.pid
 
@@ -180,7 +170,7 @@ then
 
   notification=""
   while [ "${notification}" != "${main}" ]; do
-    notification=$(cat ${workdir}/var/conf/${main}/notify)
+    notification=$(cat ${workdir}/var/conf/notify)
     log "Received notification: ${notification}"
   done
 
