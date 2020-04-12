@@ -6,9 +6,8 @@
 *.log
 *.pyc
 
-docker/read-only/*
-var/*
-archive/*
+var
+archive
 *-archive
 
 .idea
@@ -18,6 +17,3 @@ target
 *.iml
 
 TAGS
-
-
-
