@@ -13,6 +13,7 @@ EBIN_DIRS  = ebin $(FLUMINA_EBIN)
 # Was used by Dialyzer
 # I_DIR1 = include
 # I_DIRS = -I $(I_DIR1)
+I_DIRS =
 ERL_FILES  = $(wildcard *.erl)
 BEAM_FILES = $(subst .erl,.beam,$(ERL_FILES))
 NNAME ?= main
@@ -30,11 +31,11 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 dialyzer: all
 	@echo ""
 	@echo " --- --- --- --- DIALYZER --- --- --- --- "
-	dialyzer --src -r examples $(FLUMINA_SRC) -pa $(FLUMINA_EBIN)
+	dialyzer --src -r examples $(FLUMINA_SRC) $(I_DIRS) -pa $(FLUMINA_EBIN)
 
 all: $(BEAM_FILES)
 	@(cd examples && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
-		I_DIR1="$(I_DIR1)" LIBRARIES="$(FLUMINA_EBIN)" $@)
+		I_DIRS="$(I_DIRS)" LIBRARIES="$(FLUMINA_EBIN)" $@)
 
 erlnode:
 	docker/build_erlnode.sh

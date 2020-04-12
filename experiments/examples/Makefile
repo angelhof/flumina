@@ -6,7 +6,7 @@ BEAM_FILES = $(patsubst %.erl,$(EBIN_DIR)/%.beam,$(ERL_FILES))
 all: $(BEAM_FILES)
 
 $(EBIN_DIR)/%.beam: %.erl
-	$(ERLC) $(ERL_COMPILE_FLAGS) -pa $(LIBRARIES) -I $(I_DIR1) -o $(EBIN_DIR) $<
+	$(ERLC) $(ERL_COMPILE_FLAGS) -pa $(LIBRARIES) $(I_DIRS) -o $(EBIN_DIR) $<
 
 $(BEAM_FILES): | $(EBIN_DIR)
 
