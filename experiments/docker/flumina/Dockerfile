@@ -60,12 +60,12 @@ ARG gid
 # We add the user to the wheel group and allow wheel to execute sudo without
 # entering password.
 
-RUN set -x && \
-  addgroup -g $gid flumina && \
-  adduser -D -H -G flumina -h /flumina -u $uid flumina && \
-  addgroup flumina wheel && \
-  sed -e 's/^# \(%wheel.*NOPASSWD.*\)/\1/g' -i /etc/sudoers && \
-  mkdir /flumina && \
+RUN set -eux; \
+  addgroup -g $gid flumina; \
+  adduser -D -H -G flumina -h /flumina -u $uid flumina; \
+  addgroup flumina wheel; \
+  sed -e 's/^# \(%wheel.*NOPASSWD.*\)/\1/g' -i /etc/sudoers; \
+  mkdir /flumina; \
   chown flumina:flumina /flumina
 
 COPY --from=builder \

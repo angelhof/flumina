@@ -33,16 +33,14 @@
 #
 #       -t flumina-flink
 
-FROM openjdk:8-jre-alpine
+FROM openjdk:11-jre
 
 # Prerequisites:
-#   - bash -- needed because Flink's scripts are bash scripts
-#   - libc6-compat -- no idea; saw it in
-#       https://github.com/apache/flink/blob/master/flink-container/docker/Dockerfile
 #   - sudo -- needed for editing /etc/hosts
-#   - curl -- needed for accessing the Flink's REST API
 #   - jq   -- needed for parsing json on command line
-RUN apk add --no-cache bash libc6-compat sudo curl jq
+RUN set -eux; \
+  apt-get update; \
+  apt-get install -y sudo jq
 
 ARG flink_dist
 ARG job_artifact
@@ -55,23 +53,29 @@ ENV FLINK_HOME /opt/flink
 # We add the user to the wheel group and allow wheel to execute sudo without
 # entering password.
 
-RUN set -x && \
-  addgroup -g $gid flink && \
-  adduser -D -H -G flink -h $FLINK_HOME -u $uid flink && \
-  addgroup flink wheel && \
-  sed -e 's/^# \(%wheel.*NOPASSWD.*\)/\1/g' -i /etc/sudoers
+RUN set -eux; \
+  addgroup --gid $gid flink; \
+  adduser --disabled-password \
+          --no-create-home \
+          --home $FLINK_HOME \
+          --uid $uid \
+          --ingroup flink \
+          --gecos "" \
+          flink; \
+  echo "flink ALL=(ALL) NOPASSWD: /bin/bash" >> /etc/sudoers
 
 ADD --chown=flink:flink $flink_dist /opt
-COPY --chown=flink:flink $job_artifact /job.jar
 COPY --chown=flink:flink experiments/docker/flink/docker-entrypoint.sh /
 COPY --chown=flink:flink experiments/docker/flink/wait.sh /
 
-RUN set -x && \
-  ln -s /opt/flink-[0-9]* $FLINK_HOME && \
-  chown -R flink:flink /opt/flink-* && \
-  chown -h flink:flink $FLINK_HOME && \
-  chmod +x /docker-entrypoint.sh && \
+RUN set -eux; \
+  ln -s /opt/flink-[0-9]* $FLINK_HOME; \
+  chown -R flink:flink /opt/flink-*; \
+  chown -h flink:flink $FLINK_HOME; \
+  chmod +x /docker-entrypoint.sh; \
   chmod +x /wait.sh
+
+COPY --chown=flink:flink $job_artifact /job.jar
 
 USER flink:flink
 EXPOSE 8081 6123

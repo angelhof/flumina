@@ -1,0 +1,6 @@
+experiments/*
+!experiments/docker/flumina
+!experiments/docker/flink
+!experiments/examples
+!experiments/Makefile
+!experiments/flink-experiment/target/*.jar

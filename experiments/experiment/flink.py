@@ -61,6 +61,10 @@ class ValueBarrierExperiment:
         os.makedirs(self.out_path, exist_ok=True)
         os.makedirs(self.conf_path, exist_ok=True)
 
+        self.log_path = path.abspath(path.join(os.getcwd(), 'var', 'log'))
+        for node in self.nodes:
+            os.makedirs(path.join(self.log_path, node), exist_ok=True)
+
         self.notify = path.join(self.conf_path, 'notify')
         if not path.exists(self.notify):
             os.mkfifo(self.notify)
@@ -97,6 +101,7 @@ class ValueBarrierExperiment:
                 f'--hostname={node}',
                 f'--volume={self.out_path}:/opt/flink/out',
                 f'--volume={self.conf_path}:/conf',
+                f'--volume={path.join(self.log_path, node)}:/log',
                 'flumina-flink',
                 command] \
                + (['--with-ns3'] if self._with_ns3() else []) \
@@ -136,6 +141,8 @@ class ValueBarrierExperiment:
         if path.isdir(exp_path):
             shutil.rmtree(exp_path)
         shutil.move(self.out_path, exp_path)
+        for node in self.nodes:
+            shutil.move(path.join(self.log_path, node), exp_path)
         if self._with_ns3():
             ns3_home = ns3.get_ns3_home()
             files = [
