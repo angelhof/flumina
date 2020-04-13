@@ -8,6 +8,7 @@
 
 var
 archive
+results
 *-archive
 
 .idea
