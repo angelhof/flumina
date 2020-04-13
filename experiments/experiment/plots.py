@@ -129,7 +129,7 @@ def plot_latency_throughput(fst_label, fst_latencies_throughputs,
     ax.errorbar(snd_throughputs,
                 snd_latencies_mean, [snd_latencies_diff_10, snd_latencies_diff_90],
                 linestyle='--', marker='^', label=snd_label,
-                linewidth=1, capthick=1, capsize=3, color='tab:green')
+                linewidth=1, capthick=1, capsize=3, color='tab:red')
     ax.legend()
 
     plt.tight_layout()
@@ -192,3 +192,13 @@ def plot_flink_5(result_dir):
                                        path.join(result_dir, f'n5_r{r}_q1000_h10')
                                        for r in range(20, 51, 2)
                                    ))
+
+def plot_flumina_flumina(dir_before, dir_after):
+    plot_latency_throughput('Flmn before',
+                            get_flumina_latencies_throughputs(
+                                path.join(dir_before, f'ab_exp1_{r}_1000_10_5_optimizer_greedy')
+                                for r in range(20, 67, 2)),
+                            'Flmn after',
+                            get_flumina_latencies_throughputs(
+                                path.join(dir_after, f'ab_exp1_{r}_1000_10_5_optimizer_greedy')
+                                for r in range(20, 67, 2)))
