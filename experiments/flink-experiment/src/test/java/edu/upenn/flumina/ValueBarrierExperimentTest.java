@@ -133,7 +133,7 @@ public class ValueBarrierExperimentTest {
                 env.addSource(new BarrierSource(totalValues, valueRate, vbRatio, hbRatio, startTime)).setParallelism(1);
 
         final MapStateDescriptor<Void, Void> stateDescriptor =
-                new MapStateDescriptor("BroadcastState", Void.class, Void.class);
+                new MapStateDescriptor<>("BroadcastState", Void.class, Void.class);
         BroadcastStream<BarrierOrHeartbeat> broadcastStream = barrierStream.broadcast(stateDescriptor);
 
         valueStream.connect(broadcastStream)

@@ -2,8 +2,8 @@
 
 # Should be run from the root directory of the repo
 
-FLINK_VERSION="1.9.2"
-SCALA_VERSION="2.11"
+FLINK_VERSION="1.10.0"
+SCALA_VERSION="2.12"
 FLUMINA_EXPERIMENT_JAR="experiments/flink-experiment/target/flink-experiment-1.0-SNAPSHOT.jar"
 
 # Download Flink if it is not already present
