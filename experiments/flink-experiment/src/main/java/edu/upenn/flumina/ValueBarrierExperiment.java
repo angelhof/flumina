@@ -44,8 +44,8 @@ public class ValueBarrierExperiment {
 
         // Prepare the input streams
 
-        // We sync all the input sources with the same start time, which is current time plus 700 ms
-        long startTime = System.nanoTime() + 700_000_000;
+        // We sync all the input sources with the same start time, which is current time plus 1300 ms
+        long startTime = System.nanoTime() + 1_300_000_000;
 
         ValueSource valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
         DataStream<ValueOrHeartbeat> valueStream = env.addSource(valueSource)
@@ -155,11 +155,13 @@ public class ValueBarrierExperiment {
 
         try (FileWriter statisticsFile = new FileWriter(conf.getStatisticsFile())) {
             long totalEvents = conf.getValueNodes() * conf.getTotalValues() + conf.getTotalValues() / conf.getValueBarrierRatio();
-            long totalTimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
+            long totalTimeMillis = (System.nanoTime() - startTime) / 1_000_000;
+            long netRuntimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
             long meanThroughput = Math.floorDiv(totalEvents, totalTimeMillis);
             long optimalThroughput = (long)(conf.getValueRate() * conf.getValueNodes()
                     + conf.getValueRate() / conf.getValueBarrierRatio());
             statisticsFile.write(String.format("Total time (ms): %d%n", totalTimeMillis));
+            statisticsFile.write(String.format("Net runtime (ms): %d%n", netRuntimeMillis));
             statisticsFile.write(String.format("Events processed: %d%n", totalEvents));
             statisticsFile.write(String.format("Mean throughput (events/ms): %d%n", meanThroughput));
             statisticsFile.write(String.format("Optimal throughput (events/ms): %d%n", optimalThroughput));
