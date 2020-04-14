@@ -25,7 +25,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.TimeUnit;
@@ -45,8 +44,8 @@ public class ValueBarrierExperiment {
 
         // Prepare the input streams
 
-        // We sync all the input sources with the same start time, which is current time plus 1 s
-        long startTime = System.nanoTime() + 1_000_000_000;
+        // We sync all the input sources with the same start time, which is current time plus 700 ms
+        long startTime = System.nanoTime() + 700_000_000;
 
         ValueSource valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
         DataStream<ValueOrHeartbeat> valueStream = env.addSource(valueSource)
@@ -66,9 +65,9 @@ public class ValueBarrierExperiment {
         BroadcastStream<BarrierOrHeartbeat> broadcastStream = barrierStream.broadcast(broadcastStateDescriptor);
 
         DataStream<String> output = valueStream.connect(broadcastStream)
-                .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple3<Long, Long, Instant>>() {
-                    private long valueTimestamp = Long.MIN_VALUE;
-                    private long barrierTimestamp = Long.MIN_VALUE;
+                .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple3<Long, Long, Long>>() {
+                    private long valuePhysicalTimestamp = Long.MIN_VALUE;
+                    private long barrierPhysicalTimestamp = Long.MIN_VALUE;
                     private long sum = 0;
 
                     private final Deque<Value> unprocessedValues = new ArrayDeque<>();
@@ -77,7 +76,7 @@ public class ValueBarrierExperiment {
                     @Override
                     public void processElement(ValueOrHeartbeat valueOrHeartbeat,
                                                ReadOnlyContext ctx,
-                                               Collector<Tuple3<Long, Long, Instant>> collector) {
+                                               Collector<Tuple3<Long, Long, Long>> collector) {
                         valueOrHeartbeat.<Void>match(
                                 value -> {
                                     unprocessedValues.addLast(value);
@@ -85,14 +84,14 @@ public class ValueBarrierExperiment {
                                 },
                                 heartbeat -> null
                         );
-                        valueTimestamp = Math.max(valueTimestamp, valueOrHeartbeat.getTimestamp());
+                        valuePhysicalTimestamp = Math.max(valuePhysicalTimestamp, valueOrHeartbeat.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
 
                     @Override
                     public void processBroadcastElement(BarrierOrHeartbeat barrierOrHeartbeat,
                                                         Context ctx,
-                                                        Collector<Tuple3<Long, Long, Instant>> collector) {
+                                                        Collector<Tuple3<Long, Long, Long>> collector) {
                         barrierOrHeartbeat.<Void>match(
                                 barrier -> {
                                     unprocessedBarriers.addLast(barrier);
@@ -100,41 +99,42 @@ public class ValueBarrierExperiment {
                                 },
                                 heartbeat -> null
                         );
-                        barrierTimestamp = Math.max(barrierTimestamp, barrierOrHeartbeat.getTimestamp());
+                        barrierPhysicalTimestamp = Math.max(barrierPhysicalTimestamp, barrierOrHeartbeat.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
 
-                    private void makeProgress(Collector<Tuple3<Long, Long, Instant>> collector) {
-                        long currentTime = Math.min(valueTimestamp, barrierTimestamp);
+                    private void makeProgress(Collector<Tuple3<Long, Long, Long>> collector) {
+                        long currentTime = Math.min(valuePhysicalTimestamp, barrierPhysicalTimestamp);
                         while (!unprocessedValues.isEmpty() &&
-                                unprocessedValues.getFirst().getTimestamp() <= currentTime) {
+                                unprocessedValues.getFirst().getPhysicalTimestamp() <= currentTime) {
                             Value value = unprocessedValues.removeFirst();
                             while (!unprocessedBarriers.isEmpty() &&
-                                    unprocessedBarriers.getFirst().getTimestamp() < value.getTimestamp()) {
+                                    unprocessedBarriers.getFirst().getPhysicalTimestamp() < value.getPhysicalTimestamp()) {
                                 Barrier barrier = unprocessedBarriers.removeFirst();
-                                collector.collect(Tuple3.of(sum, barrier.getTimestamp(), barrier.getLatencyMarker()));
+                                collector.collect(Tuple3.of(sum, barrier.getLogicalTimestamp(), barrier.getPhysicalTimestamp()));
                                 sum = 0;
                             }
                             sum += value.getVal();
                         }
                         while (!unprocessedBarriers.isEmpty() &&
-                                unprocessedBarriers.getFirst().getTimestamp() <= currentTime) {
+                                unprocessedBarriers.getFirst().getPhysicalTimestamp() <= currentTime) {
                             Barrier barrier = unprocessedBarriers.removeFirst();
-                            collector.collect(Tuple3.of(sum, barrier.getTimestamp(), barrier.getLatencyMarker()));
+                            collector.collect(Tuple3.of(sum, barrier.getLogicalTimestamp(), barrier.getPhysicalTimestamp()));
                             sum = 0;
                         }
                     }
                 })
                 .setParallelism(conf.getValueNodes())
                 .slotSharingGroup("values")
-                .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple3<Long, Long, Instant>>() {
+                .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple3<Long, Long, Long>>() {
                     @Override
-                    public Watermark checkAndGetNextWatermark(Tuple3<Long, Long, Instant> tuple, long l) {
+                    public Watermark checkAndGetNextWatermark(Tuple3<Long, Long, Long> tuple, long l) {
                         return new Watermark(l);
                     }
 
                     @Override
-                    public long extractTimestamp(Tuple3<Long, Long, Instant> tuple, long l) {
+                    public long extractTimestamp(Tuple3<Long, Long, Long> tuple, long l) {
+                        // The field tuple.f1 corresponds to the logical timestamp
                         return tuple.f1;
                     }
                 })

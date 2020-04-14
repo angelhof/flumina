@@ -10,8 +10,8 @@ public class Value extends TimestampedCore implements ValueOrHeartbeat {
 
     private final long val;
 
-    public Value(long val, long timestamp) {
-        super(timestamp);
+    public Value(long val, long logicalTimestamp) {
+        super(logicalTimestamp);
         this.val = val;
     }
 
@@ -26,6 +26,6 @@ public class Value extends TimestampedCore implements ValueOrHeartbeat {
 
     @Override
     public String toString() {
-        return "Value(" + getVal() + ") @ " + getTimestamp();
+        return "Value(" + getVal() + ") @ " + getLogicalTimestamp();
     }
 }

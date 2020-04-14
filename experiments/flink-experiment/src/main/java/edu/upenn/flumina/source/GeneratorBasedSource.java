@@ -63,8 +63,10 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
 
             // We're getting ready to sleep at least until sleepAtLeastUntil, so we first collect all objects
             // that should be collected prior to waking up.
-            while (obj.getTimestamp() <= sleepAtLeastUntil) {
-//                ctx.collectWithTimestamp(obj, obj.getTimestamp());
+            while (obj.getLogicalTimestamp() <= sleepAtLeastUntil) {
+                if (!obj.hasPhysicalTimestamp()) {
+                    obj.setPhysicalTimestamp(System.nanoTime());
+                }
                 ctx.collect(obj);
                 if (iterator.hasNext()) {
                     obj = iterator.next();
@@ -73,8 +75,6 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
                     break;
                 }
             }
-//            ctx.emitWatermark(new Watermark(sleepAtLeastUntil));
-//            ctx.markAsTemporarilyIdle();
 
             // We only sleep if there is still an object to be collected, and we sleep until it is
             // time to collect that object.
@@ -88,7 +88,7 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
                     // We max with 0 instead of SLEEP_GRANULARITY_MILLIS: if we are already past obj.getTimestamp(),
                     // then we have high congestion, and instead of actually sleeping for a couple of milliseconds,
                     // we yield the thread for a bit (Thread.sleep(0)) and get back ASAP to schedule more objects.
-                    final long sleepTime = Math.max(0L, (long) ((obj.getTimestamp() / rate - currentTime)));
+                    final long sleepTime = Math.max(0L, (long) ((obj.getLogicalTimestamp() / rate - currentTime)));
                     LOG.trace("[{}] Sleeping for {} ms", getRuntimeContext().getIndexOfThisSubtask(), sleepTime);
                     Thread.sleep(sleepTime);
                 } catch (InterruptedException e) {

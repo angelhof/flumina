@@ -53,8 +53,8 @@ public class ValueBarrierExperimentTest {
         env.fromElements(1, 2, 3, 4, 5, 6)
                 .windowAll(GlobalWindows.create())
                 .trigger(CountTrigger.of(1))
-                .reduce((x, y) -> x + y)
-                .addSink(new SinkFunction<Integer>() {
+                .reduce(Integer::sum)
+                .addSink(new SinkFunction<>() {
                     @Override
                     public void invoke(Integer value, Context context) {
                         LOG.info("Cumulative sum: {}", value);
@@ -70,7 +70,6 @@ public class ValueBarrierExperimentTest {
         env.setParallelism(4);
         env.addSource(new ValueSource(10_000, 10.0, System.nanoTime()))
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<ValueOrHeartbeat>() {
-                    @Nullable
                     @Override
                     public Watermark checkAndGetNextWatermark(ValueOrHeartbeat valueOrHeartbeat, long l) {
                         return new Watermark(l);
@@ -78,7 +77,7 @@ public class ValueBarrierExperimentTest {
 
                     @Override
                     public long extractTimestamp(ValueOrHeartbeat valueOrHeartbeat, long l) {
-                        return valueOrHeartbeat.getTimestamp();
+                        return valueOrHeartbeat.getLogicalTimestamp();
                     }
                 })
                 .timeWindowAll(Time.milliseconds(10_001))
@@ -103,7 +102,7 @@ public class ValueBarrierExperimentTest {
                         return acc1 + acc2;
                     }
                 })
-                .addSink(new SinkFunction<Integer>() {
+                .addSink(new SinkFunction<>() {
                     @Override
                     public void invoke(Integer total, Context context) {
                         LOG.info("Total values: {}", total);
@@ -154,7 +153,7 @@ public class ValueBarrierExperimentTest {
                                 },
                                 heartbeat -> null
                         );
-                        valueTimestamp = Math.max(valueTimestamp, item.getTimestamp());
+                        valueTimestamp = Math.max(valueTimestamp, item.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
 
@@ -167,30 +166,29 @@ public class ValueBarrierExperimentTest {
                                 },
                                 heartbeat -> null
                         );
-                        barrierTimestamp = Math.max(barrierTimestamp, item.getTimestamp());
+                        barrierTimestamp = Math.max(barrierTimestamp, item.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
 
                     private void makeProgress(Collector<Tuple2<Long, Long>> collector) {
                         long currentTime = Math.min(valueTimestamp, barrierTimestamp);
                         while (!unprocessedValues.isEmpty() &&
-                                unprocessedValues.getFirst().getTimestamp() <= currentTime) {
+                                unprocessedValues.getFirst().getPhysicalTimestamp() <= currentTime) {
                             Value value = unprocessedValues.removeFirst();
                             while (!unprocessedBarriers.isEmpty() &&
-                                    unprocessedBarriers.getFirst().getTimestamp() < value.getTimestamp()) {
+                                    unprocessedBarriers.getFirst().getPhysicalTimestamp() < value.getPhysicalTimestamp()) {
                                 Barrier barrier = unprocessedBarriers.removeFirst();
-                                LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getTimestamp());
-                                collector.collect(Tuple2.of(sum, barrier.getTimestamp()));
+                                LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getLogicalTimestamp());
+                                collector.collect(Tuple2.of(sum, barrier.getLogicalTimestamp()));
                                 sum = 0;
                             }
-                            LOG.debug("[{}] new sum = {} + {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, value.getVal(), value.getTimestamp());
                             sum += value.getVal();
                         }
                         while (!unprocessedBarriers.isEmpty() &&
-                                unprocessedBarriers.getFirst().getTimestamp() <= currentTime) {
+                                unprocessedBarriers.getFirst().getPhysicalTimestamp() <= currentTime) {
                             Barrier barrier = unprocessedBarriers.removeFirst();
-                            LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getTimestamp());
-                            collector.collect(Tuple2.of(sum, barrier.getTimestamp()));
+                            LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getLogicalTimestamp());
+                            collector.collect(Tuple2.of(sum, barrier.getLogicalTimestamp()));
                             sum = 0;
                         }
                     }
@@ -201,7 +199,6 @@ public class ValueBarrierExperimentTest {
                     }
                 }).setParallelism(valueNodes)
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple2<Long, Long>>() {
-                    @Nullable
                     @Override
                     public Watermark checkAndGetNextWatermark(Tuple2<Long, Long> tuple, long l) {
                         return new Watermark(l);
@@ -214,7 +211,7 @@ public class ValueBarrierExperimentTest {
                 })
                 .timeWindowAll(Time.milliseconds(vbRatio))
                 .reduce((x, y) -> Tuple2.of(x.f0 + y.f0, x.f1))
-                .addSink(new SinkFunction<Tuple2<Long, Long>>() {
+                .addSink(new SinkFunction<>() {
                     @Override
                     public void invoke(Tuple2<Long, Long> out, Context ctx) {
                         LOG.info("out: {} @ {}", out.f0, out.f1);

@@ -4,16 +4,12 @@ import edu.upenn.flumina.data.cases.BarrierCase;
 import edu.upenn.flumina.data.cases.BarrierOrHeartbeat;
 import edu.upenn.flumina.data.cases.HeartbeatBOHCase;
 
-import java.time.Instant;
-
 public class Barrier extends TimestampedCore implements BarrierOrHeartbeat {
 
     private static final long serialVersionUID = -168675275747391818L;
 
-    private final Instant latencyMarker = Instant.now();
-
-    public Barrier(long timestamp) {
-        super(timestamp);
+    public Barrier(long logicalTimestamp) {
+        super(logicalTimestamp);
     }
 
     @Override
@@ -21,12 +17,8 @@ public class Barrier extends TimestampedCore implements BarrierOrHeartbeat {
         return barrierCase.apply(this);
     }
 
-    public Instant getLatencyMarker() {
-        return latencyMarker;
-    }
-
     @Override
     public String toString() {
-        return "Barrier @ " + getTimestamp();
+        return "Barrier @ " + getLogicalTimestamp();
     }
 }

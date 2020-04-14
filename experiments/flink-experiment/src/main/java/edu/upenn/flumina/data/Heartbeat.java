@@ -6,8 +6,12 @@ public class Heartbeat extends TimestampedCore implements BarrierOrHeartbeat, Va
 
     private static final long serialVersionUID = -5830590449039737456L;
 
-    public Heartbeat(long timestamp) {
-        super(timestamp);
+    public Heartbeat(long logicalTimestamp) {
+        super(logicalTimestamp);
+    }
+
+    public Heartbeat(long logicalTimestamp, long physicalTimestamp) {
+        super(logicalTimestamp, physicalTimestamp);
     }
 
     @Override
@@ -22,6 +26,6 @@ public class Heartbeat extends TimestampedCore implements BarrierOrHeartbeat, Va
 
     @Override
     public String toString() {
-        return "Heartbeat @ " + getTimestamp();
+        return "Heartbeat @ " + getLogicalTimestamp();
     }
 }

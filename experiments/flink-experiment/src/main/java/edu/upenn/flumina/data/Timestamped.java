@@ -4,6 +4,12 @@ import java.io.Serializable;
 
 public interface Timestamped extends Serializable {
 
-    long getTimestamp();
+    long getLogicalTimestamp();
+
+    long getPhysicalTimestamp();
+
+    void setPhysicalTimestamp(long physicalTimestamp);
+
+    boolean hasPhysicalTimestamp();
 
 }

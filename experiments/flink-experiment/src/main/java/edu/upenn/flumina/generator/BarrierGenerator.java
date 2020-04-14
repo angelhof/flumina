@@ -56,7 +56,7 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
                     }
                 });
         final Stream<BarrierOrHeartbeat> withFinalHeartbeat =
-                Stream.concat(barriers, Stream.of(new Heartbeat(totalValues)));
+                Stream.concat(barriers, Stream.of(new Heartbeat(totalValues, Long.MAX_VALUE)));
         return withFinalHeartbeat.iterator();
     }
 }
