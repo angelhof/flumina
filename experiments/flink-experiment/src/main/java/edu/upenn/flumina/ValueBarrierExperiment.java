@@ -155,13 +155,11 @@ public class ValueBarrierExperiment {
 
         try (FileWriter statisticsFile = new FileWriter(conf.getStatisticsFile())) {
             long totalEvents = conf.getValueNodes() * conf.getTotalValues() + conf.getTotalValues() / conf.getValueBarrierRatio();
-            long totalTimeMillis = (System.nanoTime() - startTime) / 1_000_000;
-            long netRuntimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
+            long totalTimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
             long meanThroughput = Math.floorDiv(totalEvents, totalTimeMillis);
             long optimalThroughput = (long)(conf.getValueRate() * conf.getValueNodes()
                     + conf.getValueRate() / conf.getValueBarrierRatio());
             statisticsFile.write(String.format("Total time (ms): %d%n", totalTimeMillis));
-            statisticsFile.write(String.format("Net runtime (ms): %d%n", netRuntimeMillis));
             statisticsFile.write(String.format("Events processed: %d%n", totalEvents));
             statisticsFile.write(String.format("Mean throughput (events/ms): %d%n", meanThroughput));
             statisticsFile.write(String.format("Optimal throughput (events/ms): %d%n", optimalThroughput));
