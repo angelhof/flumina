@@ -20,12 +20,12 @@ def get_flink_latencies(result_path):
 
 def get_flink_throughput(result_path):
     stats_file = path.join(result_path, 'stats.txt')
-    time_pattern = re.compile(r'Total time \(ms\): (\d+)')
-    events_pattern = re.compile(r'Events processed: (\d+)')
+    throughput_pattern = re.compile(r'Mean throughput \(events/ms\): ([0-9.]+)')
     with open(stats_file, 'r') as f:
-        time = float(re.match(time_pattern, f.readline()).group(1))
-        events = float(re.match(events_pattern, f.readline()).group(1))
-    return events / time
+        for line in f:
+            match = re.match(throughput_pattern, line)
+            if match:
+                return float(match.group(1))
 
 
 # Old code for processing Erlang latencies from lib.py
