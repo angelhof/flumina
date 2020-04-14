@@ -27,7 +27,7 @@ suites = {
     'exp1-with-5-nodes': ExperimentSuite(
         'exp1-with-5-nodes',
         [ValueBarrierExperiment(5, 1_000_000, rate, 1_000, 10, ns3_conf=NS3Conf())
-         for rate in range(20, 51, 2)]
+         for rate in range(20, 101, 2)]
     ),
     'exp1-10Gbps': ExperimentSuite(
         'exp1-10Gbps',
