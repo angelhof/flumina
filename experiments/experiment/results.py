@@ -24,8 +24,6 @@ def get_flink_throughput(result_path):
     events_pattern = re.compile(r'Events processed: (\d+)')
     with open(stats_file, 'r') as f:
         time = float(re.match(time_pattern, f.readline()).group(1))
-        # Skip the line containing net runtime
-        f.readline()
         events = float(re.match(events_pattern, f.readline()).group(1))
     return events / time
 

@@ -56,7 +56,11 @@ suites = {
     ),
     'test': ExperimentSuite(
         'test',
-        [ValueBarrierExperiment(3, 1_000_000, 100.0, 1_000, 1, ns3_conf=NS3Conf())]
+        [ValueBarrierExperiment(3, 1_000_000, 100.0, 1_000, 10, ns3_conf=NS3Conf())]
+    ),
+    'test-big': ExperimentSuite(
+        'test-big',
+        [ValueBarrierExperiment(10, 1_000_000, 50.0, 1_000, 10, ns3_conf=NS3Conf())]
     )
 }
 
