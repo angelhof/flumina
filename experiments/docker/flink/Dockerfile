@@ -75,6 +75,17 @@ RUN set -eux; \
   chmod +x /docker-entrypoint.sh; \
   chmod +x /wait.sh
 
+# We tweak the logging settings. This works for now, but eventually we may
+# switch to a more flexible solution.
+
+RUN set -eux; \
+  sed -i "s/INFO/OFF/g" $FLINK_HOME/conf/log4j-console.properties; \
+  sed -i \
+    "s/ConversionPattern=.*/ConversionPattern=%d{HH:mm:ss,SSS} %-5p %c{1} - %m%n/" \
+    $FLINK_HOME/conf/log4j-console.properties; \
+  echo "log4j.logger.edu.upenn.flumina=DEBUG" \
+    >> $FLINK_HOME/conf/log4j-console.properties
+
 COPY --chown=flink:flink $job_artifact /job.jar
 
 USER flink:flink
