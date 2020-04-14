@@ -42,10 +42,15 @@ public class ValueBarrierExperiment {
         env.setParallelism(conf.getValueNodes() + 1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
+        // By default, the buffer timeout is 100ms, resulting in median latencies around 100ms.
+        // Since Flumina doesn't have the corresponding mechanism for tuning the latency vs. throughput tradeoff,
+        // we set this to 0 -- events are immediately flushed from the buffer.
+        env.setBufferTimeout(0);
+
         // Prepare the input streams
 
         // We sync all the input sources with the same start time, which is current time plus 2000 ms
-        long startTime = System.nanoTime() + 2_000_000_000;
+        long startTime = System.nanoTime() + 2_000_000_000L;
 
         ValueSource valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
         DataStream<ValueOrHeartbeat> valueStream = env.addSource(valueSource)
@@ -157,7 +162,7 @@ public class ValueBarrierExperiment {
             long totalEvents = conf.getValueNodes() * conf.getTotalValues() + conf.getTotalValues() / conf.getValueBarrierRatio();
             long totalTimeMillis = (System.nanoTime() - startTime) / 1_000_000;
             long netRuntimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
-            long meanThroughput = Math.floorDiv(totalEvents, totalTimeMillis);
+            long meanThroughput = Math.floorDiv(totalEvents, netRuntimeMillis);
             long optimalThroughput = (long)(conf.getValueRate() * conf.getValueNodes()
                     + conf.getValueRate() / conf.getValueBarrierRatio());
             statisticsFile.write(String.format("Total time (ms): %d%n", totalTimeMillis));
