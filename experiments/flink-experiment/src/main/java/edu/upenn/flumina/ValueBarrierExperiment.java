@@ -149,12 +149,11 @@ public class ValueBarrierExperiment {
                     return x;
                 })
                 .slotSharingGroup("barriers")
+                .startNewChain()
                 .map(new TimestampMapper())
-                .setParallelism(1)
-                .slotSharingGroup("barriers");
+                .setParallelism(1);
         output.writeAsText(conf.getOutputFile(), FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1)
-                .slotSharingGroup("barriers");
+                .setParallelism(1);
 
         JobExecutionResult result = env.execute("Value-Barrier Experiment");
 
