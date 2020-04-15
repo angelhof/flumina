@@ -4,6 +4,7 @@ extern crate timely;
 // use timely::dataflow::operators::{Input, Exchange, Inspect, Probe};
 use timely::dataflow::InputHandle;
 use timely::dataflow::operators::{Input, Exchange, Inspect};
+use crate::timely::dataflow::operators::Accumulate;
 
 fn main() {
     // initializes and runs a timely dataflow.
@@ -17,20 +18,29 @@ fn main() {
         worker.dataflow(|scope| {
             scope.input_from(&mut input)
                  .exchange(|x| *x)
-                 .inspect(move |x| println!("worker {}:\thello {}", index, x));
+                 // .inspect(move |x| println!("worker {}:\tvalue {}", index, x))
+                 .count()
+                 .inspect(move |x| println!("worker {}:\tcount {}", index, x));
                  // .probe_with(&mut probe);
         });
 
         // introduce input data
         if index == 0 {
-            for round in 0..100 {
-                if round % 10 == 0 {
-                    input.send(0); // barrier event
-                } else {
-                    input.send(round); // value event                
+            println!("initial epoch: {}", input.epoch());
+            let mut epoch = 0; // Initial input.epoch()
+            for round in 0..1000 {
+                if round % 100 == 0 {
+                    // input.send(round); // barrier event
+                    epoch += 1;
+                    input.advance_to(epoch);
+                    // println!("new epoch: {}", input.epoch());
                 }
-                input.advance_to(round + 1);
+                input.send(round); // value event
+                //  else {
+                //     input.send(round);              
+                // }
             }
+            println!("Done sending input!");
         }
     }).unwrap();
 }
