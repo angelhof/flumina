@@ -15,9 +15,9 @@ def plot_node_scaleup(erlang_dir, flink_dir, output_file):
 
 def plot_rate_scaleup(erlang_dir, flink_dir, output_file):
     erlang_subdirs = [path.join(erlang_dir, f'ab_exp1_{r}_1000_10_5_optimizer_greedy')
-                      for r in range(20, 21, 2)]
+                      for r in range(20, 101, 2)]
     flink_subdirs = [path.join(flink_dir, f'n5_r{r}_q1000_h10')
-                     for r in range(20, 21, 2)]
+                     for r in range(20, 101, 2)]
     plot_scaleup(erlang_subdirs, flink_subdirs, output_file)
 
 
@@ -202,3 +202,20 @@ def plot_flumina_flumina(dir_before, dir_after):
                             get_flumina_latencies_throughputs(
                                 path.join(dir_after, f'ab_exp1_{r}_1000_10_5_optimizer_greedy')
                                 for r in range(20, 67, 2)))
+
+def plot_flink_network_data(dir, rates):
+    dirs = [path.join(dir, f'n5_r{r}_q1000_h10') for r in rates]
+    network_data = [results.get_network_data(d) / 1024.0 / 1024.0 for d in dirs]
+
+    plt.rcParams.update({'font.size': 18})
+    fig, ax = plt.subplots()
+    ax.set_xlabel('Rate (values/ms)')
+    ax.set_ylabel('Network data (MB)')
+    # plt.yscale('log')
+    ax.plot(rates, network_data, linestyle='-', marker='o',
+            label='Flink', linewidth=1, color='tab:green')
+    ax.legend()
+
+    plt.tight_layout()
+    # plt.savefig(output_file)
+    plt.show()
