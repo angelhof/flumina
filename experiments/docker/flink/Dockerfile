@@ -84,6 +84,8 @@ RUN set -eux; \
     "s/ConversionPattern=.*/ConversionPattern=%d{HH:mm:ss,SSS} %-5p %c{1} - %m%n/" \
     $FLINK_HOME/conf/log4j-console.properties; \
   echo "log4j.logger.edu.upenn.flumina=DEBUG" \
+    >> $FLINK_HOME/conf/log4j-console.properties; \
+  echo "log4j.logger.org.apache.flink=INFO" \
     >> $FLINK_HOME/conf/log4j-console.properties
 
 COPY --chown=flink:flink $job_artifact /job.jar
