@@ -34,7 +34,7 @@ REST_QUERY="${REST_URL}/overview"
 NUM_TASKMNGRS="${2}"
 
 function wait_taskmanagers {
-  while [ "$(curl -s ${REST_QUERY} | jq .taskmanagers)" -ne "${1}" ]
+  while [ "$(curl -s ${REST_QUERY} | jq .taskmanagers)" != "${1}" ]
   do
     sleep 0.2
   done
