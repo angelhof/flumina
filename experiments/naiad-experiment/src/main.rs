@@ -16,7 +16,7 @@ fn main() {
         let mut input = InputHandle::new();
         let mut probe = ProbeHandle::new();
 
-        println!("worker {} initializing", index);
+        println!("[worker {}] initializing", index);
 
         // create a new input, and inspect its output
         worker.dataflow(|scope| {
@@ -28,14 +28,14 @@ fn main() {
                  .probe_with(&mut probe);
         });
 
-        println!("worker {} dataflow created", index);
+        println!("[worker {}] dataflow created", index);
 
         // introduce input data
         if index == 0 {
-            println!("initial epoch: {}", input.epoch());
+            println!("[worker 0] [input] initial epoch: {}", input.epoch());
             let mut epoch = 0; // Initial input.epoch()
-            for round in 0..1000 {
-                if round % 100 == 0 {
+            for round in 0..1000000 {
+                if round % 100000 == 0 {
                     // input.send(round); // barrier event
                     epoch += 1;
                     input.advance_to(epoch);
@@ -51,13 +51,16 @@ fn main() {
                 //     input.send(round);              
                 // }
             }
-            println!("Done sending input!");
+            println!("[worker 0] [input] Done sending input!");
         }
 
-        for _wait_time in 0..1000000 {
-            worker.step();
-        }
+        // while probe.less_than(input.time()) {
+        //     worker.step();
+        // }
+        // for _wait_time in 0..1000000 {
+        //     worker.step();
+        // }
 
-        println!("worker {} end of code", index);
+        println!("[worker {}] end of code", index);
     }).unwrap();
 }
