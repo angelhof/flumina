@@ -77,16 +77,22 @@ map_physical_node_root_tree_constant(SinkNode, {ImplTags, Children}) ->
 -spec map_physical_node_root_tree_max_rate(nodes_rates(), tag_root_tree()) -> root_tree().
 map_physical_node_root_tree_max_rate(NodesRates, {ImplTags, Children}) ->
     MappedChildren = [map_physical_node_root_tree_max_rate(NodesRates, C) || C <- Children],
-    RelevantNodesRates = filter_tags_in_nodes_rates(ImplTags, NodesRates),
-    MaxRateNode = max_rate_node(RelevantNodesRates),
-    {{ImplTags, MaxRateNode}, MappedChildren}.
+    ChosenNode =
+        case ImplTags of
+            [] ->
+                %% No Tags so pick a node at random
+                [{Node, _, _}|_] = NodesRates,
+                Node;
+            [_|_] ->
+                RelevantNodesRates = filter_tags_in_nodes_rates(ImplTags, NodesRates),
+                max_rate_node(RelevantNodesRates)
+        end,
+    {{ImplTags, ChosenNode}, MappedChildren}.
 
 %% This function filters and keeps only the node-tag-rate triples that contain
 %% a tag in the given list of tags.
 -spec filter_tags_in_nodes_rates(impl_tags(), nodes_rates()) -> nodes_rates().
 filter_tags_in_nodes_rates(ImplTags, NodesRates) ->
-    io:format("Impl Tags: ~p~n", [ImplTags]),
-    io:format("Node Rates: ~p~n", [NodesRates]),
     ImplTagsSet = sets:from_list(ImplTags),
     [{Node, Tag, Rate} || {Node, Tag, Rate} <- NodesRates, sets:is_element({Tag, Node}, ImplTagsSet)].
 

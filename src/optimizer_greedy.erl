@@ -480,8 +480,6 @@ iterative_greedy_disconnect(ImplTags, NodesRates, TagsVertices, Graph) ->
     %% WARNING: Naive sorting of Tags based on rates. A better way would be
     %%          to keep the rates and use them to sort here. Or keep the rates
     %%          for each tag in a map
-    io:format("Top Tags: ~p~n", [TopTags]),
-    io:format("Components: ~p~n", [TagsCCs]),
     SortedTagsCCs =
 	lists:map(
 	  fun(TagsCC) ->
@@ -496,7 +494,6 @@ iterative_greedy_disconnect(ImplTags, NodesRates, TagsVertices, Graph) ->
 		  iterative_greedy_disconnect(SortedTagsCC, NodesRates, TagsVertices, Subgraph)
 	  end, SortedTagsCCs),
 
-    io:format("Tree: ~p~n", [{TopTags, ChildrenRootTrees}]),
     %% WARNING: Delete the graph because the ETS is not garbage collected
     true = digraph:delete(Graph),
     {TopTags, ChildrenRootTrees}.
