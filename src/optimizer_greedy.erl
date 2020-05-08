@@ -43,10 +43,13 @@ generate_setup_tree(Specification, Topology) ->
 generate_setup_tree(Specification, Topology, IsCentralized) ->
     Dependencies = conf_gen:get_dependencies(Specification),
     ImplTags = conf_gen:get_implementation_tags(Topology),
+    io:format("Impl Tags:~p~n", [ImplTags]),
 
     %% Make the dependency graph
     {DepGraph, TagsVertices} = make_impl_dependency_graph(Dependencies, ImplTags),
     print_graph(DepGraph),
+
+    %% TODO: The dependency graph is empty for some reason.
 
     %% Get the nodes-tags-rates association list
     NodesRates = conf_gen:get_nodes_rates(Topology),
@@ -477,6 +480,8 @@ iterative_greedy_disconnect(ImplTags, NodesRates, TagsVertices, Graph) ->
     %% WARNING: Naive sorting of Tags based on rates. A better way would be
     %%          to keep the rates and use them to sort here. Or keep the rates
     %%          for each tag in a map
+    io:format("Top Tags: ~p~n", [TopTags]),
+    io:format("Components: ~p~n", [TagsCCs]),
     SortedTagsCCs =
 	lists:map(
 	  fun(TagsCC) ->
@@ -491,40 +496,43 @@ iterative_greedy_disconnect(ImplTags, NodesRates, TagsVertices, Graph) ->
 		  iterative_greedy_disconnect(SortedTagsCC, NodesRates, TagsVertices, Subgraph)
 	  end, SortedTagsCCs),
 
+    io:format("Tree: ~p~n", [{TopTags, ChildrenRootTrees}]),
     %% WARNING: Delete the graph because the ETS is not garbage collected
     true = digraph:delete(Graph),
     {TopTags, ChildrenRootTrees}.
 
 
-%% This function returns the minimal set of tags that disconnects
-%% the dependency graph.
--spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph()) -> {impl_tags(), [impl_tags()]}.
+-spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph())
+                            -> {impl_tags(), [impl_tags()]}.
 best_greedy_disconnect(ImplTags, TagsVertices, Graph) ->
-    best_greedy_disconnect(ImplTags, TagsVertices, Graph, []).
+    {TopTags, Components} =
+        best_greedy_disconnect(ImplTags, TagsVertices, Graph, []),
+    TagCCs =
+        [[get_label(V, Graph) || V <- Component]
+         || Component <- Components],
+    {TopTags, TagCCs}.
 
--spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph(), impl_tags()) -> {impl_tags(), [impl_tags()]}.
-best_greedy_disconnect([], _TagsVertices, _Graph, Acc) ->
-    {Acc, []};
-best_greedy_disconnect([ImplTag|ImplTags], TagsVertices, Graph, Acc) ->
-    Vertex = maps:get(ImplTag, TagsVertices),
-    case does_disconnect(Vertex, Graph) of
+-spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph(), impl_tags())
+                            -> {impl_tags(), [[digraph:vertex()]]}.
+best_greedy_disconnect(ImplTags, TagsVertices, Graph, Acc) ->
+    case is_disconnected(Graph) of
 	{disconnected, Components} ->
-	    TagCCs =
-		[[get_label(V, Graph) || V <- Component]
-		 || Component <- Components],
-	    {[ImplTag|Acc], TagCCs};
+	    {Acc, Components};
 	still_connected ->
-	    best_greedy_disconnect(ImplTags, TagsVertices, Graph, [ImplTag|Acc])
+            case ImplTags of
+                [] ->
+                    {Acc, digraph_utils:components(Graph)};
+                [ImplTag|RestImplTags] ->
+                    %% Delete the vertex from the graph
+                    Vertex = maps:get(ImplTag, TagsVertices),
+                    true = digraph:del_vertex(Graph, Vertex),
+                    best_greedy_disconnect(RestImplTags, TagsVertices, Graph, [ImplTag|Acc])
+            end
     end.
 
--spec does_disconnect(digraph:vertex(), digraph:graph()) ->
-			     {'disconnected', [[digraph:vertex()]]} |
-			     'still_connected'.
-does_disconnect(Vertex, Graph) ->
-    %% Delete the vertex from the graph
-    true = digraph:del_vertex(Graph, Vertex),
-    %% Check the number of the connected components
-    %% after the removal of Vertex
+-spec is_disconnected(digraph:graph()) -> {'disconnected', [[digraph:vertex()]]}
+                                       |  'still_connected'.
+is_disconnected(Graph) ->
     case digraph_utils:components(Graph) of
 	[] ->
 	    still_connected;
@@ -574,7 +582,9 @@ add_edges_in_dependency_graph(Dependencies, Graph, TagsVerts, ImplTags) ->
 
 -spec spec_tag_to_impl_tags(tag(), impl_tags()) -> impl_tags().
 spec_tag_to_impl_tags(STag, ImplTags) ->
-    [IT || {_T, _} = IT <- ImplTags, IT =:= STag].
+    [IT || {T, _} = IT <- ImplTags, T =:= STag].
+%% TODO: WHY IS THIS LIKE THAT. It should use T, and not IT? I should
+%% make sure to explain this.
 
 %% -spec make_dependency_graph(dependencies()) -> {digraph:graph(), tag_vertices()}.
 %% make_dependency_graph(Dependencies) ->

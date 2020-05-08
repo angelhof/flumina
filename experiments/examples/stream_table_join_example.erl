@@ -35,6 +35,9 @@ greedy_big_conf(Options) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
+    io:format("Tags: ~p", [tags(Uids)]),
+    io:format("Dependencies: ~p", [dependencies(Uids)]),
+
     ConfTree = conf_gen:generate_for_module(?MODULE, Topology, [{optimizer,optimizer_greedy},
                                                                 {specification_arg, Uids}]),
 
@@ -119,16 +122,16 @@ greedy_big_conf(Options) ->
 -type uids() :: list(uid()).
 -type zipcode() :: integer().
 
--type update_user_address_tag() :: 'update_user_address'.
--type get_user_address_tag() :: 'get_user_address'.
--type page_view_tag() :: 'page_view'.
+-type update_user_address_tag() :: {'update_user_address', uid()}.
+-type get_user_address_tag() :: {'get_user_address', uid()}.
+-type page_view_tag() :: {'page_view', uid()}.
 -type event_tag() :: update_user_address_tag()
                    | get_user_address_tag()
                    | page_view_tag().
 
--type update_user_address() :: {update_user_address_tag(), uid(), zipcode()}.
--type get_user_address() :: {get_user_address_tag(), uid()}.
--type page_view() :: {page_view_tag(), uid()}.
+-type update_user_address() :: {update_user_address_tag(), zipcode()}.
+-type get_user_address() :: {get_user_address_tag(), 'stub'}.
+-type page_view() :: {page_view_tag(), 'stub'}.
 
 -type event() :: update_user_address()
                | get_user_address()
@@ -191,8 +194,9 @@ state_types_map(Uids) ->
 %% page_view, for each uid.
 -spec splits_merges() -> split_merge_funs().
 splits_merges() ->
-    [{{'state0', 'state0', 'state0'},
-      {fun split/2, fun merge/2}},
+    [
+%% {{'state0', 'state0', 'state0'},
+%%       {fun split/2, fun merge/2}},
      {{'state0', 'state_get', 'state_page_view'},
       {fun split/2, fun merge/2}},
      {{'state_page_view', 'state_page_view', 'state_page_view'},
@@ -208,21 +212,21 @@ specification(Uids) ->
 %% Update functions
 
 -spec update_get(get_user_address(), state(), mailbox()) -> state().
-update_get({get_user_address, Uid}, State, SendTo) ->
-    update({get_user_address, Uid}, State, SendTo).
+update_get({{get_user_address, Uid}, stub}, State, SendTo) ->
+    update({{get_user_address, Uid}, stub}, State, SendTo).
 
 -spec update_page_view(page_view(), state(), mailbox()) -> state().
-update_page_view({page_view, Uid}, State, SendTo) ->
-    update({page_view, Uid}, State, SendTo).
+update_page_view({{page_view, Uid}, stub}, State, SendTo) ->
+    update({{page_view, Uid}, stub}, State, SendTo).
 
 -spec update(event(), state(), mailbox()) -> state().
-update({update_user_address, Uid, ZipCode}, State, _SendTo) ->
+update({{update_user_address, Uid}, ZipCode}, State, _SendTo) ->
     maps:put(Uid, ZipCode, State);
-update({page_view, Uid}, State, SendTo) ->
+update({{page_view, Uid}, stub}, State, SendTo) ->
     ZipCode = maps:get(Uid, State, 'no_zipcode'),
     SendTo ! {page_view, Uid, ZipCode},
     State;
-update({get_user_address, Uid}, State, SendTo) ->
+update({{get_user_address, Uid}, stub}, State, SendTo) ->
     ZipCode = maps:get(Uid, State, 'no_zipcode'),
     SendTo ! {"Zipcode for", Uid, ZipCode},
     State.

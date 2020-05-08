@@ -85,6 +85,8 @@ map_physical_node_root_tree_max_rate(NodesRates, {ImplTags, Children}) ->
 %% a tag in the given list of tags.
 -spec filter_tags_in_nodes_rates(impl_tags(), nodes_rates()) -> nodes_rates().
 filter_tags_in_nodes_rates(ImplTags, NodesRates) ->
+    io:format("Impl Tags: ~p~n", [ImplTags]),
+    io:format("Node Rates: ~p~n", [NodesRates]),
     ImplTagsSet = sets:from_list(ImplTags),
     [{Node, Tag, Rate} || {Node, Tag, Rate} <- NodesRates, sets:is_element({Tag, Node}, ImplTagsSet)].
 
