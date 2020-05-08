@@ -2,8 +2,9 @@
 
 -export([greedy_big/0,
 	 greedy_big_conf/1,
-	 make_as/4,
-	 make_bs_heartbeats/4,
+	 make_page_view_events/4,
+	 make_get_user_address_events/4,
+         make_update_user_address_events/5,
          specification/1
 	]).
 
@@ -263,22 +264,53 @@ merge(State1, State2) ->
 
 
 %% Input generation
--spec make_as(integer(), node(), integer(), integer()) -> msg_generator().
-make_as(Id, ANode, N, Step) ->
-    As = [{{{a,Id}, T}, ANode, T} || T <- lists:seq(1, N, Step)]
-	++ [{heartbeat, {{{a,Id}, ANode}, N + 1}}],
-    producer:list_generator(As).
+%% -spec big_input_distr_example(node()) -> {msg_generator_init(), msg_generator_init(), msg_generator_init()}.
+%% big_input_distr_example(Node) ->
+%%     LengthA = 1000000,
+%%     A1 = {fun ?MODULE:make_as/4, [1, NodeA1, LengthA, 2]},
+%%     A2 = {fun ?MODULE:make_as/4, [2, NodeA2, LengthA, 2]},
+%%     Bs = {fun ?MODULE:make_bs_heartbeats/4, [NodeB, LengthA, 1000, 1]},
+%%     %% Bs = [{{b, 1000 + (1000 * BT)},NodeB, 1000 + (1000 * BT)}
+%%     %% 	  || BT <- lists:seq(0,1000)]
+%%     %% 	++ [{heartbeat, {{b,NodeB},1000000}}],
+%%     {A1, A2, Bs}.
 
--spec make_bs_heartbeats(node(), integer(), integer(), integer()) -> msg_generator().
-make_bs_heartbeats(BNodeName, LengthAStream, RatioAB, HeartbeatBRatio) ->
-    LengthBStream = LengthAStream div RatioAB,
-    Bs = lists:flatten(
-	   [[{heartbeat, {{b, BNodeName}, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}}
-	     || T <- lists:seq(0, HeartbeatBRatio - 2)]
-	    ++ [{{b, RatioAB + (RatioAB * BT)}, BNodeName, RatioAB + (RatioAB * BT)}]
-	    || BT <- lists:seq(0,LengthBStream - 1)])
-	++ [{heartbeat, {{b, BNodeName}, LengthAStream + 1}}],
-    producer:list_generator(Bs).
+
+-spec make_events_no_heartbeats(page_view_tag() | get_user_address_tag(),
+                                node(), integer(), integer()) -> msg_generator().
+make_events_no_heartbeats(Tag, Node, Number, Step) ->
+    Events =
+        [{{Tag, stub}, Node, T} || T <- lists:seq(1, Number, Step)]
+        ++ [{heartbeat, {{Tag, Node}, Number + 1}}],
+    producer:list_generator(Events).
+
+-spec make_update_events_heartbeats(update_user_address_tag(), node(), integer(),
+                                    integer(), integer()) -> msg_generator().
+make_update_events_heartbeats(Tag, Node, LengthFastStream, Ratio, HeartbeatRatio) ->
+    LengthStream = LengthFastStream div Ratio,
+    Events =
+        lists:flatten(
+          [[{heartbeat, {{Tag, Node}, (T * Ratio div HeartbeatRatio) + (Ratio * BT)}}
+            || T <- lists:seq(0, HeartbeatRatio - 2)]
+           ++ [{{Tag, 12345}, Node, Ratio + (Ratio * BT)}]
+           || BT <- lists:seq(0,LengthStream - 1)])
+	++ [{heartbeat, {{Tag, Node}, LengthFastStream + 1}}],
+    producer:list_generator(Events).
+
+
+-spec make_page_view_events(uid(), node(), integer(), integer()) -> msg_generator().
+make_page_view_events(Uid, Node, N, Step) ->
+    make_events_no_heartbeats({page_view, Uid}, Node, N, Step).
+
+-spec make_get_user_address_events(uid(), node(), integer(), integer()) -> msg_generator().
+make_get_user_address_events(Uid, Node, N, Step) ->
+    make_events_no_heartbeats({get_user_address, Uid}, Node, N, Step).
+
+-spec make_update_user_address_events(uid(), node(), integer(),
+                                      integer(), integer()) -> msg_generator().
+make_update_user_address_events(Uid, Node, LengthFastStream, Ratio, HeartbeatRatio) ->
+    make_update_events_heartbeats({update_user_address, Uid}, Node, LengthFastStream, Ratio, HeartbeatRatio).
+
 
 %% WARNING: The hearbeat ratio needs to be a divisor of RatioAB (Maybe not necessarily)
 -spec parametrized_input_distr_example(integer(), [node()], integer(), integer())
