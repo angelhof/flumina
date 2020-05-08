@@ -13,7 +13,7 @@
 	 distr_big/0,
 	 distr_big_conf/1,
 	 greedy_big/0,
-	 greedy_big_conf/2,
+	 greedy_big_conf/1,
 	 greedy_big_conf_test/2,
 	 greedy_complex/0,
 	 greedy_complex_conf/1,
@@ -103,16 +103,17 @@ distr_big_conf(SinkPid) ->
 
 
 greedy_big() ->
-    true = register('sink', self()),
-    SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, greedy_big_conf, [SinkName, steady_retimestamp]),
-    LoggerInitFun =
-	fun() ->
-	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
-	end,
-    util:sink(LoggerInitFun).
+    Options =
+        [{log_tags, [sum]},
+         {producer_type, steady_retimestamp}],
+    util:run_experiment(?MODULE, greedy_big_conf, Options).
 
-greedy_big_conf(SinkPid, ProducerType) ->
+-spec greedy_big_conf(experiment_opts()) -> 'finished'.
+greedy_big_conf(Options) ->
+    %% Get arguments from options
+    {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
+    {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
+
     %% Architecture
     Rates = [{node(), b, 10},
 	     {node(), {a,1}, 1000},

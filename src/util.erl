@@ -7,6 +7,7 @@
 	 sink/1,
 	 sink_no_log/1,
          sink/2,
+         run_experiment/3,
 	 merge_with/3,
 	 take_at_most/2,
 	 map_focus/2,
@@ -50,6 +51,13 @@ parse(Str) ->
 sink() ->
     sink(fun log_mod:no_message_logger/0).
 
+-spec sink({'log_tags', [tag()]} | message_logger_init_fun()) -> 'ok'.
+sink({log_tags, Tags}) ->
+    LoggerInitFun =
+	fun() ->
+	        log_mod:initialize_message_logger_state("sink", sets:from_list(Tags))
+	end,
+    sink(LoggerInitFun);
 sink(MsgLoggerInitFun) ->
     sink(MsgLoggerInitFun, ?SINK_WAITING_TIME_MS).
 
@@ -76,6 +84,21 @@ sink_loop(LoggerFun, WaitTime) ->
             log_sink_finish_time(WaitTime),
             io:format("Didn't receive anything for ~p seconds~n", [WaitTime]),
 	    ok
+    end.
+
+%% Interface function that runs an experiment with a sink
+-spec run_experiment(module(), Fun::atom(), experiment_opts()) -> 'ok'.
+run_experiment(Module, Function, Options) ->
+    true = register('sink', self()),
+    SinkName = {sink, node()},
+    Options1 = [{sink_name, SinkName}|Options],
+    io:format("Mod: ~p, Fun: ~p, Opts: ~p~n", [Module, Function, Options1]),
+    _ExecPid = spawn_link(Module, Function, [Options1]),
+    case lists:keyfind(log_tags, 1, Options1) of
+        {log_tags, Tags} ->
+            util:sink({log_tags, Tags});
+        false ->
+            util:sink()
     end.
 
 %% This can be used as an approximation for throughput, but it is not

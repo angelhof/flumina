@@ -15,7 +15,8 @@
 	 find_descendant_preds/2,
 	 find_node_mailbox_pid_pairs/1,
 	 find_node_mailbox_father_pid_pairs/1,
-	 get_relevant_predicates/2]).
+	 get_relevant_predicates/2,
+         pretty_print_configuration/2]).
 
 -include("type_definitions.hrl").
 -include("config.hrl").
@@ -239,3 +240,20 @@ find_node_mailbox_father_pid_pairs({node, _NPid, NodeNameNode, MboxNameNode, _Pr
 -spec add_father_if_undef({mailbox(), mailbox() | 'undef'}, mailbox()) -> {mailbox(), mailbox()}.
 add_father_if_undef({ChildMPid, undef}, Father) -> {ChildMPid, Father};
 add_father_if_undef(ChildPair, _Father) -> ChildPair.
+
+
+%% Pretty Print configuration tree
+-spec pretty_print_configuration([impl_tag()], configuration()) -> 'ok'.
+pretty_print_configuration(ImplTags, Configuration) ->
+    pretty_print_configuration(ImplTags, Configuration, 0).
+
+-spec pretty_print_configuration([impl_tag()], configuration(), integer()) -> 'ok'.
+pretty_print_configuration(ImplTags, {node, _NPid, _NNN, _MNN, {TagPred, _MsgPred}, Children}, Indent) ->
+    RelevantTags = [Tag || Tag <- ImplTags, TagPred(Tag)],
+    IndentString = lists:flatten(lists:duplicate(Indent, "   ")),
+    io:format("~s|-~p~n", [IndentString, RelevantTags]),
+    lists:foreach(
+      fun(Child) ->
+              pretty_print_configuration(ImplTags, Child, Indent+1)
+      end, Children).
+    %% lists:duplicate(5, xx).

@@ -28,7 +28,12 @@
 %%
 -spec generate_for_module(module(), topology(), conf_gen_options()) -> configuration().
 generate_for_module(Module, Topology, Options) ->
-    generate(Module:specification(), Topology, Options).
+    case lists:keyfind(specification_arg, 1, Options) of
+        {specification_arg, Arg} ->
+            generate(Module:specification(Arg), Topology, Options);
+        false ->
+            generate(Module:specification(), Topology, Options)
+    end.
 
 -spec generate(specification(), topology(), conf_gen_options()) -> configuration().
 generate(Specification, Topology, Options) ->
@@ -115,6 +120,8 @@ update_option({log_triple, Value}, OptionsRecord) ->
     OptionsRecord#options{log_triple = Value};
 update_option({checkpoint, Value}, OptionsRecord) ->
     OptionsRecord#options{checkpoint = Value};
+update_option({specification_arg, _Arg}, OptionsRecord) ->
+    OptionsRecord;
 update_option(Option, _OptionsRecord) ->
     util:err("Unknown option ~p in module ~p~n", [Option, ?MODULE]),
     util:crash(1,1).

@@ -1,5 +1,14 @@
 
 %%
+%% Experiments
+%%
+
+-type experiment_opt() :: {'log_tags', [tag()]}
+                        | {'sink_name', mailbox()}
+                        | {'producer_type', producer_type()}.
+-type experiment_opts() :: [experiment_opt()].
+
+%%
 %% Specification
 %%
 
@@ -131,7 +140,8 @@
 
 -type conf_gen_option() :: {'optimizer', optimizer_type()}
 			 | {'log_triple', num_log_triple()}
-			 | {'checkpoint', checkpoint_predicate()}.
+			 | {'checkpoint', checkpoint_predicate()}
+                         | {'specification_arg', any()}.
 -type conf_gen_options() :: [conf_gen_option()].
 -type conf_gen_options_rec() :: #options{}.
 
