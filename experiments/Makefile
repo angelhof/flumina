@@ -64,6 +64,10 @@ outlier_detection_distr:
 outlier_detection_greedy:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run outlier_detection experiment_greedy $(args) $(HALT)
 
+stream_table_join_example_greedy:
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run stream_table_join_example greedy_big $(args) $(HALT)
+
+
 exec:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run util exec $(args) $(HALT)
 

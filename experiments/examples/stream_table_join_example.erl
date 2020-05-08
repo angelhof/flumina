@@ -1,0 +1,278 @@
+-module(stream_table_join_example).
+
+-export([greedy_big/0,
+	 greedy_big_conf/1,
+	 make_as/4,
+	 make_bs_heartbeats/4,
+         specification/1
+	]).
+
+-include_lib("eunit/include/eunit.hrl").
+
+-include_lib("flumina/include/type_definitions.hrl").
+
+greedy_big() ->
+    Options =
+        %% TODO: Add logging tags for latency measurement
+        [{log_tags, []},
+         {producer_type, steady_retimestamp}],
+    util:run_experiment(?MODULE, greedy_big_conf, Options).
+
+-spec greedy_big_conf(experiment_opts()) -> 'finished'.
+greedy_big_conf(Options) ->
+    %% Get arguments from options
+    {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
+    {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
+
+    %% Keys
+    Uids = [1,2],
+
+    %% Architecture
+    Rates =
+        lists:flatten([[{node(), {update_user_address, Uid}, 1},
+                        {node(), {get_user_address, Uid}, 10},
+                        {node(), {page_view, Uid}, 1000}] || Uid <- Uids]),
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    ConfTree = conf_gen:generate_for_module(?MODULE, Topology, [{optimizer,optimizer_greedy},
+                                                                {specification_arg, Uids}]),
+
+    configuration:pretty_print_configuration(tags(Uids), ConfTree),
+    %% InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0, 1),
+    %% InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1, 1),
+    %% CheckOutliersPeriodMs = 1000 * 1000,
+    %% CheckOutliersHeartbeatPeriodMs = 10 * 1000,
+    %% StartTimeMs = 1 * 1000,
+    %% EndTimeMs = 21000 * 1000,
+    %% CheckInputStream =
+    %%     make_check_outliers_generator_init(node(), CheckOutliersPeriodMs,
+    %%                                        CheckOutliersHeartbeatPeriodMs,
+    %%                                        StartTimeMs,
+    %%                                        EndTimeMs, 1),
+    %% producer:make_producers(InputStream1 ++ InputStream2 ++ CheckInputStream, ConfTree, Topology),
+    SinkPid ! finished.
+
+
+
+
+    %% %% Computation
+    %% Tags = [b, {a,1}, {a,2}],
+    %% StateTypesMap =
+    %%     #{'state0' => {sets:from_list(Tags), fun update/3},
+    %%       'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
+    %% SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+    %% Dependencies = dependencies(),
+    %% InitState = {'state0', 0},
+    %% Specification =
+    %%     conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+
+    %% LogTriple = log_mod:make_num_log_triple(),
+    %% ConfTree = conf_gen:generate(Specification, Topology,
+    %%     			 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
+
+    %% %% Set up where will the input arrive
+    %% {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
+    %% %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
+    %% InputStreams = [{A1, {{a,1}, node()}, 100},
+    %%     	    {A2, {{a,2}, node()}, 100},
+    %%     	    {Bs, {b, node()}, 100}],
+
+    %% log_stats_time_and_number_of_messages(1001000),
+
+    %% %% Setup logging
+    %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+    %% LoggerInitFun =
+    %%     fun() ->
+    %%             log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
+    %%     end,
+    %% producer:make_producers(InputStreams, ConfTree, Topology, ProducerType, LoggerInitFun),
+
+    %% SinkPid ! finished.
+
+
+
+
+%%
+%% This example is taken from the Apache Samza repository. There are
+%% two input streams. A stream containing profile update events
+%% (containing information about the user zipcode), and a stream
+%% containing page views. The goal of the query is to keep a table of
+%% users in its state and join the page view events to enrich them
+%% with zipcode.
+%%
+%% We can separate the events of the profile update stream in the
+%% following tags:
+%%
+%% - new_user
+%% - remove_user
+%% - update_user_address
+%% - get_user_address
+%% - update_user_email
+%% - ...
+%%
+%% And the events of the other stream only contain events with tag:
+%%
+%% - page_view
+
+-type uid() :: integer().
+-type uids() :: list(uid()).
+-type zipcode() :: integer().
+
+-type update_user_address_tag() :: 'update_user_address'.
+-type get_user_address_tag() :: 'get_user_address'.
+-type page_view_tag() :: 'page_view'.
+-type event_tag() :: update_user_address_tag()
+                   | get_user_address_tag()
+                   | page_view_tag().
+
+-type update_user_address() :: {update_user_address_tag(), uid(), zipcode()}.
+-type get_user_address() :: {get_user_address_tag(), uid()}.
+-type page_view() :: {page_view_tag(), uid()}.
+
+-type event() :: update_user_address()
+               | get_user_address()
+               | page_view().
+
+-spec tags(uids()) -> [event_tag()].
+tags(Uids) ->
+    [{update_user_address, Uid} || Uid <- Uids]
+        ++ get_user_address_tags(Uids)
+        ++ page_view_tags(Uids).
+
+-spec page_view_tags(uids()) -> [page_view_tag()].
+page_view_tags(Uids) ->
+    [{page_view, Uid} || Uid <- Uids].
+
+-spec get_user_address_tags(uids()) -> [get_user_address_tag()].
+get_user_address_tags(Uids) ->
+    [{get_user_address, Uid} || Uid <- Uids].
+
+
+%% All of the above events are keyed with the user_id. We will only
+%% focus on update_user_address, get_user_address, page_view events.
+%%
+%% Dependencies:
+%%
+%% D({page_view, uid1}, {update_user_address, uid2}) if uid1 == uid2
+%% D({get_user_address, uid1}, {update_user_address, uid2}) if uid1 == uid2
+%% D({update_user_address, uid1}, {update_user_address, uid2}) if uid1 == uid2
+%%
+-spec dependencies(uids()) -> dependencies().
+dependencies(Keys) ->
+    PageViewDeps = [{{page_view, Key}, [{update_user_address, Key}]} || Key <- Keys],
+    GetAddressDeps = [{{get_user_address, Key}, [{update_user_address, Key}]} || Key <- Keys],
+    UpdateAddressDeps = [{{update_user_address, Key},
+                          [{update_user_address, Key},
+                           {get_user_address, Key},
+                           {page_view, Key}]}
+                         || Key <- Keys],
+    maps:from_list(PageViewDeps ++ GetAddressDeps ++ UpdateAddressDeps).
+
+%% State contains a map from keys to zipcodes.
+-type state() :: #{uid() := zipcode()}.
+
+-spec init_state() -> state().
+init_state() ->
+    #{}.
+
+-spec init_state_pair() -> state_type_pair().
+init_state_pair() ->
+    {'state0', init_state()}.
+
+-spec state_types_map(uids()) -> state_types_map().
+state_types_map(Uids) ->
+    #{'state0' => {sets:from_list(tags(Uids)), fun update/3},
+      'state_get'  => {sets:from_list(get_user_address_tags(Uids)), fun update_get/3},
+      'state_page_view'  => {sets:from_list(page_view_tags(Uids)), fun update_page_view/3}}.
+
+%% TODO: This is slightly wrong and needs to be fixed. Normally, we
+%% should have a state type for each uid, and then separate get,
+%% page_view, for each uid.
+-spec splits_merges() -> split_merge_funs().
+splits_merges() ->
+    [{{'state0', 'state0', 'state0'},
+      {fun split/2, fun merge/2}},
+     {{'state0', 'state_get', 'state_page_view'},
+      {fun split/2, fun merge/2}},
+     {{'state_page_view', 'state_page_view', 'state_page_view'},
+      {fun split/2, fun merge/2}}].
+
+
+-spec specification(uids()) -> specification().
+specification(Uids) ->
+    conf_gen:make_specification(state_types_map(Uids), splits_merges(),
+                                dependencies(Uids), init_state_pair()).
+
+
+%% Update functions
+
+-spec update_get(get_user_address(), state(), mailbox()) -> state().
+update_get({get_user_address, Uid}, State, SendTo) ->
+    update({get_user_address, Uid}, State, SendTo).
+
+-spec update_page_view(page_view(), state(), mailbox()) -> state().
+update_page_view({page_view, Uid}, State, SendTo) ->
+    update({page_view, Uid}, State, SendTo).
+
+-spec update(event(), state(), mailbox()) -> state().
+update({update_user_address, Uid, ZipCode}, State, _SendTo) ->
+    maps:put(Uid, ZipCode, State);
+update({page_view, Uid}, State, SendTo) ->
+    ZipCode = maps:get(Uid, State, 'no_zipcode'),
+    SendTo ! {page_view, Uid, ZipCode},
+    State;
+update({get_user_address, Uid}, State, SendTo) ->
+    ZipCode = maps:get(Uid, State, 'no_zipcode'),
+    SendTo ! {"Zipcode for", Uid, ZipCode},
+    State.
+
+
+split({Pred1, Pred2}, State) ->
+    {maps:filter(fun(K,_) -> Pred1(K) end, State),
+     maps:filter(fun(K,_) -> Pred2(K) end, State)}.
+
+merge(State1, State2) ->
+    util:merge_with(
+      fun(K, _V1, _V2) ->
+	      %% This should never be called
+	      %% Actually it could be called because preds might not be disjoint
+	      util:err("Key: ~p shouldn't exist in both maps~n", [K]),
+	      erlang:halt()
+      end, State1, State2).
+
+
+
+
+
+%% Input generation
+-spec make_as(integer(), node(), integer(), integer()) -> msg_generator().
+make_as(Id, ANode, N, Step) ->
+    As = [{{{a,Id}, T}, ANode, T} || T <- lists:seq(1, N, Step)]
+	++ [{heartbeat, {{{a,Id}, ANode}, N + 1}}],
+    producer:list_generator(As).
+
+-spec make_bs_heartbeats(node(), integer(), integer(), integer()) -> msg_generator().
+make_bs_heartbeats(BNodeName, LengthAStream, RatioAB, HeartbeatBRatio) ->
+    LengthBStream = LengthAStream div RatioAB,
+    Bs = lists:flatten(
+	   [[{heartbeat, {{b, BNodeName}, (T * RatioAB div HeartbeatBRatio) + (RatioAB * BT)}}
+	     || T <- lists:seq(0, HeartbeatBRatio - 2)]
+	    ++ [{{b, RatioAB + (RatioAB * BT)}, BNodeName, RatioAB + (RatioAB * BT)}]
+	    || BT <- lists:seq(0,LengthBStream - 1)])
+	++ [{heartbeat, {{b, BNodeName}, LengthAStream + 1}}],
+    producer:list_generator(Bs).
+
+%% WARNING: The hearbeat ratio needs to be a divisor of RatioAB (Maybe not necessarily)
+-spec parametrized_input_distr_example(integer(), [node()], integer(), integer())
+				      -> {[msg_generator_init()], msg_generator_init(), integer()}.
+parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, HeartbeatBRatio) ->
+    LengthAStream = 1000000,
+    %% Return a triple that makes the results
+    As = [{fun abexample:make_as/4, [Id, ANode, LengthAStream, 1]}
+	  || {Id, ANode} <- lists:zip(lists:seq(1, NumberAs), ANodeNames)],
+
+    Bs = {fun abexample:make_bs_heartbeats/4, [BNodeName, LengthAStream, RatioAB, HeartbeatBRatio]},
+
+    %% Return the streams and the total number of messages
+    {As, Bs, (LengthAStream * NumberAs) + (LengthAStream div RatioAB)}.
