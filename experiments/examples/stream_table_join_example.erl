@@ -185,27 +185,40 @@ init_state_pair() ->
 
 -spec state_types_map(uids()) -> state_types_map().
 state_types_map(Uids) ->
-    #{'state0' => {sets:from_list(tags(Uids)), fun update/3},
-      'state_get'  => {sets:from_list(get_user_address_tags(Uids)), fun update_get/3},
-      'state_page_view'  => {sets:from_list(page_view_tags(Uids)), fun update_page_view/3}}.
+    AllUidStates =
+        #{'state0' => {sets:from_list(tags(Uids)), fun update/3},
+          'state_get'  => {sets:from_list(get_user_address_tags(Uids)), fun update_get/3},
+          'state_page_view'  => {sets:from_list(page_view_tags(Uids)), fun update_page_view/3}},
+    lists:foldl(
+      fun(Uid, StateMap) ->
+              UidStates =
+                  #{state_name("0", Uid) =>
+                        {sets:from_list(tags([Uid])), fun update/3},
+                    state_name("_get", Uid) =>
+                        {sets:from_list(get_user_address_tags([Uid])), fun update_get/3},
+                    state_name("_page_view", Uid) =>
+                        {sets:from_list(page_view_tags([Uid])), fun update_page_view/3}},
+              maps:merge(UidStates, StateMap)
+      end, AllUidStates, Uids).
 
-%% TODO: This is slightly wrong and needs to be fixed. Normally, we
-%% should have a state type for each uid, and then separate get,
-%% page_view, for each uid.
--spec splits_merges() -> split_merge_funs().
-splits_merges() ->
-    [
-%% {{'state0', 'state0', 'state0'},
-%%       {fun split/2, fun merge/2}},
-     {{'state0', 'state_get', 'state_page_view'},
-      {fun split/2, fun merge/2}},
-     {{'state_page_view', 'state_page_view', 'state_page_view'},
-      {fun split/2, fun merge/2}}].
+-spec state_name(string(), uid()) -> atom().
+state_name(Prefix, Uid) ->
+    list_to_atom("state" ++ Prefix ++ "_" ++ integer_to_list(Uid)).
 
+%% TODO: This is slightly wrong and needs to be fixed. It constraints
+%% the forks to first happen for keys.
+-spec splits_merges(uids()) -> split_merge_funs().
+splits_merges(Uids) ->
+    UidStateTransitions =
+        [[{'state0', 'state0', state_name("0", Uid)},
+          {state_name("0", Uid), state_name("_get", Uid), state_name("_page_view", Uid)},
+          {state_name("_page_view", Uid), state_name("_page_view", Uid), state_name("_page_view", Uid)}]
+         || Uid <- Uids],
+    [{Trans, {fun split/2, fun merge/2}} || Trans <- lists:flatten(UidStateTransitions)].
 
 -spec specification(uids()) -> specification().
 specification(Uids) ->
-    conf_gen:make_specification(state_types_map(Uids), splits_merges(),
+    conf_gen:make_specification(state_types_map(Uids), splits_merges(Uids),
                                 dependencies(Uids), init_state_pair()).
 
 
