@@ -16,7 +16,7 @@ greedy_big() ->
     Options =
         %% TODO: Add logging tags for latency measurement
         [{log_tags, []},
-         {producer_type, steady_retimestamp}],
+         {producer_type, steady_sync_timestamp}],
     util:run_experiment(?MODULE, greedy_big_conf, Options).
 
 -spec greedy_big_conf(experiment_opts()) -> 'finished'.
@@ -26,7 +26,7 @@ greedy_big_conf(Options) ->
     {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
 
     %% Keys
-    Uids = [1,2],
+    Uids = [1, 2],
 
     %% Architecture
     Rates =
@@ -36,64 +36,20 @@ greedy_big_conf(Options) ->
     Topology =
 	conf_gen:make_topology(Rates, SinkPid),
 
-    io:format("Tags: ~p", [tags(Uids)]),
-    io:format("Dependencies: ~p", [dependencies(Uids)]),
+    io:format("Tags: ~p~n", [tags(Uids)]),
+    io:format("Dependencies: ~p~n", [dependencies(Uids)]),
 
     ConfTree = conf_gen:generate_for_module(?MODULE, Topology, [{optimizer,optimizer_greedy},
                                                                 {specification_arg, Uids}]),
 
     configuration:pretty_print_configuration(tags(Uids), ConfTree),
-    %% InputStream1 = make_connection_generator_init(node(), ?INPUT_FILE_5K0, 1),
-    %% InputStream2 = make_connection_generator_init(node(), ?INPUT_FILE_5K1, 1),
-    %% CheckOutliersPeriodMs = 1000 * 1000,
-    %% CheckOutliersHeartbeatPeriodMs = 10 * 1000,
-    %% StartTimeMs = 1 * 1000,
-    %% EndTimeMs = 21000 * 1000,
-    %% CheckInputStream =
-    %%     make_check_outliers_generator_init(node(), CheckOutliersPeriodMs,
-    %%                                        CheckOutliersHeartbeatPeriodMs,
-    %%                                        StartTimeMs,
-    %%                                        EndTimeMs, 1),
-    %% producer:make_producers(InputStream1 ++ InputStream2 ++ CheckInputStream, ConfTree, Topology),
+
+    %% Setup logging
+    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+
+    %% Make producers
+    make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType),
     SinkPid ! finished.
-
-
-
-
-    %% %% Computation
-    %% Tags = [b, {a,1}, {a,2}],
-    %% StateTypesMap =
-    %%     #{'state0' => {sets:from_list(Tags), fun update/3},
-    %%       'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
-    %% SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
-    %% Dependencies = dependencies(),
-    %% InitState = {'state0', 0},
-    %% Specification =
-    %%     conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-
-    %% LogTriple = log_mod:make_num_log_triple(),
-    %% ConfTree = conf_gen:generate(Specification, Topology,
-    %%     			 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
-
-    %% %% Set up where will the input arrive
-    %% {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
-    %% %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
-    %% InputStreams = [{A1, {{a,1}, node()}, 100},
-    %%     	    {A2, {{a,2}, node()}, 100},
-    %%     	    {Bs, {b, node()}, 100}],
-
-    %% log_stats_time_and_number_of_messages(1001000),
-
-    %% %% Setup logging
-    %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    %% LoggerInitFun =
-    %%     fun() ->
-    %%             log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
-    %%     end,
-    %% producer:make_producers(InputStreams, ConfTree, Topology, ProducerType, LoggerInitFun),
-
-    %% SinkPid ! finished.
-
 
 
 
@@ -130,9 +86,9 @@ greedy_big_conf(Options) ->
                    | get_user_address_tag()
                    | page_view_tag().
 
--type update_user_address() :: {update_user_address_tag(), zipcode()}.
--type get_user_address() :: {get_user_address_tag(), 'stub'}.
--type page_view() :: {page_view_tag(), 'stub'}.
+-type update_user_address() :: {update_user_address_tag(), {zipcode(), integer()}}.
+-type get_user_address() :: {get_user_address_tag(), integer()}.
+-type page_view() :: {page_view_tag(), integer()}.
 
 -type event() :: update_user_address()
                | get_user_address()
@@ -226,23 +182,24 @@ specification(Uids) ->
 %% Update functions
 
 -spec update_get(get_user_address(), state(), mailbox()) -> state().
-update_get({{get_user_address, Uid}, stub}, State, SendTo) ->
-    update({{get_user_address, Uid}, stub}, State, SendTo).
+update_get({{get_user_address, Uid}, Ts}, State, SendTo) ->
+    update({{get_user_address, Uid}, Ts}, State, SendTo).
 
 -spec update_page_view(page_view(), state(), mailbox()) -> state().
-update_page_view({{page_view, Uid}, stub}, State, SendTo) ->
-    update({{page_view, Uid}, stub}, State, SendTo).
+update_page_view({{page_view, Uid}, Ts}, State, SendTo) ->
+    update({{page_view, Uid}, Ts}, State, SendTo).
 
 -spec update(event(), state(), mailbox()) -> state().
-update({{update_user_address, Uid}, ZipCode}, State, _SendTo) ->
+update({{update_user_address, Uid}, {ZipCode, Ts}}, State, SendTo) ->
+    SendTo ! {update_address, Uid, ZipCode, Ts},
     maps:put(Uid, ZipCode, State);
-update({{page_view, Uid}, stub}, State, SendTo) ->
+update({{page_view, Uid}, Ts}, State, SendTo) ->
     ZipCode = maps:get(Uid, State, 'no_zipcode'),
-    SendTo ! {page_view, Uid, ZipCode},
+    %% SendTo ! {page_view, Uid, ZipCode, Ts},
     State;
-update({{get_user_address, Uid}, stub}, State, SendTo) ->
+update({{get_user_address, Uid}, Ts}, State, SendTo) ->
     ZipCode = maps:get(Uid, State, 'no_zipcode'),
-    SendTo ! {"Zipcode for", Uid, ZipCode},
+    SendTo ! {"Zipcode for", Uid, ZipCode, Ts},
     State.
 
 
@@ -260,27 +217,41 @@ merge(State1, State2) ->
       end, State1, State2).
 
 
-
-
-
+%%
 %% Input generation
-%% -spec big_input_distr_example(node()) -> {msg_generator_init(), msg_generator_init(), msg_generator_init()}.
-%% big_input_distr_example(Node) ->
-%%     LengthA = 1000000,
-%%     A1 = {fun ?MODULE:make_as/4, [1, NodeA1, LengthA, 2]},
-%%     A2 = {fun ?MODULE:make_as/4, [2, NodeA2, LengthA, 2]},
-%%     Bs = {fun ?MODULE:make_bs_heartbeats/4, [NodeB, LengthA, 1000, 1]},
-%%     %% Bs = [{{b, 1000 + (1000 * BT)},NodeB, 1000 + (1000 * BT)}
-%%     %% 	  || BT <- lists:seq(0,1000)]
-%%     %% 	++ [{heartbeat, {{b,NodeB},1000000}}],
-%%     {A1, A2, Bs}.
+%%
+
+-spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_type()) -> 'ok'.
+make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType) ->
+    AllStreams =
+        lists:flatten([make_big_input_uid_producers(Uid, node(), node(), node()) || Uid <- Uids]),
+    NumberOfMessages = 1101000 * length(Uids),
+    util:log_time_and_number_of_messages_before_producers_spawn("stream-table-join-experiment",
+                                                                NumberOfMessages),
+
+    LogTags = lists:flatten([[{update_user_address, Uid},
+                              {get_user_address, Uid}] || Uid <- Uids]),
+    producer:make_producers(AllStreams, ConfTree, Topology, ProducerType,
+                            {log_tags, LogTags}).
+
+-spec make_big_input_uid_producers(uid(), node(), node(), node()) -> gen_producer_init().
+make_big_input_uid_producers(Uid, NodePV, NodeGUA, NodeUUA) ->
+    LengthPV = 10000,
+    PVevents = {fun ?MODULE:make_page_view_events/4, [Uid, NodePV, LengthPV, 1]},
+    GUAevents = {fun ?MODULE:make_get_user_address_events/4, [Uid, NodeGUA, LengthPV, 100]},
+    UUAevents = {fun ?MODULE:make_update_user_address_events/5, [Uid, NodeUUA, LengthPV, 1000, 100]},
+    InputStreams =
+        [{PVevents, {{page_view, Uid}, NodePV}, 1000},
+         {GUAevents, {{get_user_address, Uid}, NodeGUA}, 100},
+         {UUAevents, {{update_user_address, Uid}, NodeUUA}, 1}],
+    InputStreams.
 
 
 -spec make_events_no_heartbeats(page_view_tag() | get_user_address_tag(),
                                 node(), integer(), integer()) -> msg_generator().
 make_events_no_heartbeats(Tag, Node, Number, Step) ->
     Events =
-        [{{Tag, stub}, Node, T} || T <- lists:seq(1, Number, Step)]
+        [{{Tag, T}, Node, T} || T <- lists:seq(1, Number, Step)]
         ++ [{heartbeat, {{Tag, Node}, Number + 1}}],
     producer:list_generator(Events).
 
@@ -292,7 +263,7 @@ make_update_events_heartbeats(Tag, Node, LengthFastStream, Ratio, HeartbeatRatio
         lists:flatten(
           [[{heartbeat, {{Tag, Node}, (T * Ratio div HeartbeatRatio) + (Ratio * BT)}}
             || T <- lists:seq(0, HeartbeatRatio - 2)]
-           ++ [{{Tag, 12345}, Node, Ratio + (Ratio * BT)}]
+           ++ [{{Tag, {Ratio + (Ratio * BT), Ratio + (Ratio * BT)}}, Node, Ratio + (Ratio * BT)}]
            || BT <- lists:seq(0,LengthStream - 1)])
 	++ [{heartbeat, {{Tag, Node}, LengthFastStream + 1}}],
     producer:list_generator(Events).
@@ -313,15 +284,15 @@ make_update_user_address_events(Uid, Node, LengthFastStream, Ratio, HeartbeatRat
 
 
 %% WARNING: The hearbeat ratio needs to be a divisor of RatioAB (Maybe not necessarily)
--spec parametrized_input_distr_example(integer(), [node()], integer(), integer())
-				      -> {[msg_generator_init()], msg_generator_init(), integer()}.
-parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, HeartbeatBRatio) ->
-    LengthAStream = 1000000,
-    %% Return a triple that makes the results
-    As = [{fun abexample:make_as/4, [Id, ANode, LengthAStream, 1]}
-	  || {Id, ANode} <- lists:zip(lists:seq(1, NumberAs), ANodeNames)],
+%% -spec parametrized_input_distr_example(integer(), [node()], integer(), integer())
+%% 				      -> {[msg_generator_init()], msg_generator_init(), integer()}.
+%% parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, HeartbeatBRatio) ->
+%%     LengthAStream = 1000000,
+%%     %% Return a triple that makes the results
+%%     As = [{fun abexample:make_as/4, [Id, ANode, LengthAStream, 1]}
+%% 	  || {Id, ANode} <- lists:zip(lists:seq(1, NumberAs), ANodeNames)],
 
-    Bs = {fun abexample:make_bs_heartbeats/4, [BNodeName, LengthAStream, RatioAB, HeartbeatBRatio]},
+%%     Bs = {fun abexample:make_bs_heartbeats/4, [BNodeName, LengthAStream, RatioAB, HeartbeatBRatio]},
 
-    %% Return the streams and the total number of messages
-    {As, Bs, (LengthAStream * NumberAs) + (LengthAStream div RatioAB)}.
+%%     %% Return the streams and the total number of messages
+%%     {As, Bs, (LengthAStream * NumberAs) + (LengthAStream div RatioAB)}.
