@@ -143,7 +143,7 @@ greedy_big_conf(Options) ->
 		    {A2, {{a,2}, node()}, 100},
 		    {Bs, {b, node()}, 100}],
 
-    log_stats_time_and_number_of_messages(1001000),
+    util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment", 1001000),
 
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
@@ -503,7 +503,7 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the current time and total number of events
-    log_stats_time_and_number_of_messages(NumberOfMessages),
+    util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment", NumberOfMessages),
 
     %% Log the input times of b messages
     %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
@@ -515,16 +515,6 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 
     SinkPid ! finished,
     ok.
-
-log_stats_time_and_number_of_messages(NumberOfMessages) ->
-    %% Setup the statistics filename
-    StatsFilename = "logs/experiment_stats.log",
-    %% Log the time before the producers have been spawned and the
-    %% number of events that will be sent in total.
-    BeforeProducersTimestamp = erlang:monotonic_time(),
-    StatsData = io_lib:format("ab-experiment -- Time before spawning producers: ~p, Number of messages: ~p~n",
-                             [BeforeProducersTimestamp, NumberOfMessages]),
-    ok = file:write_file(StatsFilename, StatsData).
 
 
 %% The specification of the computation

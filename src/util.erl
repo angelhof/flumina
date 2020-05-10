@@ -8,6 +8,7 @@
 	 sink_no_log/1,
          sink/2,
          run_experiment/3,
+         log_time_and_number_of_messages_before_producers_spawn/2,
 	 merge_with/3,
 	 take_at_most/2,
 	 map_focus/2,
@@ -100,6 +101,18 @@ run_experiment(Module, Function, Options) ->
         false ->
             util:sink()
     end.
+
+-spec log_time_and_number_of_messages_before_producers_spawn(string(), integer()) -> 'ok'.
+log_time_and_number_of_messages_before_producers_spawn(Prefix, NumberOfMessages) ->
+    %% Setup the statistics filename
+    StatsFilename = "logs/experiment_stats.log",
+    %% Log the time before the producers have been spawned and the
+    %% number of events that will be sent in total.
+    BeforeProducersTimestamp = erlang:monotonic_time(),
+    StatsData = io_lib:format("~s -- Time before spawning producers: ~p, Number of messages: ~p~n",
+                              [Prefix, BeforeProducersTimestamp, NumberOfMessages]),
+    ok = file:write_file(StatsFilename, StatsData).
+
 
 %% This can be used as an approximation for throughput, but it is not
 %% exact, since producers might have already started producing values,
