@@ -43,7 +43,7 @@ generate_setup_tree(Specification, Topology) ->
 generate_setup_tree(Specification, Topology, IsCentralized) ->
     Dependencies = conf_gen:get_dependencies(Specification),
     ImplTags = conf_gen:get_implementation_tags(Topology),
-    io:format("Impl Tags:~p~n", [ImplTags]),
+    %% io:format("Impl Tags:~p~n", [ImplTags]),
 
     %% Make the dependency graph
     {DepGraph, TagsVertices} = make_impl_dependency_graph(Dependencies, ImplTags),
@@ -54,11 +54,11 @@ generate_setup_tree(Specification, Topology, IsCentralized) ->
     %% Get the nodes-tags-rates association list
     NodesRates = conf_gen:get_nodes_rates(Topology),
     SortedImplTags = sort_tags_by_rate_ascending(NodesRates),
-    io:format("Sorted Tags: ~p~n", [SortedImplTags]),
+    %% io:format("Sorted Tags: ~p~n", [SortedImplTags]),
 
     %% TODO: Rename to iterative greedy disconnect
     TagsRootTree = iterative_greedy_disconnect(SortedImplTags, NodesRates, TagsVertices, DepGraph),
-    io:format("Tags root tree: ~n~p~n", [TagsRootTree]),
+    %% io:format("Tags root tree: ~n~p~n", [TagsRootTree]),
 
     %% Now we have to run the DP algorithm that given a root tree
     %% returns its optimal mapping to physical nodes. (By optimal
@@ -196,7 +196,7 @@ generate_binary_root_tree(RootTrees) ->
 				      [set_root_tree()], specification())
 				     -> [hole_setup_tree()].
 filter_splits_satisfy_any_child(StateTypePair, TagsNode, SplitMergeFuns, SetRootTrees, Specification) ->
-    io:format("Set Root Trees: ~p~n", [SetRootTrees]),
+    %% io:format("Set Root Trees: ~p~n", [SetRootTrees]),
     UniqueRootTrees = unique_root_trees_focus(SetRootTrees),
     DeepHoledSetupTrees =
         [filter_splits_satisfy_child(StateTypePair, TagsNode, SplitMergeFuns, Curr, Rest, Specification)
