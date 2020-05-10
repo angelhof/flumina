@@ -30,13 +30,20 @@
 make_producers(InputGens, Configuration, Topology) ->
     make_producers(InputGens, Configuration, Topology, constant).
 
--spec make_producers(gen_producer_init(), configuration(), 
+-spec make_producers(gen_producer_init(), configuration(),
 		     topology(), producer_type()) -> ok.
 make_producers(InputGens, Configuration, Topology, ProducerType) ->
     make_producers(InputGens, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
 
--spec make_producers(gen_producer_init(), configuration(), 
-		     topology(), producer_type(), message_logger_init_fun()) -> ok.
+-spec make_producers(gen_producer_init(), configuration(),
+		     topology(), producer_type(),
+                     {'log_tags', [tag()]} | message_logger_init_fun()) -> ok.
+make_producers(InputGens, Configuration, Topology, ProducerType, {log_tags, Tags}) ->
+    MessageLoggerInitFun =
+        fun() ->
+                log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
+        end,
+    make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun);
 make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
     make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun, 0).
 
