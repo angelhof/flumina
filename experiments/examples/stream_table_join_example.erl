@@ -26,7 +26,7 @@ greedy_big_conf(Options) ->
     {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
 
     %% Keys
-    Uids = [1, 2],
+    Uids = [1, 2, 3, 4],
 
     %% Architecture
     Rates =
