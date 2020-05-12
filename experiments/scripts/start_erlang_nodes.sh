@@ -11,3 +11,9 @@ echo "Closing the nodes"
 scripts/stop_erlang_node.sh "flumina1@ip-172-31-41-102"
 scripts/stop_erlang_node.sh "flumina2@ip-172-31-38-231"
 
+echo "Gathering logs"
+rm -rf temp_logs
+mkdir -p temp_logs
+scripts/gather_logs_from_ec2_node.sh ip-172-31-41-102.us-east-2.compute.internal temp_logs/flumina1
+scripts/gather_logs_from_ec2_node.sh ip-172-31-38-231.us-east-2.compute.internal temp_logs/flumina2
+cp -r logs temp_logs/main
