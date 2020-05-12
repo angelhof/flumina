@@ -140,6 +140,7 @@ append_log_in_file({Mbox, Log}, CurrentTimestamp, IoDevice) ->
 %% This function creates and truncates the debug log file
 -spec init_debug_log() -> ok.
 init_debug_log() ->
+    filelib:ensure_dir(?LOG_DIR),
     Filename =
         io_lib:format("~s/debug_~s_~s.log",
 		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
