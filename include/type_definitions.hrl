@@ -5,7 +5,9 @@
 
 -type experiment_opt() :: {'log_tags', [tag()]}
                         | {'sink_name', mailbox()}
-                        | {'producer_type', producer_type()}.
+                        | {'producer_type', producer_type()}
+                        | {'optimizer_type', optimizer_type()}
+                        | {'experiment_args', any()}.
 -type experiment_opts() :: [experiment_opt()].
 
 %%

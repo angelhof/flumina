@@ -2,6 +2,8 @@
 
 -export([greedy_big/0,
 	 greedy_big_conf/1,
+         experiment/1,
+         experiment_conf/1,
 	 make_page_view_events/4,
 	 make_get_user_address_events/4,
          make_update_user_address_events/5,
@@ -51,6 +53,57 @@ greedy_big_conf(Options) ->
     make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType),
     SinkPid ! finished.
 
+
+-spec experiment([{uid(), [{atom(), [node()]}]}]) -> 'ok'.
+experiment(UidNodeList) ->
+    Options =
+        %% TODO: Add logging tags for latency measurement
+        [{log_tags, []},
+         {producer_type, steady_sync_timestamp},
+         {optimizer_type, optimizer_greedy},
+         {experiment_args, UidNodeList}],
+    util:run_experiment(?MODULE, experiment_conf, Options).
+
+
+-spec experiment_conf(experiment_opts()) -> 'finished'.
+experiment_conf(Options) ->
+    %% Get arguments from options
+    {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
+    {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
+    {optimizer_type, OptimizerType} = lists:keyfind(optimizer_type, 1, Options),
+    {experiment_args, UidNodeList} = lists:keyfind(experiment_args, 1, Options),
+
+    %% Keys
+    {Uids, _Nodes} = lists:unzip(UidNodeList),
+
+    %% Architecture
+    Rates =
+        lists:flatten(
+          [[{Node, {page_view, Uid}, 1000}
+            || Node <- element(2, (lists:keyfind(page_view, 1, TagNodes)))] ++
+               [{Node, {get_user_address, Uid}, 10}
+                || Node <- element(2, (lists:keyfind(get_user_address, 1, TagNodes)))] ++
+               [{Node, {update_user_address, Uid}, 1}
+                || Node <- element(2, (lists:keyfind(update_user_address, 1, TagNodes)))]
+           || {Uid, TagNodes} <- UidNodeList]),
+
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    io:format("Tags: ~p~n", [tags(Uids)]),
+    io:format("Dependencies: ~p~n", [dependencies(Uids)]),
+
+    ConfTree = conf_gen:generate_for_module(?MODULE, Topology, [{optimizer,OptimizerType},
+                                                                {specification_arg, Uids}]),
+
+    configuration:pretty_print_configuration(tags(Uids), ConfTree),
+
+    %% Setup logging
+    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+
+    %% Make producers
+    make_big_input_distr_producers(UidNodeList, ConfTree, Topology, ProducerType),
+    SinkPid ! finished.
 
 
 %%
@@ -241,9 +294,11 @@ is_uid_in_pred(Uid, Pred) ->
 
 -spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_type()) -> 'ok'.
 make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType) ->
+    {Streams, Lengths} =
+        lists:unzip([make_big_input_uid_producers(Uid, [node()], node(), node()) || Uid <- Uids]),
     AllStreams =
-        lists:flatten([make_big_input_uid_producers(Uid, node(), node(), node()) || Uid <- Uids]),
-    NumberOfMessages = 1101000 * length(Uids),
+        lists:flatten(Streams),
+    NumberOfMessages = lists:sum(Lengths),
     util:log_time_and_number_of_messages_before_producers_spawn("stream-table-join-experiment",
                                                                 NumberOfMessages),
 
@@ -252,17 +307,48 @@ make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType) ->
     producer:make_producers(AllStreams, ConfTree, Topology, ProducerType,
                             {log_tags, LogTags}).
 
--spec make_big_input_uid_producers(uid(), node(), node(), node()) -> gen_producer_init().
-make_big_input_uid_producers(Uid, NodePV, NodeGUA, NodeUUA) ->
+-spec make_big_input_distr_producers([{uid(), [{atom(), [node()]}]}], configuration(),
+                                     topology(), producer_type()) -> 'ok'.
+make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerType) ->
+    %% Extract the nodes for each uid. Only page view events can be
+    %% sent to many different nodes.
+    UidNodeList =
+        [{Uid,
+          element(2, (lists:keyfind(page_view, 1, TagNodes))),
+          hd(element(2, (lists:keyfind(get_user_address, 1, TagNodes)))),
+          hd(element(2, (lists:keyfind(update_user_address, 1, TagNodes))))}
+         || {Uid, TagNodes} <- UidTagNodeList],
+    {Streams, Lengths} =
+        lists:unzip([make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA)
+                     || {Uid, NodesPV, NodeGUA, NodeUUA} <- UidNodeList]),
+    AllStreams =
+        lists:flatten(Streams),
+    NumberOfMessages = lists:sum(Lengths),
+    util:log_time_and_number_of_messages_before_producers_spawn("stream-table-join-experiment",
+                                                                NumberOfMessages),
+    {Uids, _} = lists:unzip(UidTagNodeList),
+    LogTags = lists:flatten([[{update_user_address, Uid},
+                              {get_user_address, Uid}] || Uid <- Uids]),
+    producer:make_producers(AllStreams, ConfTree, Topology, ProducerType,
+                            {log_tags, LogTags}).
+
+
+-spec make_big_input_uid_producers(uid(), [node()], node(), node())
+                                  -> {gen_producer_init(), integer()}.
+make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA) ->
     LengthPV = 10000,
-    PVevents = {fun ?MODULE:make_page_view_events/4, [Uid, NodePV, LengthPV, 1]},
+    PageViewStreams = [{{fun ?MODULE:make_page_view_events/4, [Uid, NodePV, LengthPV, 1]},
+                        {{page_view, Uid}, NodePV}, 1000}
+                       || NodePV <- NodesPV],
     GUAevents = {fun ?MODULE:make_get_user_address_events/4, [Uid, NodeGUA, LengthPV, 100]},
     UUAevents = {fun ?MODULE:make_update_user_address_events/5, [Uid, NodeUUA, LengthPV, 1000, 100]},
-    InputStreams =
-        [{PVevents, {{page_view, Uid}, NodePV}, 1000},
-         {GUAevents, {{get_user_address, Uid}, NodeGUA}, 100},
+    UserAddressStreams =
+        [{GUAevents, {{get_user_address, Uid}, NodeGUA}, 100},
          {UUAevents, {{update_user_address, Uid}, NodeUUA}, 1}],
-    InputStreams.
+    {PageViewStreams ++ UserAddressStreams,
+     LengthPV * length(NodesPV) +
+         (LengthPV div 100) +
+         (LengthPV div 1000)}.
 
 
 -spec make_events_no_heartbeats(page_view_tag() | get_user_address_tag(),
