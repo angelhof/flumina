@@ -8,7 +8,9 @@ import itertools
 from matplotlib.ticker import FormatStrFormatter
 
 sys.path.append(os.path.relpath("./scripts"))
+sys.path.append(os.path.relpath("./experiment"))
 from lib import *
+import results
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -63,21 +65,21 @@ def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name, yscale='
     ## We assume that all directories are there
     path_dirnames = [os.path.join(dirname, name) for name in dirnames]
     latencies = [read_preprocess_latency_data(path_dirname) for path_dirname in path_dirnames]
-    throughputs = [read_preprocess_throughput_data(path_dirname) for path_dirname in path_dirnames]
+    throughputs = [results.get_erlang_throughput(path_dirname) for path_dirname in path_dirnames]
 
     ## Get the average, 10th, and 90th percentile for both latencies and throughputs
     median_latencies = [np.percentile(lats, 50) for ts, lats in latencies]
     ten_latencies = [np.percentile(lats, 10) for ts, lats in latencies]
     ninety_latencies = [np.percentile(lats, 90) for ts, lats in latencies]
-    mean_throughputs = [np.mean(ths) for ts, ths in throughputs]
+    # mean_throughputs = [np.mean(ths) for ts, ths in throughputs]
 
     fig, ax = plt.subplots()
     ax.set_xlabel('Throughput (msgs/ms)')
     ax.set_ylabel('Latency (ms)')
     plt.yscale(yscale)
-    ax.plot(mean_throughputs, ninety_latencies, '-^', label='90th percentile', color='tab:red', linewidth=0.5)
-    ax.plot(mean_throughputs, median_latencies, '-o', label='median', linewidth=0.5)
-    ax.plot(mean_throughputs, ten_latencies, '-s', label='10th percentile', color='tab:green', linewidth=0.5)
+    ax.plot(throughputs, ninety_latencies, '-^', label='90th percentile', color='tab:red', linewidth=0.5)
+    ax.plot(throughputs, median_latencies, '-o', label='median', linewidth=0.5)
+    ax.plot(throughputs, ten_latencies, '-s', label='10th percentile', color='tab:green', linewidth=0.5)
     ax.legend()
 
     plt.tight_layout()
@@ -159,7 +161,7 @@ if __name__ == '__main__':
     plt.rcParams.update({'font.size': 14})
 
     # The full range of rates is range(10, 35, 2)
-    plot_scaleup_rate('archive', 'ab_exp1', range(10, 27, 2), 1000, 10, 18, 'optimizer_greedy')
+    plot_scaleup_rate('archive', 'ab_exp1', range(20, 32, 2), 1000, 10, 2, 'optimizer_greedy')
 
     # The full range of nodes is range(2, 33, 2)
     plot_scaleup_node_rate('archive', 'ab_exp2', 15, 1000, 10, range(2, 29, 2), 'optimizer_greedy')
