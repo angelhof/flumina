@@ -577,11 +577,15 @@ add_edges_in_dependency_graph(Dependencies, Graph, TagsVerts, ImplTags) ->
 		end, ITags)
       end, maps:to_list(Dependencies)).
 
+%% WARNING: It seems that this function behaves well for
+%% stream-table-join for T =:= STag. But before it worked and it was
+%% IT =:= STag. Figure out if it creates any issues.
 -spec spec_tag_to_impl_tags(tag(), impl_tags()) -> impl_tags().
 spec_tag_to_impl_tags(STag, ImplTags) ->
     [IT || {T, _} = IT <- ImplTags, T =:= STag].
 %% TODO: WHY IS THIS LIKE THAT. It should use T, and not IT? I should
 %% make sure to explain this.
+
 
 %% -spec make_dependency_graph(dependencies()) -> {digraph:graph(), tag_vertices()}.
 %% make_dependency_graph(Dependencies) ->
