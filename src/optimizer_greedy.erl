@@ -42,8 +42,12 @@ generate_setup_tree(Specification, Topology) ->
 -spec generate_setup_tree(specification(), topology(), 'edge' | 'centralized') -> temp_setup_tree().
 generate_setup_tree(Specification, Topology, IsCentralized) ->
     Dependencies = conf_gen:get_dependencies(Specification),
-    ImplTags = conf_gen:get_implementation_tags(Topology),
-    %% io:format("Impl Tags:~p~n", [ImplTags]),
+    RawImplTags = conf_gen:get_implementation_tags(Topology),
+    %% io:format("Impl Tags:~p~n", [RawImplTags]),
+
+    %% Remove duplicate implementation tags
+    %% TODO: Properly support multiple streams of the same tag in the same node instead of merging.
+    ImplTags = remove_duplicate_impl_tags(RawImplTags),
 
     %% Make the dependency graph
     {DepGraph, TagsVertices} = make_impl_dependency_graph(Dependencies, ImplTags),
@@ -53,7 +57,8 @@ generate_setup_tree(Specification, Topology, IsCentralized) ->
 
     %% Get the nodes-tags-rates association list
     NodesRates = conf_gen:get_nodes_rates(Topology),
-    SortedImplTags = sort_tags_by_rate_ascending(NodesRates),
+    MergedNodesRates = merge_rates_for_same_node_tag(NodesRates),
+    SortedImplTags = sort_tags_by_rate_ascending(MergedNodesRates),
     %% io:format("Sorted Tags: ~p~n", [SortedImplTags]),
 
     %% TODO: Rename to iterative greedy disconnect
@@ -625,7 +630,32 @@ sort_tags_by_rate_ascending(NodesRates) ->
 	  fun({_Node1, _Tag1, Rate1}, {_Node2, _Tag2, Rate2}) ->
 		  Rate1 =< Rate2
 	  end, NodesRates),
-    [{Tag, Node} || {Node, Tag, _Rate} <- SortedTagsRate].
+    SortedTagsList = [{Tag, Node} || {Node, Tag, _Rate} <- SortedTagsRate],
+    SortedTagsList.
+
+-spec remove_duplicate_impl_tags([impl_tag()]) -> [impl_tag()].
+remove_duplicate_impl_tags(ImplTags) ->
+    sets:to_list(sets:from_list(ImplTags)).
+
+-spec merge_rates_for_same_node_tag(nodes_rates()) -> nodes_rates().
+merge_rates_for_same_node_tag(NodesRates) ->
+    MergedRates =
+        lists:foldl(
+          fun({Node, Tag, Rate}, Map) ->
+                  maps:update_with({Node, Tag},
+                                   fun(OldRate) -> OldRate + Rate end,
+                                   Rate, Map)
+          end, #{}, NodesRates),
+    MergedRatesList = maps:to_list(MergedRates),
+    case length(MergedRatesList) < length(NodesRates) of
+        true ->
+            io:format("~n~n -- !! WARNING: Some of the rates where merged "
+                      "since they were about the same tag and the same node~n~n~n", []);
+        false ->
+            ok
+    end,
+    [ {Node, Tag, Rate} || {{Node, Tag}, Rate} <- MergedRatesList].
+
 
 -spec print_graph(digraph:graph()) -> ok.
 print_graph(Graph) ->
