@@ -70,47 +70,102 @@ def remove_prefix(text, prefix):
 
 def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer):
 
+    print("Experiment:", experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
+    main_stdout_log = "/tmp/flumina_main_stdout"
+    print("|-- The stdout is logged in:", main_stdout_log)
+
     ## TODO:Read the hostnames from a file
     my_sname = 'main'
     my_hostname_prefix = 'ip-172-31-35-213'
+    my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
     hostnames = ['ip-172-31-41-102.us-east-2.compute.internal',
                  'ip-172-31-38-231.us-east-2.compute.internal']
 
+    ## Clean the log directory
+    stime = datetime.now()
+    print("|-- Deleting the log directory...", end=" ", flush=True)
+    shutil.rmtree('logs', ignore_errors=True)
+    os.makedirs('logs')
+    etime = datetime.now()
+    print("took:", etime - stime)
+
     ## For each of the a_nodes, create a name and start the erlang
     ## node on a hostname (assuming the ec2 instance is up).
+    stime = datetime.now()
+    print("|-- Starting Erlang nodes...", end=" ", flush=True)
     node_names = []
     for i in range(a_node_numbers):
         sname = 'flumina{}'.format(i+1)
         hostname = hostnames[i]
         start_node_args = ['scripts/start_erlang_node.sh', sname, hostname]
-        print(start_node_args)
+        # print(start_node_args)
+        subprocess.check_call(start_node_args)
 
         ## Also compute the node name
         hostname_prefix = hostname.split('.')[0]
         node_name = '{}@{}'.format(sname, hostname_prefix)
         node_names.append(node_name)
+    etime = datetime.now()
+    print("took:", etime - stime)
 
 
     ## Run the main experiment
     args_prefix = ['make', 'exec']
-    name_opt = ['NAME_OPT="-sname main -setcookie flumina"']
+    name_opt = ['NAME_OPT=-sname main -setcookie flumina']
 
     exp_module = 'abexample.'
     exp_function = 'distributed_experiment.'
-    atom_node_names = ["'{}'".format(node_name)
-                       for node_name in ['{}@{}'.format(my_sname, my_hostname_prefix)] + node_names]
+    atom_node_names = ["\\'{}\\'".format(node_name)
+                       for node_name in [my_node_name] + node_names]
     node_names_exp_arg = ','.join(atom_node_names)
     exp_arguments = "[[{}],{},{},{},{}].".format(node_names_exp_arg, rate_multiplier,
                                                 ratio_ab, heartbeat_rate, optimizer)
     exec_args_string = '{} {} {}'.format(exp_module, exp_function, exp_arguments)
-    exec_args = ['args="{}"'.format(exec_args_string)]
+    exec_args = ['args={}'.format(exec_args_string)]
     all_args = args_prefix + name_opt + exec_args
-    print(all_args)
+    # print(all_args)
+    stime = datetime.now()
+    print("|-- Running experiment...", end=" ", flush=True)
+    with open(main_stdout_log, "w") as f:
+        p = subprocess.run(all_args, stdout=f)
+    etime = datetime.now()
+    print("took:", etime - stime)
 
     ## Stop the nodes in the ips
+    stime = datetime.now()
+    print("|-- Stopping erlang nodes...", end=" ", flush=True)
     for node_name in node_names:
         stop_node_args = ['scripts/stop_erlang_node.sh', node_name]
-        print(stop_node_args)
+        with open(main_stdout_log, "a") as f:
+            subprocess.check_call(stop_node_args, stdout=f)
+        # print(stop_node_args)
+    etime = datetime.now()
+    print("took:", etime - stime)
+
+    ## Gather logs
+    print("|-- Gathering logs...")
+    conf_string = '{}_{}_{}_{}_{}_{}'.format(experiment, rate_multiplier,
+                                             ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
+    dir_prefix = 'ab_exp'
+    dir_name = dir_prefix + conf_string
+    to_dir_path = os.path.join('archive', dir_name)
+
+    shutil.rmtree('temp_logs')
+    os.makedirs('temp_logs')
+    log_folders = [os.path.join('temp_logs', node.split('@')[0]) for node in node_names]
+    for i in range(a_node_numbers):
+        hostname = hostnames[i]
+        gather_logs_args = ['scripts/gather_logs_from_ec2_node.sh', hostname, log_folders[i]]
+        with open(main_stdout_log, "a") as f:
+            subprocess.check_call(gather_logs_args, stdout=f)
+
+    main_log_folder = os.path.join('temp_logs', my_sname)
+    shutil.copytree('logs', main_log_folder)
+    copy_logs_from_to([main_log_folder] + log_folders, to_dir_path)
+
+    ## Check the return code after we have stopped the nodes
+    p.check_returncode()
+
 
 
 
@@ -283,9 +338,11 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ##
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
+# rate_multipliers = range(20, 32, 2)
 rate_multipliers = range(10, 35, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
+# a_nodes_numbers = [2]
 a_nodes_numbers = [18]
 optimizers = ["optimizer_greedy"]
 
