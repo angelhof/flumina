@@ -893,6 +893,8 @@ run_experiment(SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
     ConfTree = conf_gen:generate_for_module(?MODULE, Topology,
                                  LogOptions ++ [{optimizer, Optimizer}]),
 
+    configuration:pretty_print_configuration(Tags, ConfTree),
+
     %% Prepare the producers input
     StreamIds = [{Id, HouseNodeName}
                  || {Id, HouseNodeName} <- lists:zip(lists:seq(0, NumInputStreams - 1), OtherNodeNames)],
@@ -918,7 +920,7 @@ run_experiment(SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
                 fun log_mod:no_message_logger/0
         end,
 
-    producer:make_producers(ProducerInit, ConfTree, Topology, steady_timestamp,
+    producer:make_producers(ProducerInit, ConfTree, Topology, steady_retimestamp_old,
                             LoggerInitFun, BeginSimulationTime),
 
     SinkPid ! finished.

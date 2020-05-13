@@ -243,17 +243,17 @@ add_father_if_undef(ChildPair, _Father) -> ChildPair.
 
 
 %% Pretty Print configuration tree
--spec pretty_print_configuration([impl_tag()], configuration()) -> 'ok'.
-pretty_print_configuration(ImplTags, Configuration) ->
-    pretty_print_configuration(ImplTags, Configuration, 0).
+-spec pretty_print_configuration([tag()], configuration()) -> 'ok'.
+pretty_print_configuration(Tags, Configuration) ->
+    pretty_print_configuration(Tags, Configuration, 0).
 
--spec pretty_print_configuration([impl_tag()], configuration(), integer()) -> 'ok'.
-pretty_print_configuration(ImplTags, {node, _NPid, _NNN, _MNN, {TagPred, _MsgPred}, Children}, Indent) ->
-    RelevantTags = [Tag || Tag <- ImplTags, TagPred(Tag)],
+-spec pretty_print_configuration([tag()], configuration(), integer()) -> 'ok'.
+pretty_print_configuration(SpecTags, {node, _NPid, _NNN, _MNN, {TagPred, _MsgPred}, Children}, Indent) ->
+    RelevantTags = [Tag || Tag <- SpecTags, TagPred(Tag)],
     IndentString = lists:flatten(lists:duplicate(Indent, "   ")),
     io:format("~s|-~p~n", [IndentString, RelevantTags]),
     lists:foreach(
       fun(Child) ->
-              pretty_print_configuration(ImplTags, Child, Indent+1)
+              pretty_print_configuration(SpecTags, Child, Indent+1)
       end, Children).
     %% lists:duplicate(5, xx).
