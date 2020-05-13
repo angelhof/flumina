@@ -171,7 +171,7 @@ splits_merges(Uids) ->
           {state_name("0", Uid), state_name("_get", Uid), state_name("_page_view", Uid)},
           {state_name("_page_view", Uid), state_name("_page_view", Uid), state_name("_page_view", Uid)}]
          || Uid <- Uids],
-    [{Trans, {fun split/2, fun merge/2}} || Trans <- lists:flatten(UidStateTransitions)].
+    [{Trans, {fun fork/2, fun join/2}} || Trans <- lists:flatten(UidStateTransitions)].
 
 -spec specification(uids()) -> specification().
 specification(Uids) ->
@@ -203,19 +203,37 @@ update({{get_user_address, Uid}, Ts}, State, SendTo) ->
     State.
 
 
-split({Pred1, Pred2}, State) ->
-    {maps:filter(fun(K,_) -> Pred1(K) end, State),
-     maps:filter(fun(K,_) -> Pred2(K) end, State)}.
+-spec fork({tag_predicate(), tag_predicate()}, state()) -> {state(), state()}.
+fork({Pred1, Pred2}, State) ->
+    %% The map contains Uids as keys, while the predicates refer to
+    %% tags, so we have to give a fake tag to the key.
+    State1 =
+        maps:filter(fun(K,_) -> is_uid_in_pred(K, Pred1) end, State),
+    State2 =
+        maps:filter(fun(K,_) -> is_uid_in_pred(K, Pred2) end, State),
+    %% io:format("State1: ~p~nState2: ~p~n", [maps:to_list(State1), maps:to_list(State2)]),
+    {State1, State2}.
 
-merge(State1, State2) ->
+-spec join(state(), state()) -> state().
+join(State1, State2) ->
     util:merge_with(
-      fun(K, _V1, _V2) ->
-	      %% This should never be called
-	      %% Actually it could be called because preds might not be disjoint
-	      util:err("Key: ~p shouldn't exist in both maps~n", [K]),
-	      erlang:halt()
+      fun(K, V1, V2) ->
+              case V1 =:= V2 of
+                  true ->
+                      V1;
+                  false ->
+                      %% This should never be called
+                      util:err("Key: ~p shouldn't exist in both maps~n", [K]),
+                      erlang:halt()
+              end
       end, State1, State2).
 
+%% Since predicates are on tags, we have to check if any of the tags
+%% with the same key satisfies the predicate.
+-spec is_uid_in_pred(uid(), tag_predicate()) -> boolean().
+is_uid_in_pred(Uid, Pred) ->
+    UidTags = tags([Uid]),
+    lists:any(Pred, UidTags).
 
 %%
 %% Input generation
