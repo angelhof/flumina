@@ -147,8 +147,12 @@ sync_producer(ProducerType, MsgGen, Rate, SendTo, LoggerFun) ->
         constant ->
             constant_rate_source(MsgGen, Rate, SendTo, LoggerFun);
         timestamp_based ->
+            io:format("WARNING: Producer type: ~p is old and should not be used anymore~n",
+                      [ProducerType]),
             timestamp_rate_source(MsgGen, Rate, FirstGeneratorTimestamp, SendTo, LoggerFun);
         steady_retimestamp_old ->
+            io:format("WARNING: Producer type: ~p is old and should not be used anymore~n",
+                      [ProducerType]),
             steady_retimestamp_rate_source_old(MsgGen, Rate, FirstGeneratorTimestamp, SendTo, LoggerFun);
         steady_timestamp ->
             steady_timestamp_rate_source(MsgGen, Rate, LocalStartTime, SendTo, LoggerFun);

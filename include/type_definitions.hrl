@@ -205,6 +205,7 @@
 -type msg_generator_init() :: {fun((...) -> msg_generator()), Args::[any()]}.
 -type producer_type() :: 'constant'
 		       | 'timestamp_based'
+		       | 'steady_retimestamp_old'
 		       | 'steady_retimestamp'
 		       | 'steady_timestamp'
 		       | 'steady_sync_timestamp'.

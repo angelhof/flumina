@@ -920,8 +920,6 @@ run_experiment(SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
                 fun log_mod:no_message_logger/0
         end,
 
-    io:format("ERROR: Producers have to be updated to work with beginsimulationtime~n", []),
-    erlang:halt(),
     producer:make_producers(ProducerInit, ConfTree, Topology, steady_retimestamp_old,
                             LoggerInitFun, BeginSimulationTime),
 
