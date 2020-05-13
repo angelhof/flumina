@@ -68,40 +68,147 @@ def remove_prefix(text, prefix):
         return text[len(prefix):]
     return text
 
-def run_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, run_ns3=False, ns3_conf=NS3Conf()):
-    a_nodes_names = ['a%dnode' % (node) for node in range(1,a_node_numbers+1)]
-    exec_a_nodes = [format_node(node_name) for node_name in a_nodes_names]
-    exec_b_node = format_node("main")
-    exec_nodes_string = ",".join([exec_b_node] + exec_a_nodes)
-    exec_prefix = '-noshell -run util exec abexample. distributed_experiment. '
-    args = '[[%s],%d,%d,%d,%s].' % (exec_nodes_string, rate_multiplier, ratio_ab, heartbeat_rate, optimizer)
-    exec_suffix = ' -s erlang halt'
-    exec_string = exec_prefix + args + exec_suffix
-    print(exec_string)
-    simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
-    if run_ns3:
-        file_prefix = "ns3_log"
-        ns3_args = ns3_conf.generate_args(file_prefix)
-        simulator_args.extend(["-n", ns3_args])
-    simulator_args.extend(a_nodes_names)
-    subprocess.check_call(simulator_args)
+def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer):
 
-    ## 1st argument is the name of the folder to gather the logs
+    print("Experiment:", experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
+    main_stdout_log = "/tmp/flumina_main_stdout"
+    print("|-- The stdout is logged in:", main_stdout_log)
+
+    ## TODO:Read the hostnames from a file
+    my_sname = 'main'
+    my_hostname_prefix = 'ip-172-31-35-213'
+    my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
+    hostnames = ['ip-172-31-41-102.us-east-2.compute.internal',
+                 'ip-172-31-38-231.us-east-2.compute.internal']
+
+    ## Clean the log directory
+    stime = datetime.now()
+    print("|-- Deleting the log directory...", end=" ", flush=True)
+    shutil.rmtree('logs', ignore_errors=True)
+    os.makedirs('logs')
+    etime = datetime.now()
+    print("took:", etime - stime)
+
+    ## For each of the a_nodes, create a name and start the erlang
+    ## node on a hostname (assuming the ec2 instance is up).
+    stime = datetime.now()
+    print("|-- Starting Erlang nodes...", end=" ", flush=True)
+    node_names = []
+    for i in range(a_node_numbers):
+        sname = 'flumina{}'.format(i+1)
+        hostname = hostnames[i]
+        start_node_args = ['scripts/start_erlang_node.sh', sname, hostname]
+        # print(start_node_args)
+        subprocess.check_call(start_node_args)
+
+        ## Also compute the node name
+        hostname_prefix = hostname.split('.')[0]
+        node_name = '{}@{}'.format(sname, hostname_prefix)
+        node_names.append(node_name)
+    etime = datetime.now()
+    print("took:", etime - stime)
+
+
+    ## Run the main experiment
+    args_prefix = ['make', 'exec']
+    name_opt = ['NAME_OPT=-sname main -setcookie flumina']
+
+    exp_module = 'abexample.'
+    exp_function = 'distributed_experiment.'
+    atom_node_names = ["\\'{}\\'".format(node_name)
+                       for node_name in [my_node_name] + node_names]
+    node_names_exp_arg = ','.join(atom_node_names)
+    exp_arguments = "[[{}],{},{},{},{}].".format(node_names_exp_arg, rate_multiplier,
+                                                ratio_ab, heartbeat_rate, optimizer)
+    exec_args_string = '{} {} {}'.format(exp_module, exp_function, exp_arguments)
+    exec_args = ['args={}'.format(exec_args_string)]
+    all_args = args_prefix + name_opt + exec_args
+    # print(all_args)
+    stime = datetime.now()
+    print("|-- Running experiment...", end=" ", flush=True)
+    with open(main_stdout_log, "w") as f:
+        p = subprocess.run(all_args, stdout=f)
+    etime = datetime.now()
+    print("took:", etime - stime)
+
+    ## Stop the nodes in the ips
+    stime = datetime.now()
+    print("|-- Stopping erlang nodes...", end=" ", flush=True)
+    for node_name in node_names:
+        stop_node_args = ['scripts/stop_erlang_node.sh', node_name]
+        with open(main_stdout_log, "a") as f:
+            subprocess.check_call(stop_node_args, stdout=f)
+        # print(stop_node_args)
+    etime = datetime.now()
+    print("took:", etime - stime)
+
+    ## Gather logs
+    print("|-- Gathering logs...")
+    conf_string = '{}_{}_{}_{}_{}_{}'.format(experiment, rate_multiplier,
+                                             ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
     dir_prefix = 'ab_exp'
-    nodes = ['main'] + a_nodes_names
-    conf_string = '%d_%s_%s_%s_%s_%s' % (experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
-
-    ## Make the directory to save the current logs
-    ## TODO: Also add a timestamp?
     dir_name = dir_prefix + conf_string
     to_dir_path = os.path.join('archive', dir_name)
 
-    log_folders = [os.path.join('var', 'log', node) for node in nodes]
+    shutil.rmtree('temp_logs')
+    os.makedirs('temp_logs')
+    log_folders = [os.path.join('temp_logs', node.split('@')[0]) for node in node_names]
+    for i in range(a_node_numbers):
+        hostname = hostnames[i]
+        gather_logs_args = ['scripts/gather_logs_from_ec2_node.sh', hostname, log_folders[i]]
+        with open(main_stdout_log, "a") as f:
+            subprocess.check_call(gather_logs_args, stdout=f)
 
-    copy_logs_from_to(log_folders, to_dir_path)
-    ## TODO: Make this runnable for the ns3 script
-    if run_ns3:
-        move_ns3_logs(file_prefix, to_dir_path)
+    main_log_folder = os.path.join('temp_logs', my_sname)
+    shutil.copytree('logs', main_log_folder)
+    copy_logs_from_to([main_log_folder] + log_folders, to_dir_path)
+
+    ## Check the return code after we have stopped the nodes
+    p.check_returncode()
+
+
+
+
+def run_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False):
+    assert(not (run_ec2 and run_ns3))
+    if(run_ec2):
+        execute_ec2_configuration(experiment, rate_multiplier, ratio_ab,
+                                  heartbeat_rate, a_node_numbers, optimizer)
+    else:
+        a_nodes_names = ['a%dnode' % (node) for node in range(1,a_node_numbers+1)]
+        exec_a_nodes = [format_node(node_name) for node_name in a_nodes_names]
+        exec_b_node = format_node("main")
+        exec_nodes_string = ",".join([exec_b_node] + exec_a_nodes)
+        exec_prefix = '-noshell -run util exec abexample. distributed_experiment. '
+        args = '[[%s],%d,%d,%d,%s].' % (exec_nodes_string, rate_multiplier, ratio_ab, heartbeat_rate, optimizer)
+        exec_suffix = ' -s erlang halt'
+        exec_string = exec_prefix + args + exec_suffix
+
+        print(exec_string)
+        simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
+        if run_ns3:
+            file_prefix = "ns3_log"
+            ns3_args = ns3_conf.generate_args(file_prefix)
+            simulator_args.extend(["-n", ns3_args])
+        simulator_args.extend(a_nodes_names)
+        subprocess.check_call(simulator_args)
+
+        ## 1st argument is the name of the folder to gather the logs
+        dir_prefix = 'ab_exp'
+        nodes = ['main'] + a_nodes_names
+        conf_string = '%d_%s_%s_%s_%s_%s' % (experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
+
+        ## Make the directory to save the current logs
+        ## TODO: Also add a timestamp?
+        dir_name = dir_prefix + conf_string
+        to_dir_path = os.path.join('archive', dir_name)
+
+        log_folders = [os.path.join('var', 'log', node) for node in nodes]
+
+        copy_logs_from_to(log_folders, to_dir_path)
+        ## TODO: Make this runnable for the ns3 script
+        if run_ns3:
+            move_ns3_logs(file_prefix, to_dir_path)
 
 
 ## SAD COPY PASTE FROM THE FUNCTION ABOVE
@@ -211,7 +318,8 @@ def run_outlier_detection_configurations(rate_multiplier, num_houses,
 
 
 
-def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf()):
+def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False):
+    assert(not (run_ns3 and run_ec2))
     ## Find a better way to do this than
     ## indented for loops :'(
     for rate_m in rate_multipliers:
@@ -219,7 +327,7 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
             for heartbeat_rate in heartbeat_rates:
                 for a_node in a_nodes_numbers:
                     for optimizer in optimizers:
-                        run_configuration(experiment, rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf)
+                        run_configuration(experiment, rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf, run_ec2=run_ec2)
 
 
 ## Experiment 1
@@ -230,13 +338,16 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ##
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
+# rate_multipliers = range(20, 32, 2)
 rate_multipliers = range(10, 35, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
+# a_nodes_numbers = [2]
 a_nodes_numbers = [18]
 optimizers = ["optimizer_greedy"]
 
-#run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
+# run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
+# run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
 
 #dirname = os.path.join('archive')
 # plot_scaleup_rate(dirname, 'multi_run_ab_experiment',

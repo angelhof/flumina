@@ -58,10 +58,12 @@ def read_preprocess_latency_data(log_dir_name):
     log_file_names = os.listdir(log_dir_name)
     producer_file_names = [os.path.join(log_dir_name, filename)
                            for filename in log_file_names
-                           if filename.startswith('producer')]
+                           if filename.startswith('producer')
+                           and not filename == "producers_time.log"]
     sink_file_names = [os.path.join(log_dir_name, filename)
                        for filename in log_file_names
-                       if filename.startswith('sink')]
+                       if filename.startswith('sink')
+                       and not filename == "sink_stats.log"]
 
     producer_data = []
     for producer_file_name in producer_file_names:

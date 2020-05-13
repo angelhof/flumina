@@ -23,6 +23,7 @@ initialize_message_logger_state(Prefix, Tags) ->
     Filename =
         io_lib:format("~s/~s_~s_~s_messages.log",
 		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
+    filelib:ensure_dir(Filename),
     {ok, IoDevice} = file:open(Filename, [append]),
     ok = file:truncate(IoDevice),
     fun(Msg) ->
@@ -86,6 +87,7 @@ num_logger_process(Prefix, Configuration) ->
     Filename =
         io_lib:format("~s/~s_~s_~s_num_messages.log", 
 		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
+    filelib:ensure_dir(Filename),
     {ok, IoDevice} = file:open(Filename, [append]),
     ok = file:truncate(IoDevice),
     num_logger_process_loop(IoDevice, Configuration).
@@ -143,6 +145,7 @@ init_debug_log() ->
     Filename =
         io_lib:format("~s/debug_~s_~s.log",
 		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
+    filelib:ensure_dir(Filename),
     {ok, IoDevice} = file:open(Filename, [write]),
     ok = file:truncate(IoDevice),
     ok = file:close(IoDevice).
@@ -153,4 +156,5 @@ debug_log(Format, Args) ->
         io_lib:format("~s/debug_~s_~s.log",
 		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
     Data = io_lib:format(Format, Args),
+    filelib:ensure_dir(Filename),
     ok = file:write_file(Filename, Data, [append]).
