@@ -5,7 +5,9 @@
 
 -type experiment_opt() :: {'log_tags', [tag()]}
                         | {'sink_name', mailbox()}
-                        | {'producer_type', producer_type()}.
+                        | {'producer_type', producer_type()}
+                        | {'optimizer_type', optimizer_type()}
+                        | {'experiment_args', any()}.
 -type experiment_opts() :: [experiment_opt()].
 
 %%
@@ -205,6 +207,7 @@
 -type msg_generator_init() :: {fun((...) -> msg_generator()), Args::[any()]}.
 -type producer_type() :: 'constant'
 		       | 'timestamp_based'
+		       | 'steady_retimestamp_old'
 		       | 'steady_retimestamp'
 		       | 'steady_timestamp'
 		       | 'steady_sync_timestamp'.

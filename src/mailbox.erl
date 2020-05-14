@@ -85,6 +85,7 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
     {ok, Predicate} = configuration:get_relevant_predicates(Attachee, ConfTree),
     %% Find all the implementation tags that are in this mailbox's predicate
 
+    %% io:format("Implementation Tag Dependencies for: ~p with attachee: ~p~n", [self(), Attachee]),
     ImplDependencies =
 	lists:map(
 	  fun({Tag, _Node} = ImplTag) ->
@@ -102,10 +103,11 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 		  %% io:format("The implementation tag: ~p~n"
 		  %% 	    " has specification deps: ~p~n"
 		  %% 	    " and implementation deps: ~p~n",
-		  %% 	    [ImplTag, DepTags, RelevantImplTags]),
+		  %% 	    [ImplTag, sets:to_list(DepTags), RelevantImplTags]),
 		  {ImplTag, RelevantImplTags}
 	  end, ImplTags),
-    io:format("Implementation Tag Dependencies for: ~p~n~p~n", [self(), ImplDependencies]),
+    io:format("Implementation Tag Dependencies for: ~p with attachee: ~p~n~p~n",
+              [self(), Attachee, ImplDependencies]),
     maps:from_list(ImplDependencies).
     %% Dependencies1 =
     %% 	maps:map(

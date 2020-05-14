@@ -310,6 +310,79 @@ def run_outlier_detection_configuration(rate_multiplier, num_houses, optimizer,
     if run_ns3:
         move_ns3_logs(file_prefix, to_dir_path)
 
+def run_stream_table_join_configuration(num_ids, num_page_view_parallel, run_ns3=False):
+
+    ## TODO: Do that for EC2 too
+
+    ## Given the number of unique identifiers and the number of
+    ## parallel page view streams, we can create a list that contains
+    ## for each uid, and for each tag, the arriving node(s).
+    uid_tag_node_list = []
+    counter = 1
+    for uid in range(num_ids):
+        page_view_nodes = []
+        for i in range(num_page_view_parallel):
+            # print("Uid:", uid, "i:", i)
+            node_name = "flumina{}".format(counter)
+            counter += 1
+            ## TODO: When doing EC2 we need to replace this with a
+            ## real hostname
+            page_view_nodes.append(format_node(node_name))
+        get_user_address_node_name = "flumina{}".format(counter)
+        counter += 1
+        get_user_address_node = format_node(get_user_address_node_name)
+
+        update_user_address_node_name = "flumina{}".format(counter)
+        counter += 1
+        update_user_address_node = format_node(update_user_address_node_name)
+
+        ## Format the string
+        uid_tag_node_string = "{" + str(uid) + ",[{'page_view',[" + ",".join(page_view_nodes)
+        uid_tag_node_string += "]},{'get_user_address',[" + get_user_address_node
+        uid_tag_node_string += "]},{'update_user_address',[" + update_user_address_node + "]}]}"
+        uid_tag_node_list.append(uid_tag_node_string)
+    # print(uid_tag_node_list)
+
+    ## If we are simulating with ns3/simulate.sh we need a list of all
+    ## the docker containers to start
+    all_node_names = ["flumina{}".format(i+1) for i in range(counter-1)]
+    # print(all_node_names)
+
+    ## Setting up the arguments
+    exec_prefix = '-noshell -run util exec stream_table_join_example. experiment. '
+    args = "[[{}]].".format(",".join(uid_tag_node_list))
+    exec_suffix = ' -s erlang halt'
+    exec_string = exec_prefix + args + exec_suffix
+    print(exec_string)
+    simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
+    ## Change this to run THE REALISTIC EXAMPLE
+    if run_ns3:
+        assert(False)
+        # exit(1)
+        # file_prefix = "ns3_log"
+        # ns3_args = ns3_conf.generate_args(file_prefix)
+        # simulator_args.extend(["-n", ns3_args])
+    simulator_args.extend(all_node_names)
+    print(simulator_args)
+    subprocess.check_call(simulator_args)
+
+    ## TODO: Refactor this to not be copy-pasted
+    ## 1st argument is the name of the folder to gather the logs
+    dir_prefix = 'stream_table_join'
+    nodes = ['main'] + all_node_names
+    conf_string = '{}_{}_{}'.format(num_ids, num_page_view_parallel, run_ns3)
+
+    ## Make the directory to save the current logs
+    dir_name = dir_prefix + '_' + conf_string
+    to_dir_path = os.path.join('archive', dir_name)
+
+    log_folders = [os.path.join('var', 'log', node) for node in nodes]
+
+    copy_logs_from_to(log_folders, to_dir_path)
+    if run_ns3:
+        assert(False)
+        # move_ns3_logs(file_prefix, to_dir_path)
+
 
 ## ANOTHER SAD COPY PASTE...
 def run_outlier_detection_configurations(rate_multiplier, num_houses,
@@ -321,6 +394,11 @@ def run_outlier_detection_configurations(rate_multiplier, num_houses,
             for optimizer in optimizers:
                 run_outlier_detection_configuration(rate_m, house_node, optimizer, run_ns3, ns3_conf)
 
+## ANOTHER SAD COPY PASTE...
+def run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False):
+    for num_id in num_ids:
+        for num_page_view_p in num_page_view_parallel:
+            run_stream_table_join_configuration(num_id, num_page_view_p, run_ns3)
 
 
 def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False):
@@ -452,10 +530,17 @@ optimizers = ["optimizer_greedy"]
 #    a_nodes_numbers, optimizers, run_ns3=True
 #)
 
+## Stream-Table Join Experiment
+## ===============
+
+num_ids = [2]
+num_page_view_parallel = [2]
+
+# run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False)
+
 
 ## Realistic Experiment
 ## ===============
-
 
 rate_multipliers = [360]
 num_houses = [20]

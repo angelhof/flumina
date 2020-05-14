@@ -42,20 +42,28 @@ generate_setup_tree(Specification, Topology) ->
 -spec generate_setup_tree(specification(), topology(), 'edge' | 'centralized') -> temp_setup_tree().
 generate_setup_tree(Specification, Topology, IsCentralized) ->
     Dependencies = conf_gen:get_dependencies(Specification),
-    ImplTags = conf_gen:get_implementation_tags(Topology),
+    RawImplTags = conf_gen:get_implementation_tags(Topology),
+    %% io:format("Impl Tags:~p~n", [RawImplTags]),
+
+    %% Remove duplicate implementation tags
+    %% TODO: Properly support multiple streams of the same tag in the same node instead of merging.
+    ImplTags = remove_duplicate_impl_tags(RawImplTags),
 
     %% Make the dependency graph
     {DepGraph, TagsVertices} = make_impl_dependency_graph(Dependencies, ImplTags),
     print_graph(DepGraph),
 
+    %% TODO: The dependency graph is empty for some reason.
+
     %% Get the nodes-tags-rates association list
     NodesRates = conf_gen:get_nodes_rates(Topology),
-    SortedImplTags = sort_tags_by_rate_ascending(NodesRates),
-    io:format("Sorted Tags: ~p~n", [SortedImplTags]),
+    MergedNodesRates = merge_rates_for_same_node_tag(NodesRates),
+    SortedImplTags = sort_tags_by_rate_ascending(MergedNodesRates),
+    %% io:format("Sorted Tags: ~p~n", [SortedImplTags]),
 
     %% TODO: Rename to iterative greedy disconnect
     TagsRootTree = iterative_greedy_disconnect(SortedImplTags, NodesRates, TagsVertices, DepGraph),
-    io:format("Tags root tree: ~n~p~n", [TagsRootTree]),
+    %% io:format("Tags root tree: ~n~p~n", [TagsRootTree]),
 
     %% Now we have to run the DP algorithm that given a root tree
     %% returns its optimal mapping to physical nodes. (By optimal
@@ -193,7 +201,7 @@ generate_binary_root_tree(RootTrees) ->
 				      [set_root_tree()], specification())
 				     -> [hole_setup_tree()].
 filter_splits_satisfy_any_child(StateTypePair, TagsNode, SplitMergeFuns, SetRootTrees, Specification) ->
-    io:format("Set Root Trees: ~p~n", [SetRootTrees]),
+    %% io:format("Set Root Trees: ~p~n", [SetRootTrees]),
     UniqueRootTrees = unique_root_trees_focus(SetRootTrees),
     DeepHoledSetupTrees =
         [filter_splits_satisfy_child(StateTypePair, TagsNode, SplitMergeFuns, Curr, Rest, Specification)
@@ -496,35 +504,37 @@ iterative_greedy_disconnect(ImplTags, NodesRates, TagsVertices, Graph) ->
     {TopTags, ChildrenRootTrees}.
 
 
-%% This function returns the minimal set of tags that disconnects
-%% the dependency graph.
--spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph()) -> {impl_tags(), [impl_tags()]}.
+-spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph())
+                            -> {impl_tags(), [impl_tags()]}.
 best_greedy_disconnect(ImplTags, TagsVertices, Graph) ->
-    best_greedy_disconnect(ImplTags, TagsVertices, Graph, []).
+    {TopTags, Components} =
+        best_greedy_disconnect(ImplTags, TagsVertices, Graph, []),
+    TagCCs =
+        [[get_label(V, Graph) || V <- Component]
+         || Component <- Components],
+    {TopTags, TagCCs}.
 
--spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph(), impl_tags()) -> {impl_tags(), [impl_tags()]}.
-best_greedy_disconnect([], _TagsVertices, _Graph, Acc) ->
-    {Acc, []};
-best_greedy_disconnect([ImplTag|ImplTags], TagsVertices, Graph, Acc) ->
-    Vertex = maps:get(ImplTag, TagsVertices),
-    case does_disconnect(Vertex, Graph) of
+-spec best_greedy_disconnect(impl_tags(), tag_vertices(), digraph:graph(), impl_tags())
+                            -> {impl_tags(), [[digraph:vertex()]]}.
+best_greedy_disconnect(ImplTags, TagsVertices, Graph, Acc) ->
+    case is_disconnected(Graph) of
 	{disconnected, Components} ->
-	    TagCCs =
-		[[get_label(V, Graph) || V <- Component]
-		 || Component <- Components],
-	    {[ImplTag|Acc], TagCCs};
+	    {Acc, Components};
 	still_connected ->
-	    best_greedy_disconnect(ImplTags, TagsVertices, Graph, [ImplTag|Acc])
+            case ImplTags of
+                [] ->
+                    {Acc, digraph_utils:components(Graph)};
+                [ImplTag|RestImplTags] ->
+                    %% Delete the vertex from the graph
+                    Vertex = maps:get(ImplTag, TagsVertices),
+                    true = digraph:del_vertex(Graph, Vertex),
+                    best_greedy_disconnect(RestImplTags, TagsVertices, Graph, [ImplTag|Acc])
+            end
     end.
 
--spec does_disconnect(digraph:vertex(), digraph:graph()) ->
-			     {'disconnected', [[digraph:vertex()]]} |
-			     'still_connected'.
-does_disconnect(Vertex, Graph) ->
-    %% Delete the vertex from the graph
-    true = digraph:del_vertex(Graph, Vertex),
-    %% Check the number of the connected components
-    %% after the removal of Vertex
+-spec is_disconnected(digraph:graph()) -> {'disconnected', [[digraph:vertex()]]}
+                                       |  'still_connected'.
+is_disconnected(Graph) ->
     case digraph_utils:components(Graph) of
 	[] ->
 	    still_connected;
@@ -572,9 +582,15 @@ add_edges_in_dependency_graph(Dependencies, Graph, TagsVerts, ImplTags) ->
 		end, ITags)
       end, maps:to_list(Dependencies)).
 
+%% WARNING: It seems that this function behaves well for
+%% stream-table-join for T =:= STag. But before it worked and it was
+%% IT =:= STag. Figure out if it creates any issues.
 -spec spec_tag_to_impl_tags(tag(), impl_tags()) -> impl_tags().
 spec_tag_to_impl_tags(STag, ImplTags) ->
-    [IT || {_T, _} = IT <- ImplTags, IT =:= STag].
+    [IT || {T, _} = IT <- ImplTags, T =:= STag].
+%% TODO: WHY IS THIS LIKE THAT. It should use T, and not IT? I should
+%% make sure to explain this.
+
 
 %% -spec make_dependency_graph(dependencies()) -> {digraph:graph(), tag_vertices()}.
 %% make_dependency_graph(Dependencies) ->
@@ -614,7 +630,32 @@ sort_tags_by_rate_ascending(NodesRates) ->
 	  fun({_Node1, _Tag1, Rate1}, {_Node2, _Tag2, Rate2}) ->
 		  Rate1 =< Rate2
 	  end, NodesRates),
-    [{Tag, Node} || {Node, Tag, _Rate} <- SortedTagsRate].
+    SortedTagsList = [{Tag, Node} || {Node, Tag, _Rate} <- SortedTagsRate],
+    SortedTagsList.
+
+-spec remove_duplicate_impl_tags([impl_tag()]) -> [impl_tag()].
+remove_duplicate_impl_tags(ImplTags) ->
+    sets:to_list(sets:from_list(ImplTags)).
+
+-spec merge_rates_for_same_node_tag(nodes_rates()) -> nodes_rates().
+merge_rates_for_same_node_tag(NodesRates) ->
+    MergedRates =
+        lists:foldl(
+          fun({Node, Tag, Rate}, Map) ->
+                  maps:update_with({Node, Tag},
+                                   fun(OldRate) -> OldRate + Rate end,
+                                   Rate, Map)
+          end, #{}, NodesRates),
+    MergedRatesList = maps:to_list(MergedRates),
+    case length(MergedRatesList) < length(NodesRates) of
+        true ->
+            io:format("~n~n -- !! WARNING: Some of the rates where merged "
+                      "since they were about the same tag and the same node~n~n~n", []);
+        false ->
+            ok
+    end,
+    [ {Node, Tag, Rate} || {{Node, Tag}, Rate} <- MergedRatesList].
+
 
 -spec print_graph(digraph:graph()) -> ok.
 print_graph(Graph) ->
