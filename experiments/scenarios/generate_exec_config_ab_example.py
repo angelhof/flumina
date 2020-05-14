@@ -68,6 +68,38 @@ def remove_prefix(text, prefix):
         return text[len(prefix):]
     return text
 
+def gather_logs(dir_prefix, nodes, conf_string, run_ns3=False, run_ec2=False, log_name="/dev/null"):
+    assert(not (run_ns3 and run_ec2))
+
+    stime = datetime.now()
+    print("|-- Gathering logs...", end=" ", flush=True)
+    ## Make the directory to save the current logs
+    dir_name = dir_prefix + '_' + conf_string
+    to_dir_path = os.path.join('archive', dir_name)
+
+    if(not run_ec2):
+        all_log_folders = [os.path.join('var', 'log', node) for node in nodes]
+    else:
+        shutil.rmtree('temp_logs')
+        os.makedirs('temp_logs')
+        log_folders = [os.path.join('temp_logs', node.split('@')[0]) for node in nodes]
+        hostnames = get_ec2_hostnames()
+        for i in range(len(nodes)):
+            hostname = hostnames[i]
+            gather_logs_args = ['scripts/gather_logs_from_ec2_node.sh', hostname, log_folders[i]]
+            with open(log_name, "a") as f:
+                subprocess.check_call(gather_logs_args, stdout=f)
+
+        main_log_folder = os.path.join('temp_logs', 'main')
+        shutil.copytree('logs', main_log_folder)
+        all_log_folders = [main_log_folder] + log_folders
+
+    copy_logs_from_to(all_log_folders, to_dir_path)
+    etime = datetime.now()
+    print("took:", etime - stime)
+    print("Copied logs in:", to_dir_path)
+
+
 def get_ec2_hostnames():
     filename = os.path.join('ec2', 'hostnames')
     with open(filename) as f:
@@ -148,25 +180,10 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
     print("took:", etime - stime)
 
     ## Gather logs
-    print("|-- Gathering logs...")
+    dir_prefix = 'ab_exp'
     conf_string = '{}_{}_{}_{}_{}_{}'.format(experiment, rate_multiplier,
                                              ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
-    dir_prefix = 'ab_exp'
-    dir_name = dir_prefix + conf_string
-    to_dir_path = os.path.join('archive', dir_name)
-
-    shutil.rmtree('temp_logs')
-    os.makedirs('temp_logs')
-    log_folders = [os.path.join('temp_logs', node.split('@')[0]) for node in node_names]
-    for i in range(a_node_numbers):
-        hostname = hostnames[i]
-        gather_logs_args = ['scripts/gather_logs_from_ec2_node.sh', hostname, log_folders[i]]
-        with open(main_stdout_log, "a") as f:
-            subprocess.check_call(gather_logs_args, stdout=f)
-
-    main_log_folder = os.path.join('temp_logs', my_sname)
-    shutil.copytree('logs', main_log_folder)
-    copy_logs_from_to([main_log_folder] + log_folders, to_dir_path)
+    gather_logs(dir_prefix, node_names, conf_string, run_ec2=True, log_name=main_stdout_log)
 
     ## Check the return code after we have stopped the nodes
     p.check_returncode()
@@ -382,39 +399,7 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, run_ns3
     nodes = ['main'] + all_node_names
     conf_string = '{}_{}_{}'.format(num_ids, num_page_view_parallel, run_ec2)
 
-    gather_docker_logs(dir_prefix, nodes, conf_string)
-
-
-def gather_docker_logs(dir_prefix, nodes, conf_string, run_ns3=False, run_ec2=False):
-    assert(not (run_ns3 and run_ec2))
-
-    stime = datetime.now()
-    print("|-- Gathering logs...", end=" ", flush=True)
-    ## Make the directory to save the current logs
-    dir_name = dir_prefix + '_' + conf_string
-    to_dir_path = os.path.join('archive', dir_name)
-
-    if(not run_ec2):
-        all_log_folders = [os.path.join('var', 'log', node) for node in nodes]
-    else:
-        shutil.rmtree('temp_logs')
-        os.makedirs('temp_logs')
-        log_folders = [os.path.join('temp_logs', node.split('@')[0]) for node in node_names]
-        for i in range(a_node_numbers):
-            hostname = hostnames[i]
-            gather_logs_args = ['scripts/gather_logs_from_ec2_node.sh', hostname, log_folders[i]]
-            with open(main_stdout_log, "a") as f:
-                subprocess.check_call(gather_logs_args, stdout=f)
-
-        main_log_folder = os.path.join('temp_logs', my_sname)
-        shutil.copytree('logs', main_log_folder)
-        all_log_folders = [main_log_folder] + log_folders
-
-    copy_logs_from_to(all_log_folders, to_dir_path)
-    etime = datetime.now()
-    print("took:", etime - stime)
-    print("Copied logs in:", to_dir_path)
-
+    gather_logs(dir_prefix, nodes, conf_string, run_ns3=run_ns3, run_ec2=run_ec2)
 
 ## ANOTHER SAD COPY PASTE...
 def run_outlier_detection_configurations(rate_multiplier, num_houses,
@@ -454,15 +439,15 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
 # rate_multipliers = range(20, 32, 2)
-rate_multipliers = range(10, 35, 2)
+rate_multipliers = range(30, 32, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [2]
-a_nodes_numbers = [18]
+a_nodes_numbers = [5]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
-# run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
 
 #dirname = os.path.join('archive')
 # plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
@@ -568,7 +553,7 @@ optimizers = ["optimizer_greedy"]
 num_ids = [2]
 num_page_view_parallel = [2]
 
-run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False)
+# run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False)
 
 
 ## realistic Experiment
