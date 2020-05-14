@@ -68,18 +68,23 @@ def remove_prefix(text, prefix):
         return text[len(prefix):]
     return text
 
+def get_ec2_hostnames():
+    filename = os.path.join('ec2', 'hostnames')
+    with open(filename) as f:
+        hostnames = [line.rstrip() for line in f.readlines()]
+    return hostnames
+
 def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer):
 
     print("Experiment:", experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
     main_stdout_log = "/tmp/flumina_main_stdout"
     print("|-- The stdout is logged in:", main_stdout_log)
 
-    ## TODO:Read the hostnames from a file
+    ## Read the hostnames from the ec2 internal hostnames file
     my_sname = 'main'
     my_hostname_prefix = 'ip-172-31-35-213'
     my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
-    hostnames = ['ip-172-31-41-102.us-east-2.compute.internal',
-                 'ip-172-31-38-231.us-east-2.compute.internal']
+    hostnames = get_ec2_hostnames()
 
     ## Clean the log directory
     stime = datetime.now()
