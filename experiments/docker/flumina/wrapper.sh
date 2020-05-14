@@ -52,6 +52,8 @@ echo -e "Starting the node\n\tNODE=${NODE}\n\tARGS=${ARGS}" >> ${LOG}
   -pa ebin \
   ${ARGS} >> ${LOG} 2>&1
 
+echo "Docker: Node ${NODE} is done..." >> ${LOG}
+
 if [ -p "${PIPE}" ]
 then
   echo "${NODE}" > ${PIPE}

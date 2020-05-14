@@ -183,11 +183,19 @@ then
   wait ${wafPid}
   rm ${workdir}/var/run/ns3.pid
 else
-  # We are not running ns3; just wait for main to finish
+    # We are not running ns3; just wait for main to finish
 
-  log "Waiting for ${main}.local to finish..."
+    log "Waiting for ${main}.local to finish..."
 
-  docker wait "${main}.local"
+    ## K: I added this here to get rid of a deadlock where main waits
+    ## for someone to read its pipe.
+    notification=""
+    while [ "${notification}" != "${main}" ]; do
+        notification=$(cat ${workdir}/var/conf/notify)
+        log "Received notification: ${notification}"
+    done
+
+    docker wait "${main}.local"
 fi
 
 log "Destroying the simulation context..."

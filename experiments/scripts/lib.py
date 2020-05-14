@@ -22,7 +22,6 @@ def copy_logs_from_to(from_dirs, to_dir_path):
     for file_name in log_file_names:
         shutil.copy(file_name, to_dir_path)
 
-    print("Copied logs in:", to_dir_path)
 
 # Moves ns3 log files to the directory to_dir. Does not
 # remove to_dir if it exists so that it can be combined

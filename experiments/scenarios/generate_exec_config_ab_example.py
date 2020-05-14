@@ -310,7 +310,12 @@ def run_outlier_detection_configuration(rate_multiplier, num_houses, optimizer,
     if run_ns3:
         move_ns3_logs(file_prefix, to_dir_path)
 
-def run_stream_table_join_configuration(num_ids, num_page_view_parallel, run_ns3=False):
+
+## Given the arguments of the stream-table join experiment this
+## constructs the argument string and the necessary node names that
+## have to be spawned as docker containers.
+def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, run_ec2=False):
+    assert(not run_ec2)
 
     ## TODO: Do that for EC2 too
 
@@ -348,40 +353,67 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, run_ns3
     all_node_names = ["flumina{}".format(i+1) for i in range(counter-1)]
     # print(all_node_names)
 
+    uid_tag_node_arg_string = "[[{}]].".format(",".join(uid_tag_node_list))
+    return (uid_tag_node_arg_string, all_node_names)
+
+
+def run_stream_table_join_configuration(num_ids, num_page_view_parallel, run_ns3=False, run_ec2=False):
+    assert(not (run_ns3 and run_ec2))
+
+    ## Prepate the node names and the experiment argument string
+    uid_tag_node_arg_string, all_node_names = collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, run_ec2=run_ec2)
+
     ## Setting up the arguments
     exec_prefix = '-noshell -run util exec stream_table_join_example. experiment. '
-    args = "[[{}]].".format(",".join(uid_tag_node_list))
-    exec_suffix = ' -s erlang halt'
+    args = uid_tag_node_arg_string
+    exec_suffix = ' -s init stop'
     exec_string = exec_prefix + args + exec_suffix
     print(exec_string)
-    simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
-    ## Change this to run THE REALISTIC EXAMPLE
-    if run_ns3:
-        assert(False)
-        # exit(1)
-        # file_prefix = "ns3_log"
-        # ns3_args = ns3_conf.generate_args(file_prefix)
-        # simulator_args.extend(["-n", ns3_args])
-    simulator_args.extend(all_node_names)
-    print(simulator_args)
+    if(not run_ec2):
+        ## This should never be executed with NS3
+        assert(not run_ns3)
+        simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
+        simulator_args.extend(all_node_names)
+        print(simulator_args)
     subprocess.check_call(simulator_args)
 
-    ## TODO: Refactor this to not be copy-pasted
-    ## 1st argument is the name of the folder to gather the logs
+    ## Prepare log gathering
     dir_prefix = 'stream_table_join'
     nodes = ['main'] + all_node_names
-    conf_string = '{}_{}_{}'.format(num_ids, num_page_view_parallel, run_ns3)
+    conf_string = '{}_{}_{}'.format(num_ids, num_page_view_parallel, run_ec2)
 
+    gather_docker_logs(dir_prefix, nodes, conf_string)
+
+
+def gather_docker_logs(dir_prefix, nodes, conf_string, run_ns3=False, run_ec2=False):
+    assert(not (run_ns3 and run_ec2))
+
+    stime = datetime.now()
+    print("|-- Gathering logs...", end=" ", flush=True)
     ## Make the directory to save the current logs
     dir_name = dir_prefix + '_' + conf_string
     to_dir_path = os.path.join('archive', dir_name)
 
-    log_folders = [os.path.join('var', 'log', node) for node in nodes]
+    if(not run_ec2):
+        all_log_folders = [os.path.join('var', 'log', node) for node in nodes]
+    else:
+        shutil.rmtree('temp_logs')
+        os.makedirs('temp_logs')
+        log_folders = [os.path.join('temp_logs', node.split('@')[0]) for node in node_names]
+        for i in range(a_node_numbers):
+            hostname = hostnames[i]
+            gather_logs_args = ['scripts/gather_logs_from_ec2_node.sh', hostname, log_folders[i]]
+            with open(main_stdout_log, "a") as f:
+                subprocess.check_call(gather_logs_args, stdout=f)
 
-    copy_logs_from_to(log_folders, to_dir_path)
-    if run_ns3:
-        assert(False)
-        # move_ns3_logs(file_prefix, to_dir_path)
+        main_log_folder = os.path.join('temp_logs', my_sname)
+        shutil.copytree('logs', main_log_folder)
+        all_log_folders = [main_log_folder] + log_folders
+
+    copy_logs_from_to(all_log_folders, to_dir_path)
+    etime = datetime.now()
+    print("took:", etime - stime)
+    print("Copied logs in:", to_dir_path)
 
 
 ## ANOTHER SAD COPY PASTE...
@@ -536,10 +568,10 @@ optimizers = ["optimizer_greedy"]
 num_ids = [2]
 num_page_view_parallel = [2]
 
-# run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False)
+run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False)
 
 
-## Realistic Experiment
+## realistic Experiment
 ## ===============
 
 rate_multipliers = [360]
