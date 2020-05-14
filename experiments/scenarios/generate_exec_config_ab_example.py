@@ -99,12 +99,43 @@ def gather_logs(dir_prefix, nodes, conf_string, run_ns3=False, run_ec2=False, lo
     print("took:", etime - stime)
     print("Copied logs in:", to_dir_path)
 
+def clean_logs():
+    stime = datetime.now()
+    print("|-- Deleting the log directory...", end=" ", flush=True)
+    shutil.rmtree('logs', ignore_errors=True)
+    os.makedirs('logs')
+    etime = datetime.now()
+    print("took:", etime - stime)
+
 
 def get_ec2_hostnames():
     filename = os.path.join('ec2', 'hostnames')
     with open(filename) as f:
         hostnames = [line.rstrip() for line in f.readlines()]
     return hostnames
+
+def start_ec2_erlang_nodes(snames, hostnames):
+    stime = datetime.now()
+    print("|-- Starting Erlang nodes...", end=" ", flush=True)
+    snames_hostnames = zip(snames, hostnames)
+    for sname, hostname in snames_hostnames:
+        start_node_args = ['scripts/start_erlang_node.sh', sname, hostname]
+        # print(start_node_args)
+        subprocess.check_call(start_node_args)
+
+    etime = datetime.now()
+    print("took:", etime - stime)
+
+def stop_ec2_erlang_nodes(node_names, main_stdout_log):
+    stime = datetime.now()
+    print("|-- Stopping erlang nodes...", end=" ", flush=True)
+    for node_name in node_names:
+        stop_node_args = ['scripts/stop_erlang_node.sh', node_name]
+        with open(main_stdout_log, "a") as f:
+            subprocess.check_call(stop_node_args, stdout=f)
+        # print(stop_node_args)
+    etime = datetime.now()
+    print("took:", etime - stime)
 
 def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer):
 
@@ -119,32 +150,25 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
     hostnames = get_ec2_hostnames()
 
     ## Clean the log directory
-    stime = datetime.now()
-    print("|-- Deleting the log directory...", end=" ", flush=True)
-    shutil.rmtree('logs', ignore_errors=True)
-    os.makedirs('logs')
-    etime = datetime.now()
-    print("took:", etime - stime)
+    clean_logs()
 
     ## For each of the a_nodes, create a name and start the erlang
     ## node on a hostname (assuming the ec2 instance is up).
-    stime = datetime.now()
-    print("|-- Starting Erlang nodes...", end=" ", flush=True)
     node_names = []
+    snames = []
+    used_hostnames = []
     for i in range(a_node_numbers):
         sname = 'flumina{}'.format(i+1)
+        snames.append(sname)
         hostname = hostnames[i]
-        start_node_args = ['scripts/start_erlang_node.sh', sname, hostname]
-        # print(start_node_args)
-        subprocess.check_call(start_node_args)
-
+        used_hostnames.append(hostname)
         ## Also compute the node name
         hostname_prefix = hostname.split('.')[0]
         node_name = '{}@{}'.format(sname, hostname_prefix)
         node_names.append(node_name)
-    etime = datetime.now()
-    print("took:", etime - stime)
 
+    ## Start the Erlang nodes
+    start_ec2_erlang_nodes(snames, used_hostnames)
 
     ## Run the main experiment
     args_prefix = ['make', 'exec']
@@ -156,7 +180,7 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
                        for node_name in [my_node_name] + node_names]
     node_names_exp_arg = ','.join(atom_node_names)
     exp_arguments = "[[{}],{},{},{},{}].".format(node_names_exp_arg, rate_multiplier,
-                                                ratio_ab, heartbeat_rate, optimizer)
+                                                 ratio_ab, heartbeat_rate, optimizer)
     exec_args_string = '{} {} {}'.format(exp_module, exp_function, exp_arguments)
     exec_args = ['args={}'.format(exec_args_string)]
     all_args = args_prefix + name_opt + exec_args
@@ -169,15 +193,7 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
     print("took:", etime - stime)
 
     ## Stop the nodes in the ips
-    stime = datetime.now()
-    print("|-- Stopping erlang nodes...", end=" ", flush=True)
-    for node_name in node_names:
-        stop_node_args = ['scripts/stop_erlang_node.sh', node_name]
-        with open(main_stdout_log, "a") as f:
-            subprocess.check_call(stop_node_args, stdout=f)
-        # print(stop_node_args)
-    etime = datetime.now()
-    print("took:", etime - stime)
+    stop_ec2_erlang_nodes(node_names, main_stdout_log)
 
     ## Gather logs
     dir_prefix = 'ab_exp'
@@ -332,31 +348,53 @@ def run_outlier_detection_configuration(rate_multiplier, num_houses, optimizer,
 ## constructs the argument string and the necessary node names that
 ## have to be spawned as docker containers.
 def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, run_ec2=False):
-    assert(not run_ec2)
 
-    ## TODO: Do that for EC2 too
+    ## For EC2 we have to get the host names from a hostnames file
+    hostnames = get_ec2_hostnames()
 
     ## Given the number of unique identifiers and the number of
     ## parallel page view streams, we can create a list that contains
     ## for each uid, and for each tag, the arriving node(s).
     uid_tag_node_list = []
+    used_hostnames = []
     counter = 1
     for uid in range(num_ids):
+
+        ## The page view hosts
         page_view_nodes = []
         for i in range(num_page_view_parallel):
             # print("Uid:", uid, "i:", i)
-            node_name = "flumina{}".format(counter)
+            node_sname = "flumina{}".format(counter)
+            if(not(run_ec2)):
+                node_name = format_node(node_sname)
+            else:
+                hostname = hostnames[counter-1]
+                used_hostnames.append(hostname)
+                hostname_prefix = hostname.split('.')[0]
+                node_name = "\\'{}@{}\\'".format(node_sname, hostname_prefix)
             counter += 1
-            ## TODO: When doing EC2 we need to replace this with a
-            ## real hostname
-            page_view_nodes.append(format_node(node_name))
-        get_user_address_node_name = "flumina{}".format(counter)
-        counter += 1
-        get_user_address_node = format_node(get_user_address_node_name)
+            page_view_nodes.append(node_name)
 
-        update_user_address_node_name = "flumina{}".format(counter)
+        ## The get user address node and host
+        get_user_address_node_sname = "flumina{}".format(counter)
+        if(not(run_ec2)):
+            get_user_address_node = format_node(get_user_address_node_sname)
+        else:
+            hostname = hostnames[counter-1]
+            used_hostnames.append(hostname)
+            hostname_prefix = hostname.split('.')[0]
+            get_user_address_node = "\\'{}@{}\\'".format(get_user_address_node_sname, hostname_prefix)
         counter += 1
-        update_user_address_node = format_node(update_user_address_node_name)
+
+        update_user_address_node_sname = "flumina{}".format(counter)
+        if(not(run_ec2)):
+            update_user_address_node = format_node(update_user_address_node_sname)
+        else:
+            hostname = hostnames[counter-1]
+            used_hostnames.append(hostname)
+            hostname_prefix = hostname.split('.')[0]
+            update_user_address_node = "\\'{}@{}\\'".format(update_user_address_node_sname, hostname_prefix)
+        counter += 1
 
         ## Format the string
         uid_tag_node_string = "{" + str(uid) + ",[{'page_view',[" + ",".join(page_view_nodes)
@@ -367,39 +405,80 @@ def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, 
 
     ## If we are simulating with ns3/simulate.sh we need a list of all
     ## the docker containers to start
-    all_node_names = ["flumina{}".format(i+1) for i in range(counter-1)]
+    snames = ["flumina{}".format(i+1) for i in range(counter-1)]
     # print(all_node_names)
 
     uid_tag_node_arg_string = "[[{}]].".format(",".join(uid_tag_node_list))
-    return (uid_tag_node_arg_string, all_node_names)
+    return (uid_tag_node_arg_string, snames, used_hostnames)
 
 
 def run_stream_table_join_configuration(num_ids, num_page_view_parallel, run_ns3=False, run_ec2=False):
     assert(not (run_ns3 and run_ec2))
 
-    ## Prepate the node names and the experiment argument string
-    uid_tag_node_arg_string, all_node_names = collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, run_ec2=run_ec2)
+    print("Stream-Table Join Experiment:", num_ids, num_page_view_parallel)
 
-    ## Setting up the arguments
-    exec_prefix = '-noshell -run util exec stream_table_join_example. experiment. '
-    args = uid_tag_node_arg_string
-    exec_suffix = ' -s init stop'
-    exec_string = exec_prefix + args + exec_suffix
-    print(exec_string)
+    ## Prepate the node names and the experiment argument string
+    uid_tag_node_arg_string, snames, used_hostnames = collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, run_ec2=run_ec2)
+
     if(not run_ec2):
         ## This should never be executed with NS3
         assert(not run_ns3)
+        ## Useful for EC2
+        main_stdout_log = "/dev/null"
+        ## Setting up the arguments
+        exec_prefix = '-noshell -run util exec stream_table_join_example. experiment. '
+        args = uid_tag_node_arg_string
+        exec_suffix = ' -s init stop'
+        exec_string = exec_prefix + args + exec_suffix
+
+        print(exec_string)
         simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
-        simulator_args.extend(all_node_names)
+        simulator_args.extend(snames)
         print(simulator_args)
-    subprocess.check_call(simulator_args)
+        subprocess.check_call(simulator_args)
+    else:
+        main_stdout_log = "/tmp/flumina_main_stdout"
+        print("|-- The stdout is logged in:", main_stdout_log)
+
+        ## Read the hostnames from the ec2 internal hostnames file
+        my_sname = 'main'
+        my_hostname_prefix = 'ip-172-31-35-213'
+        my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
+
+        node_names = ['{}@{}'.format(sname, hostname.split('.')[0])
+                      for sname, hostname in zip(snames, used_hostnames)]
+
+        ## Start the erlang nodes in the other EC2 instances
+        start_ec2_erlang_nodes(snames, used_hostnames)
+
+        ## Run the main experiment
+        args_prefix = ['make', 'exec']
+        name_opt = ['NAME_OPT=-sname main -setcookie flumina']
+
+        exp_module = 'stream_table_join_example.'
+        exp_function = 'experiment.'
+        exp_arguments = uid_tag_node_arg_string
+
+        exec_args_string = '{} {} {}'.format(exp_module, exp_function, exp_arguments)
+        exec_args = ['args={}'.format(exec_args_string)]
+        all_args = args_prefix + name_opt + exec_args
+        # print(all_args)
+        stime = datetime.now()
+        print("|-- Running experiment...", end=" ", flush=True)
+        with open(main_stdout_log, "w") as f:
+            p = subprocess.run(all_args, stdout=f)
+        etime = datetime.now()
+        print("took:", etime - stime)
+
+        ## Stop the nodes in the ips
+        stop_ec2_erlang_nodes(node_names, main_stdout_log)
 
     ## Prepare log gathering
     dir_prefix = 'stream_table_join'
-    nodes = ['main'] + all_node_names
+    nodes = ['main'] + snames
     conf_string = '{}_{}_{}'.format(num_ids, num_page_view_parallel, run_ec2)
 
-    gather_logs(dir_prefix, nodes, conf_string, run_ns3=run_ns3, run_ec2=run_ec2)
+    gather_logs(dir_prefix, snames, conf_string, run_ns3=run_ns3, run_ec2=run_ec2, log_name=main_stdout_log)
 
 ## ANOTHER SAD COPY PASTE...
 def run_outlier_detection_configurations(rate_multiplier, num_houses,
@@ -412,10 +491,10 @@ def run_outlier_detection_configurations(rate_multiplier, num_houses,
                 run_outlier_detection_configuration(rate_m, house_node, optimizer, run_ns3, ns3_conf)
 
 ## ANOTHER SAD COPY PASTE...
-def run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False):
+def run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False, run_ec2=False):
     for num_id in num_ids:
         for num_page_view_p in num_page_view_parallel:
-            run_stream_table_join_configuration(num_id, num_page_view_p, run_ns3)
+            run_stream_table_join_configuration(num_id, num_page_view_p, run_ns3=run_ns3, run_ec2=run_ec2)
 
 
 def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False):
@@ -438,16 +517,16 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ##
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
-# rate_multipliers = range(20, 32, 2)
 rate_multipliers = range(30, 32, 2)
+# rate_multipliers = range(10, 35, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
-# a_nodes_numbers = [2]
-a_nodes_numbers = [5]
+a_nodes_numbers = [10]
+# a_nodes_numbers = [18]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
-run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+# run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
 
 #dirname = os.path.join('archive')
 # plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
@@ -554,6 +633,7 @@ num_ids = [2]
 num_page_view_parallel = [2]
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ns3=False)
+# run_stream_table_join_configurations(num_ids, num_page_view_parallel, run_ec2=True)
 
 
 ## realistic Experiment
