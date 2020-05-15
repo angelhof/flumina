@@ -114,6 +114,15 @@ def get_ec2_hostnames():
         hostnames = [line.rstrip() for line in f.readlines()]
     return hostnames
 
+def get_ec2_main_hostname():
+    filename = os.path.join('ec2', 'main_hostname')
+    with open(filename) as f:
+        hostnames = [line.rstrip() for line in f.readlines()]
+    assert(len(hostnames) == 1)
+    return hostnames[0]
+
+MAIN_SNAME = 'main'
+
 def start_ec2_erlang_nodes(snames, hostnames):
     stime = datetime.now()
     print("|-- Starting Erlang nodes...", end=" ", flush=True)
@@ -347,7 +356,8 @@ def run_outlier_detection_configuration(rate_multiplier, num_houses, optimizer,
 ## Given the arguments of the stream-table join experiment this
 ## constructs the argument string and the necessary node names that
 ## have to be spawned as docker containers.
-def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, rate_multiplier, run_ec2=False):
+def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, rate_multiplier,
+                                               uua_producer_in_main, run_ec2=False):
 
     ## For EC2 we have to get the host names from a hostnames file
     hostnames = get_ec2_hostnames()
@@ -376,7 +386,21 @@ def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, 
             page_view_nodes.append(node_name)
 
         get_user_address_node = page_view_nodes[0]
-        update_user_address_node = page_view_nodes[0]
+
+        ## Sometimes we might want the update_user_address producer to
+        ## be located in main so that we can get good latency
+        ## measurements (producers and syncs should be colocated).
+        if(uua_producer_in_main):
+            if(not(run_ec2)):
+               update_user_address_node = format_node(my_sname)
+            else:
+               my_sname = MAIN_SNAME
+               my_ec2_hostname = get_ec2_main_hostname()
+               my_hostname_prefix = my_ec2_hostname.split('.')[0]
+               my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
+               update_user_address_node = page_view_nodes[0]
+        else:
+            update_user_address_node = page_view_nodes[0]
 
 
         ## Format the string
@@ -425,8 +449,9 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, rate_mu
         print("|-- The stdout is logged in:", main_stdout_log)
 
         ## Read the hostnames from the ec2 internal hostnames file
-        my_sname = 'main'
-        my_hostname_prefix = 'ip-172-31-35-213'
+        my_sname = MAIN_SNAME
+        my_ec2_hostname = get_ec2_main_hostname()
+        my_hostname_prefix = my_ec2_hostname.split('.')[0]
         my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
 
         node_names = ['{}@{}'.format(sname, hostname.split('.')[0])
