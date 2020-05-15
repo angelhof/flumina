@@ -31,19 +31,49 @@ def get_flink_throughput(result_path):
 # Old code for processing Erlang latencies from lib.py
 # TODO: Make it a bit cleaner
 
-def parse_producer_line(line):
+def parse_vb_producer_line(line):
     timestamp = line.split("}")[-2].split(',')[-1]
     message = line[2:].split("}")[0] + '}'
     return message, int(timestamp)
 
 
-def parse_sink_line(line):
+def parse_vb_sink_line(line):
     timestamp = line.split("}")[-2].split(',')[-1]
     message = line[2:].split("}")[0].split('{')[-1]
     return '{' + message + '}', int(timestamp)
 
+def parse_stream_table_join_producer_line(line):
+    timestamp = line.split(',')[-1].rstrip('\n}')
+    message = line.split('}}')[0].lstrip('{')
+    return '{{' + message + '}}', int(timestamp)
 
-def read_preprocess_latency_data(log_dir_name):
+def parse_stream_table_join_sink_line(line):
+    timestamp = line.split(',')[-1].rstrip('\n}')
+    message = line.split('}}')[0].lstrip('{')
+    return '{{' + message + '}}', int(timestamp)
+
+## Here we need to register all different producer-sink line-parsing
+## functions for different experiments
+def parse_producer_line(line, experiment):
+    if(experiment == "value-barrier"):
+        return parse_vb_producer_line(line)
+    elif(experiment == "stream-table-join"):
+        return parse_stream_table_join_producer_line(line)
+    else:
+        print("Error: Don't know how to parse producer lines for {} experiment!".format(experiment))
+        exit(1)
+
+def parse_sink_line(line, experiment):
+    if(experiment == "value-barrier"):
+        return parse_vb_sink_line(line)
+    elif(experiment == "stream-table-join"):
+        return parse_stream_table_join_sink_line(line)
+    else:
+        print("Error: Don't know how to parse sink lines for {} experiment!".format(experiment))
+        exit(1)
+
+
+def read_preprocess_latency_data(log_dir_name, experiment="value-barrier"):
     log_file_names = os.listdir(log_dir_name)
     producer_file_names = [path.join(log_dir_name, filename)
                            for filename in log_file_names
@@ -55,13 +85,15 @@ def read_preprocess_latency_data(log_dir_name):
     producer_dic = {}
     for producer_file_name in producer_file_names:
         with open(producer_file_name) as file:
-            producer_dic.update(parse_producer_line(line) for line in file.readlines())
+            producer_dic.update(parse_producer_line(line, experiment) for line in file.readlines())
 
+    # print(producer_dic)
     sink_dic = {}
     for sink_file_name in sink_file_names:
         with open(sink_file_name) as file:
-            sink_dic.update(parse_sink_line(line) for line in file.readlines())
+            sink_dic.update(parse_sink_line(line, experiment) for line in file.readlines())
 
+    # print(sink_dic)
     unsorted_latency_pairs = [(sink_dic[msg] - producer_dic[msg], sink_dic[msg]) for msg in sink_dic.keys()]
     latency_pairs = sorted(unsorted_latency_pairs, key=itemgetter(1))
 

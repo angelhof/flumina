@@ -32,6 +32,11 @@ def plot_scaleup_ratioab(dirname, prefix, rate_multiplier, ratios_ab, heartbeat_
                 for ratio_ab in ratios_ab]
     common_plot_scaleup(dirname, dirnames, ratios_ab, 'Rate_a / Rate_b', 'ab_varied_abratio', 'linear')
 
+def plot_stream_table_join_scaleup_rate(dirname, prefix, uids, page_view_nodes, rate_multipliers):
+    dirnames = ['%s_%d_%d_%d_True' % (prefix, uids, page_view_nodes, rate_multiplier)
+                for rate_multiplier in rate_multipliers]
+    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', 'stream_join_rate_scaleup', experiment="stream-table-join")
+
 
 def plot_scaleup_heartbeats(dirname, prefix, rate_multiplier, ratio_ab, heartbeat_rates, a_nodes_number, optimizer):
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_multiplier, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
@@ -61,10 +66,10 @@ def plot_scaleup_heartbeats(dirname, prefix, rate_multiplier, ratio_ab, heartbea
     plt.savefig(os.path.join('plots', 'ab_varied_hbratio.pdf'))
 
 
-def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name, yscale='log'):
+def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name, yscale='log', experiment="value-barrier"):
     ## We assume that all directories are there
     path_dirnames = [os.path.join(dirname, name) for name in dirnames]
-    latencies = [read_preprocess_latency_data(path_dirname) for path_dirname in path_dirnames]
+    latencies = [results.read_preprocess_latency_data(path_dirname, experiment) for path_dirname in path_dirnames]
     throughputs = [results.get_erlang_throughput(path_dirname) for path_dirname in path_dirnames]
 
     ## Get the average, 10th, and 90th percentile for both latencies and throughputs
@@ -161,12 +166,15 @@ if __name__ == '__main__':
     plt.rcParams.update({'font.size': 14})
 
     # The full range of rates is range(10, 35, 2)
-    plot_scaleup_rate('archive', 'ab_exp1', range(20, 32, 2), 1000, 10, 2, 'optimizer_greedy')
+    # plot_scaleup_rate('archive', 'ab_exp_1', range(20, 42, 2), 1000, 10, 10, 'optimizer_greedy')
 
-    # The full range of nodes is range(2, 33, 2)
-    plot_scaleup_node_rate('archive', 'ab_exp2', 15, 1000, 10, range(2, 29, 2), 'optimizer_greedy')
+    # The "fine" range is 4-10
+    # plot_stream_table_join_scaleup_rate('archive', 'stream_table_join', 2, 5, range(4,12,2))
 
-    #The full range of a-to-b ratios is [10, 20, 25, 30, 35, 40, 50, 100, 200, 500, 1000]
-    plot_scaleup_ratioab('archive', 'ab_exp3', 15, [40, 50, 100, 200, 500, 1000], 10, 5, 'optimizer_greedy')
+    # # The full range of nodes is range(2, 33, 2)
+    # plot_scaleup_node_rate('archive', 'ab_exp2', 15, 1000, 10, range(2, 29, 2), 'optimizer_greedy')
 
-    plot_scaleup_heartbeats('archive', 'ab_exp5', 15, 10000, [1, 2, 5, 10, 100, 1000, 10000], 5, 'optimizer_greedy')
+    # #The full range of a-to-b ratios is [10, 20, 25, 30, 35, 40, 50, 100, 200, 500, 1000]
+    # plot_scaleup_ratioab('archive', 'ab_exp3', 15, [40, 50, 100, 200, 500, 1000], 10, 5, 'optimizer_greedy')
+
+    # plot_scaleup_heartbeats('archive', 'ab_exp5', 15, 10000, [1, 2, 5, 10, 100, 1000, 10000], 5, 'optimizer_greedy')
