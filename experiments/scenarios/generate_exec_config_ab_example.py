@@ -618,8 +618,9 @@ optimizers = ["optimizer_greedy"]
 
 num_ids = [2]
 num_page_view_parallel = [5]
-rate_multipliers = [20]
-# rate_multipliers = range(2,30,2)
+# rate_multipliers = [20]
+rate_multipliers = range(2,12,2)
+# It works fine with rates between 2-10
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ns3=False)
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ec2=True)
