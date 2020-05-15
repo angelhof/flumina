@@ -53,15 +53,19 @@ greedy_big_conf(Options) ->
     make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType),
     SinkPid ! finished.
 
+-type uid_node_list() :: [{uid(), [{atom(), [node()]}]}].
 
--spec experiment([{uid(), [{atom(), [node()]}]}]) -> 'ok'.
-experiment(UidNodeList) ->
+-spec experiment({uid_node_list(), Rate::integer()}) -> 'ok'.
+experiment(Args) ->
+    {UidNodeList, _Rate} = Args,
+    {Uids, _Nodes} = lists:unzip(UidNodeList),
+
     Options =
         %% TODO: Add logging tags for latency measurement
-        [{log_tags, []},
+        [{log_tags, update_user_address_tags(Uids)},
          {producer_type, steady_sync_timestamp},
          {optimizer_type, optimizer_greedy},
-         {experiment_args, UidNodeList}],
+         {experiment_args, Args}],
     util:run_experiment(?MODULE, experiment_conf, Options).
 
 
@@ -71,7 +75,7 @@ experiment_conf(Options) ->
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
     {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
     {optimizer_type, OptimizerType} = lists:keyfind(optimizer_type, 1, Options),
-    {experiment_args, UidNodeList} = lists:keyfind(experiment_args, 1, Options),
+    {experiment_args, {UidNodeList, Rate}} = lists:keyfind(experiment_args, 1, Options),
 
     %% Keys
     {Uids, _Nodes} = lists:unzip(UidNodeList),
@@ -102,7 +106,7 @@ experiment_conf(Options) ->
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
 
     %% Make producers
-    make_big_input_distr_producers(UidNodeList, ConfTree, Topology, ProducerType),
+    make_big_input_distr_producers(UidNodeList, ConfTree, Topology, ProducerType, Rate),
     SinkPid ! finished.
 
 
@@ -149,7 +153,7 @@ experiment_conf(Options) ->
 
 -spec tags(uids()) -> [event_tag()].
 tags(Uids) ->
-    [{update_user_address, Uid} || Uid <- Uids]
+    update_user_address_tags(Uids)
         ++ get_user_address_tags(Uids)
         ++ page_view_tags(Uids).
 
@@ -160,6 +164,10 @@ page_view_tags(Uids) ->
 -spec get_user_address_tags(uids()) -> [get_user_address_tag()].
 get_user_address_tags(Uids) ->
     [{get_user_address, Uid} || Uid <- Uids].
+
+-spec update_user_address_tags(uids()) -> [update_user_address_tag()].
+update_user_address_tags(Uids) ->
+    [{update_user_address, Uid} || Uid <- Uids].
 
 
 %% All of the above events are keyed with the user_id. We will only
@@ -244,15 +252,15 @@ update_page_view({{page_view, Uid}, Ts}, State, SendTo) ->
 
 -spec update(event(), state(), mailbox()) -> state().
 update({{update_user_address, Uid}, {ZipCode, Ts}}, State, SendTo) ->
-    SendTo ! {update_address, Uid, ZipCode, Ts},
+    SendTo ! {{update_user_address, Uid}, {ZipCode, Ts}},
     maps:put(Uid, ZipCode, State);
 update({{page_view, Uid}, Ts}, State, SendTo) ->
     ZipCode = maps:get(Uid, State, 'no_zipcode'),
-    %% SendTo ! {page_view, Uid, ZipCode, Ts},
+    %% SendTo ! {page_view, {Uid, ZipCode, Ts}},
     State;
 update({{get_user_address, Uid}, Ts}, State, SendTo) ->
     ZipCode = maps:get(Uid, State, 'no_zipcode'),
-    SendTo ! {"Zipcode for", Uid, ZipCode, Ts},
+    %% SendTo ! {"Zipcode for", Uid, ZipCode, Ts},
     State.
 
 
@@ -295,21 +303,22 @@ is_uid_in_pred(Uid, Pred) ->
 -spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_type()) -> 'ok'.
 make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType) ->
     {Streams, Lengths} =
-        lists:unzip([make_big_input_uid_producers(Uid, [node()], node(), node()) || Uid <- Uids]),
+        lists:unzip([make_big_input_uid_producers(Uid, [node()], node(), node(), 1) || Uid <- Uids]),
     AllStreams =
         lists:flatten(Streams),
     NumberOfMessages = lists:sum(Lengths),
     util:log_time_and_number_of_messages_before_producers_spawn("stream-table-join-experiment",
                                                                 NumberOfMessages),
 
-    LogTags = lists:flatten([[{update_user_address, Uid},
-                              {get_user_address, Uid}] || Uid <- Uids]),
+    LogTags = lists:flatten([[ {update_user_address, Uid}
+                             , {get_user_address, Uid}
+                             ] || Uid <- Uids]),
     producer:make_producers(AllStreams, ConfTree, Topology, ProducerType,
                             {log_tags, LogTags}).
 
 -spec make_big_input_distr_producers([{uid(), [{atom(), [node()]}]}], configuration(),
-                                     topology(), producer_type()) -> 'ok'.
-make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerType) ->
+                                     topology(), producer_type(), RateMultiplier::integer()) -> 'ok'.
+make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerType, RateMultiplier) ->
     %% Extract the nodes for each uid. Only page view events can be
     %% sent to many different nodes.
     UidNodeList =
@@ -319,7 +328,7 @@ make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerType)
           hd(element(2, (lists:keyfind(update_user_address, 1, TagNodes))))}
          || {Uid, TagNodes} <- UidTagNodeList],
     {Streams, Lengths} =
-        lists:unzip([make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA)
+        lists:unzip([make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA, RateMultiplier)
                      || {Uid, NodesPV, NodeGUA, NodeUUA} <- UidNodeList]),
     AllStreams =
         lists:flatten(Streams),
@@ -327,24 +336,25 @@ make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerType)
     util:log_time_and_number_of_messages_before_producers_spawn("stream-table-join-experiment",
                                                                 NumberOfMessages),
     {Uids, _} = lists:unzip(UidTagNodeList),
-    LogTags = lists:flatten([[{update_user_address, Uid},
-                              {get_user_address, Uid}] || Uid <- Uids]),
+    LogTags = lists:flatten([[ {update_user_address, Uid}
+                             %% , {get_user_address, Uid}
+                             ] || Uid <- Uids]),
     producer:make_producers(AllStreams, ConfTree, Topology, ProducerType,
                             {log_tags, LogTags}).
 
 
--spec make_big_input_uid_producers(uid(), [node()], node(), node())
+-spec make_big_input_uid_producers(uid(), [node()], node(), node(), RateMultiplier::integer())
                                   -> {gen_producer_init(), integer()}.
-make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA) ->
-    LengthPV = 10000,
+make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA, RateMultiplier) ->
+    LengthPV = 1000000,
     PageViewStreams = [{{fun ?MODULE:make_page_view_events/4, [Uid, NodePV, LengthPV, 1]},
-                        {{page_view, Uid}, NodePV}, 1000}
+                        {{page_view, Uid}, NodePV}, 1000 * RateMultiplier}
                        || NodePV <- NodesPV],
     GUAevents = {fun ?MODULE:make_get_user_address_events/4, [Uid, NodeGUA, LengthPV, 100]},
     UUAevents = {fun ?MODULE:make_update_user_address_events/5, [Uid, NodeUUA, LengthPV, 1000, 100]},
     UserAddressStreams =
-        [{GUAevents, {{get_user_address, Uid}, NodeGUA}, 100},
-         {UUAevents, {{update_user_address, Uid}, NodeUUA}, 1}],
+        [{GUAevents, {{get_user_address, Uid}, NodeGUA}, 100 * RateMultiplier},
+         {UUAevents, {{update_user_address, Uid}, NodeUUA}, 1 * RateMultiplier}],
     {PageViewStreams ++ UserAddressStreams,
      LengthPV * length(NodesPV) +
          (LengthPV div 100) +
