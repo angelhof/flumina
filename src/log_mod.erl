@@ -83,6 +83,8 @@ no_log_triple() ->
 
 -spec num_logger_process(string(), configuration()) -> ok.
 num_logger_process(Prefix, Configuration) ->
+    io:format(" -- !!WARNING!! -- This is an obsolete method of logging throughput.~n"
+              "                   Instead log total time and total number of messages!~n", []),
     register('num_messages_logger_process', self()),
     Filename =
         io_lib:format("~s/~s_~s_~s_num_messages.log", 

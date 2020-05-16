@@ -149,10 +149,6 @@ greedy_big_conf(Options) ->
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
     FinalProducerOptions = [{log_tags, [b]}|ProducerOptions],
-    %% LoggerInitFun =
-    %%     fun() ->
-    %%             log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
-    %%     end,
     producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
 
     SinkPid ! finished.

@@ -50,9 +50,6 @@ greedy_big_conf(Options) ->
 
     configuration:pretty_print_configuration(tags(Uids), ConfTree),
 
-    %% Setup logging
-    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-
     %% Make producers
     make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerOptions),
     SinkPid ! finished.
@@ -109,9 +106,6 @@ experiment_conf(Options) ->
                                                                 {specification_arg, Uids}]),
 
     configuration:pretty_print_configuration(tags(Uids), ConfTree),
-
-    %% Setup logging
-    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
 
     %% Make producers
     make_big_input_distr_producers(UidNodeList, ConfTree, Topology, ProducerOptions, Rate),
