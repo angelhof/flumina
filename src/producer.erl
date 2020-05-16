@@ -75,6 +75,8 @@ make_producers0(InputGens, Configuration, ProducerOptions) ->
         get_option(message_logger_init_fun, ProducerOptions),
     {producers_begin_time, BeginningOfTime} =
         get_option(producers_begin_time, ProducerOptions),
+    {global_start_sync_wait_ms, GlobalStartSyncWaitMs} =
+        get_option(global_start_sync_wait_ms, ProducerOptions),
 
     ProducerPids =
 	lists:map(
@@ -97,12 +99,12 @@ make_producers0(InputGens, Configuration, ProducerOptions) ->
     GlobalStartTime = ?GET_SYSTEM_TIME(millisecond),
 
     %% Log the time that producers where done spawning.
-    log_producers_spawn_finish_time(),
+    log_producers_spawn_finish_time(GlobalStartSyncWaitMs),
 
     %% Synchronize the producers by starting them all together
     lists:foreach(
       fun(ProducerPid) ->
-	      ProducerPid ! {start, BeginningOfTime, GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS}
+	      ProducerPid ! {start, BeginningOfTime, GlobalStartTime + GlobalStartSyncWaitMs}
       end, ProducerPids),
 
     %% Sleep to return from this function as close as possible to the
@@ -111,20 +113,20 @@ make_producers0(InputGens, Configuration, ProducerOptions) ->
     case ProducerType =:= steady_sync_timestamp
         orelse ProducerType =:= steady_retimestamp of
         true ->
-            SleepingTime = GlobalStartTime + ?GLOBAL_START_TIME_DELAY_MS - ?GET_SYSTEM_TIME(millisecond),
+            SleepingTime = GlobalStartTime + GlobalStartSyncWaitMs - ?GET_SYSTEM_TIME(millisecond),
             timer:sleep(SleepingTime);
         _ ->
             ok
     end.
 
--spec log_producers_spawn_finish_time() -> ok.
-log_producers_spawn_finish_time() ->
+-spec log_producers_spawn_finish_time(integer()) -> ok.
+log_producers_spawn_finish_time(GlobalStartSyncWaitMs) ->
     Filename =
         io_lib:format("~s/producers_time.log",
 		      [?LOG_DIR]),
     CurrentTimestamp = ?GET_SYSTEM_TIME(),
     ProducerStartTime = CurrentTimestamp +
-        erlang:convert_time_unit(?GLOBAL_START_TIME_DELAY_MS, millisecond, native),
+        erlang:convert_time_unit(GlobalStartSyncWaitMs, millisecond, native),
     Data = io_lib:format("Ts: ~s -- Pid: ~p@~p -- Producers are going to start at time: ~p~n",
                          [util:local_timestamp(), self(), node(), ProducerStartTime]),
     ok = file:write_file(Filename, Data).
@@ -164,7 +166,9 @@ default_option(log_tags) ->
 default_option(producers_begin_time) ->
     0;
 default_option(message_logger_init_fun) ->
-    fun log_mod:no_message_logger/0.
+    fun log_mod:no_message_logger/0;
+default_option(global_start_sync_wait_ms) ->
+    ?GLOBAL_START_TIME_DELAY_MS.
 
 %%
 %% Common initialization for all producers

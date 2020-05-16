@@ -218,7 +218,8 @@
 -type producer_option() :: {'producer_type', producer_type()}
                          | {'log_tags', [tag()]}
                          | {'message_logger_init_fun', message_logger_init_fun()}
-                         | {'producers_begin_time', integer()}.
+                         | {'producers_begin_time', integer()}
+                         | {'global_start_sync_wait_ms', integer()}.
 
 -type producer_options() :: [producer_option()].
 
