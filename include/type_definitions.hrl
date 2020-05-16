@@ -214,6 +214,8 @@
 -type producer_init(Tags) :: [{msg_generator_init(), {Tags, node()}, integer()}].
 -type gen_producer_init() :: producer_init(tag()).
 
+-type producer_options() :: any().
+
 -type input_file_parser() :: fun((string()) -> gen_message_or_heartbeat()).
 
 %%

@@ -3,9 +3,13 @@
 %%% Global configuration and constants
 %%%
 
+-ifndef(LOG_DIR).
 -define(LOG_DIR, "logs").
+-endif.
 
+-ifndef(SINK_WAITING_TIME_MS).
 -define(SINK_WAITING_TIME_MS, 5000).
+-endif.
 
 %% This time is not monotonic, however it can be used to synchronize
 %% processes residing in different machines. Erlang monotonic time is

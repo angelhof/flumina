@@ -8,6 +8,7 @@ EBIN_DIR   = ebin
 EBIN_DIRS  = ebin ebin/* erlang-dot/ebin
 I_DIR1 = erlang-dot/include/
 I_DIR2 = ./include
+INCLUDES = $(wildcard $(I_DIR2)/*.hrl)
 I_DIRS = -I $(I_DIR1) -I $(I_DIR2)
 ERL_FILES  = $(wildcard *.erl)
 BEAM_FILES = $(subst .erl,.beam,$(ERL_FILES))
@@ -30,7 +31,7 @@ all: $(BEAM_FILES)
 	@(cd src && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
 		I_DIR1="../$(I_DIR1)" I_DIR2="../$(I_DIR2)" $@)
 
-%.beam: %.erl
+%.beam: %.erl ${INCLUDES}
 	$(ERLC) $(ERL_COMPILE_FLAGS) $(I_DIRS) -o $(EBIN_DIR) $<
 
 open_erl:

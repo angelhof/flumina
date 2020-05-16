@@ -20,8 +20,13 @@
 -include("type_definitions.hrl").
 -include("config.hrl").
 
+-ifndef(SLEEP_GRANULARITY_MILLIS).
 -define(SLEEP_GRANULARITY_MILLIS, 2).
--define(GLOBAL_START_TIME_DELAY_MS, 1000).
+-endif.
+
+-ifndef(GLOBAL_START_TIME_DELAY_MS).
+-define(GLOBAL_START_TIME_DELAY_MS, 5000).
+-endif.
 
 %%%
 %%% This module contains code that will be usually used by producer nodes
@@ -31,8 +36,8 @@ make_producers(InputGens, Configuration, Topology) ->
     make_producers(InputGens, Configuration, Topology, constant).
 
 -spec make_producers(gen_producer_init(), configuration(),
-		     topology(), producer_type()) -> ok.
-make_producers(InputGens, Configuration, Topology, ProducerType) ->
+		     topology(), producer_type() | producer_options()) -> ok.
+make_producers(InputGens, Configuration, Topology, ProducerType) when is_atom(ProducerType) ->
     make_producers(InputGens, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
 
 -spec make_producers(gen_producer_init(), configuration(),
