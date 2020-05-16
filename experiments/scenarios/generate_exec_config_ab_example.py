@@ -475,13 +475,18 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, rate_mu
         # print(all_args)
         stime = datetime.now()
         print("|-- Running experiment...", end=" ", flush=True)
-        with open(main_stdout_log, "w") as f:
-            p = subprocess.run(all_args, stdout=f)
+        try:
+            with open(main_stdout_log, "w") as f:
+                p = subprocess.run(all_args, stdout=f)
+        except KeyboardInterrupt:
+            print(" ! INTERRUPTED !")
+            stop_ec2_erlang_nodes([my_node_name] + node_names, main_stdout_log)
+            exit(1)
         etime = datetime.now()
         print("took:", etime - stime)
 
         ## Stop the nodes in the ips
-        stop_ec2_erlang_nodes(node_names, main_stdout_log)
+        stop_ec2_erlang_nodes([my_node_name] + node_names, main_stdout_log)
 
     ## Prepare log gathering
     dir_prefix = 'stream_table_join'
@@ -645,11 +650,20 @@ optimizers = ["optimizer_greedy"]
 num_ids = [2]
 num_page_view_parallel = [5]
 # rate_multipliers = [20]
-rate_multipliers = range(1,15,2)
-# It works fine with rates between 2-10
+rate_multipliers = range(1,21,2)
+# It works fine with rates between 2-13
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ns3=False)
-run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ec2=True)
+# run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ec2=True)
+
+num_ids = [2]
+num_page_view_parallel = range(1,11)
+num_page_view_parallel = range(6,7)
+# rate_multipliers = [20]
+rate_multipliers = [5]
+
+# run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ns3=False)
+# run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ec2=True)
 
 
 ## realistic Experiment
