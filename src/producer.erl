@@ -25,38 +25,59 @@
 -endif.
 
 -ifndef(GLOBAL_START_TIME_DELAY_MS).
--define(GLOBAL_START_TIME_DELAY_MS, 5000).
+-define(GLOBAL_START_TIME_DELAY_MS, 1000).
 -endif.
 
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%%
 -spec make_producers(gen_producer_init(), configuration(), topology()) -> ok.
-make_producers(InputGens, Configuration, Topology) ->
-    make_producers(InputGens, Configuration, Topology, constant).
+make_producers(InputGens, Configuration, _Topology) ->
+    make_producers0(InputGens, Configuration, []).
 
 -spec make_producers(gen_producer_init(), configuration(),
 		     topology(), producer_type() | producer_options()) -> ok.
-make_producers(InputGens, Configuration, Topology, ProducerType) when is_atom(ProducerType) ->
-    make_producers(InputGens, Configuration, Topology, ProducerType, fun log_mod:no_message_logger/0).
+make_producers(InputGens, Configuration, _Topology, ProducerType) when is_atom(ProducerType) ->
+    make_producers0(InputGens, Configuration, [{producer_type, ProducerType}]);
+
+%% This is the new API to call this function. The rest are left here for backward compatibility.
+make_producers(InputGens, Configuration, _Topology, ProducerOpts) when is_list(ProducerOpts) ->
+    make_producers0(InputGens, Configuration, ProducerOpts).
+
 
 -spec make_producers(gen_producer_init(), configuration(),
 		     topology(), producer_type(),
                      {'log_tags', [tag()]} | message_logger_init_fun()) -> ok.
-make_producers(InputGens, Configuration, Topology, ProducerType, {log_tags, Tags}) ->
-    MessageLoggerInitFun =
-        fun() ->
-                log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
-        end,
-    make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun);
-make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun) ->
-    make_producers(InputGens, Configuration, Topology, ProducerType, MessageLoggerInitFun, 0).
+make_producers(InputGens, Configuration, _Topology, ProducerType, {log_tags, Tags}) ->
+    ProducerOptions = [{producer_type, ProducerType},
+                       {log_tags, Tags}],
+    make_producers0(InputGens, Configuration, ProducerOptions);
+make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerInitFun) ->
+    ProducerOptions = [{producer_type, ProducerType},
+                       {message_logger_init_fun, MessageLoggerInitFun}],
+    make_producers0(InputGens, Configuration, ProducerOptions).
 
 %% TODO: Instead of sending the beginning of time, we should pass it as an argument
-%% TODO: Abstract the possible options away in a list or struct
 -spec make_producers(gen_producer_init(), configuration(),
 		     topology(), producer_type(), message_logger_init_fun(), integer()) -> ok.
 make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerInitFun, BeginningOfTime) ->
+    ProducerOptions = [{producer_type, ProducerType},
+                       {message_logger_init_fun, MessageLoggerInitFun},
+                       {producers_begin_time, BeginningOfTime}],
+    make_producers0(InputGens, Configuration, ProducerOptions).
+
+-spec make_producers0(gen_producer_init(), configuration(), producer_options()) -> ok.
+make_producers0(InputGens, Configuration, ProducerOptions) ->
+    io:format("Options: ~p~n", [ProducerOptions]),
+    %% Get options
+    {producer_type, ProducerType} =
+        get_option(producer_type, ProducerOptions),
+    {message_logger_init_fun, MessageLoggerInitFun} =
+        get_option(message_logger_init_fun, ProducerOptions),
+    {producers_begin_time, BeginningOfTime} =
+        get_option(producers_begin_time, ProducerOptions),
+
+    io:format("Options: ~p~n", [{ProducerType, MessageLoggerInitFun, BeginningOfTime}]),
     ProducerPids =
 	lists:map(
 	  fun({MsgGenInit, ImplTag, Rate}) ->
@@ -110,6 +131,42 @@ log_producers_spawn_finish_time() ->
                          [util:local_timestamp(), self(), node(), ProducerStartTime]),
     ok = file:write_file(Filename, Data).
 
+
+-spec get_option(atom(), producer_options()) -> producer_option().
+get_option(message_logger_init_fun, ProducerOptions) ->
+    case get_option0(log_tags, ProducerOptions) of
+        {log_tags, []} ->
+            get_option0(message_logger_init_fun, ProducerOptions);
+        {log_tags, Tags} ->
+            %% It shouldn't be the case that both log tags and
+            %% message logger init fun have been given.
+            false = lists:keyfind(message_logger_init_fun, 1, ProducerOptions),
+            {message_logger_init_fun,
+             fun() ->
+                     log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
+             end}
+    end;
+get_option(Option, ProducerOptions) ->
+    get_option0(Option, ProducerOptions).
+
+-spec get_option0(atom(), producer_options()) -> producer_option().
+get_option0(Option, ProducerOptions) ->
+    case lists:keyfind(Option, 1, ProducerOptions) of
+        false ->
+            {Option, default_option(Option)};
+        Result ->
+            Result
+    end.
+
+-spec default_option(atom()) -> any().
+default_option(producer_type) ->
+    constant;
+default_option(log_tags) ->
+    [];
+default_option(producers_begin_time) ->
+    0;
+default_option(message_logger_init_fun) ->
+    fun log_mod:no_message_logger/0.
 
 %%
 %% Common initialization for all producers
