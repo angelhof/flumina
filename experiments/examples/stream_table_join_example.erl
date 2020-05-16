@@ -22,14 +22,15 @@ greedy_big() ->
          {sink_options,
           [{log_tags, update_user_address_tags(Uids)},
            {sink_wait_time, 15000}]},
-         {producer_type, steady_sync_timestamp}],
+         {producer_options,
+          [{producer_type, steady_sync_timestamp}]}],
     util:run_experiment(?MODULE, greedy_big_conf, Options).
 
 -spec greedy_big_conf(experiment_opts()) -> 'finished'.
 greedy_big_conf(Options) ->
     %% Get arguments from options
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
-    {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
+    {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
     {experiment_args, Uids} = lists:keyfind(experiment_args, 1, Options),
 
     %% Architecture
@@ -52,7 +53,7 @@ greedy_big_conf(Options) ->
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
 
     %% Make producers
-    make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType),
+    make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerOptions),
     SinkPid ! finished.
 
 -type uid_node_list() :: [{uid(), [{atom(), [node()]}]}].
@@ -64,7 +65,8 @@ experiment(Args) ->
 
     Options =
         %% TODO: Add logging tags for latency measurement
-        [{producer_type, steady_sync_timestamp},
+        [{producer_options,
+          [{producer_type, steady_sync_timestamp}]},
          {optimizer_type, optimizer_greedy},
          {sink_options,
           [{log_tags, update_user_address_tags(Uids)},
@@ -77,7 +79,7 @@ experiment(Args) ->
 experiment_conf(Options) ->
     %% Get arguments from options
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
-    {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
+    {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
     {optimizer_type, OptimizerType} = lists:keyfind(optimizer_type, 1, Options),
     {experiment_args, {UidNodeList, Rate}} = lists:keyfind(experiment_args, 1, Options),
 
@@ -110,7 +112,7 @@ experiment_conf(Options) ->
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
 
     %% Make producers
-    make_big_input_distr_producers(UidNodeList, ConfTree, Topology, ProducerType, Rate),
+    make_big_input_distr_producers(UidNodeList, ConfTree, Topology, ProducerOptions, Rate),
     SinkPid ! finished.
 
 
@@ -304,8 +306,8 @@ is_uid_in_pred(Uid, Pred) ->
 %% Input generation
 %%
 
--spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_type()) -> 'ok'.
-make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType) ->
+-spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_options()) -> 'ok'.
+make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerOptions) ->
     {Streams, Lengths} =
         lists:unzip([make_big_input_uid_producers(Uid, [node()], node(), node(), 1) || Uid <- Uids]),
     AllStreams =
@@ -317,12 +319,11 @@ make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerType) ->
     LogTags = lists:flatten([[ {update_user_address, Uid}
                              , {get_user_address, Uid}
                              ] || Uid <- Uids]),
-    producer:make_producers(AllStreams, ConfTree, Topology, ProducerType,
-                            {log_tags, LogTags}).
+    producer:make_producers(AllStreams, ConfTree, Topology, [{log_tags, LogTags}|ProducerOptions]).
 
 -spec make_big_input_distr_producers([{uid(), [{atom(), [node()]}]}], configuration(),
-                                     topology(), producer_type(), RateMultiplier::integer()) -> 'ok'.
-make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerType, RateMultiplier) ->
+                                     topology(), producer_options(), RateMultiplier::integer()) -> 'ok'.
+make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerOptions, RateMultiplier) ->
     %% Extract the nodes for each uid. Only page view events can be
     %% sent to many different nodes.
     UidNodeList =
@@ -343,8 +344,7 @@ make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerType,
     LogTags = lists:flatten([[ {update_user_address, Uid}
                              %% , {get_user_address, Uid}
                              ] || Uid <- Uids]),
-    producer:make_producers(AllStreams, ConfTree, Topology, ProducerType,
-                            {log_tags, LogTags}).
+    producer:make_producers(AllStreams, ConfTree, Topology, [{log_tags, LogTags}|ProducerOptions]).
 
 
 -spec make_big_input_uid_producers(uid(), [node()], node(), node(), RateMultiplier::integer())

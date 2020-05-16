@@ -68,7 +68,6 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
 
 -spec make_producers0(gen_producer_init(), configuration(), producer_options()) -> ok.
 make_producers0(InputGens, Configuration, ProducerOptions) ->
-    io:format("Options: ~p~n", [ProducerOptions]),
     %% Get options
     {producer_type, ProducerType} =
         get_option(producer_type, ProducerOptions),
@@ -77,7 +76,6 @@ make_producers0(InputGens, Configuration, ProducerOptions) ->
     {producers_begin_time, BeginningOfTime} =
         get_option(producers_begin_time, ProducerOptions),
 
-    io:format("Options: ~p~n", [{ProducerType, MessageLoggerInitFun, BeginningOfTime}]),
     ProducerPids =
 	lists:map(
 	  fun({MsgGenInit, ImplTag, Rate}) ->

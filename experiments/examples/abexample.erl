@@ -105,14 +105,15 @@ distr_big_conf(SinkPid) ->
 greedy_big() ->
     Options =
         [{sink_options, [{log_tags, [sum]}]},
-         {producer_type, steady_retimestamp}],
+         {producer_options,
+          [{producer_type, steady_retimestamp}]}],
     util:run_experiment(?MODULE, greedy_big_conf, Options).
 
 -spec greedy_big_conf(experiment_opts()) -> 'finished'.
 greedy_big_conf(Options) ->
     %% Get arguments from options
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
-    {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
+    {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
 
     %% Architecture
     Rates = [{node(), b, 10},
@@ -147,11 +148,12 @@ greedy_big_conf(Options) ->
 
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    LoggerInitFun =
-	fun() ->
-	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
-	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, ProducerType, LoggerInitFun),
+    FinalProducerOptions = [{log_tags, [b]}|ProducerOptions],
+    %% LoggerInitFun =
+    %%     fun() ->
+    %%             log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
+    %%     end,
+    producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
 
     SinkPid ! finished.
 

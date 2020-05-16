@@ -3,10 +3,10 @@
 %% Experiments
 %%
 
--type experiment_opt() :: {'log_tags', [tag()]}
-                        | {'sink_name', mailbox()}
-                        | {'producer_type', producer_type()}
+-type experiment_opt() :: {'sink_name', mailbox()}
                         | {'optimizer_type', optimizer_type()}
+                        | {'producer_options', producer_options()}
+                        | {'sink_options', sink_options()}
                         | {'experiment_args', any()}.
 -type experiment_opts() :: [experiment_opt()].
 
