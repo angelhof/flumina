@@ -104,7 +104,7 @@ distr_big_conf(SinkPid) ->
 
 greedy_big() ->
     Options =
-        [{log_tags, [sum]},
+        [{sink_options, [{log_tags, [sum]}]},
          {producer_type, steady_retimestamp}],
     util:run_experiment(?MODULE, greedy_big_conf, Options).
 

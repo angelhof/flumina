@@ -15,9 +15,13 @@
 -include_lib("flumina/include/type_definitions.hrl").
 
 greedy_big() ->
+    Uids = [1, 2],
     Options =
         %% TODO: Add logging tags for latency measurement
-        [{log_tags, []},
+        [{experiment_args, Uids},
+         {sink_options,
+          [{log_tags, update_user_address_tags(Uids)},
+           {sink_wait_time, 15000}]},
          {producer_type, steady_sync_timestamp}],
     util:run_experiment(?MODULE, greedy_big_conf, Options).
 
@@ -26,9 +30,7 @@ greedy_big_conf(Options) ->
     %% Get arguments from options
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
     {producer_type, ProducerType} = lists:keyfind(producer_type, 1, Options),
-
-    %% Keys
-    Uids = [1, 2, 3, 4],
+    {experiment_args, Uids} = lists:keyfind(experiment_args, 1, Options),
 
     %% Architecture
     Rates =
@@ -62,9 +64,11 @@ experiment(Args) ->
 
     Options =
         %% TODO: Add logging tags for latency measurement
-        [{log_tags, update_user_address_tags(Uids)},
-         {producer_type, steady_sync_timestamp},
+        [{producer_type, steady_sync_timestamp},
          {optimizer_type, optimizer_greedy},
+         {sink_options,
+          [{log_tags, update_user_address_tags(Uids)},
+           {sink_wait_time, 15000}]},
          {experiment_args, Args}],
     util:run_experiment(?MODULE, experiment_conf, Options).
 

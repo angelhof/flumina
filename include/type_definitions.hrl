@@ -222,6 +222,10 @@
 
 -type producer_options() :: [producer_option()].
 
+-type sink_option() :: {'log_tags', [tag()]}
+                     | {'message_logger_init_fun', message_logger_init_fun()}
+                     | {'sink_wait_time', integer()}.
+-type sink_options() :: [sink_option()].
 
 -type input_file_parser() :: fun((string()) -> gen_message_or_heartbeat()).
 

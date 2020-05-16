@@ -49,23 +49,67 @@ parse(Str) ->
     {value,Value,_Bs} = erl_eval:exprs(AbsForm, erl_eval:new_bindings()),
     Value.
 
-sink() ->
-    sink(fun log_mod:no_message_logger/0).
+-spec sink_get_option(atom(), sink_options()) -> sink_option().
+sink_get_option(message_logger_init_fun, Options) ->
+    case sink_get_option0(log_tags, Options) of
+        {log_tags, []} ->
+            sink_get_option0(message_logger_init_fun, Options);
+        {log_tags, Tags} ->
+            %% It shouldn't be the case that both log tags and
+            %% message logger init fun have been given.
+            false = lists:keyfind(message_logger_init_fun, 1, Options),
+            {message_logger_init_fun,
+             fun() ->
+                     log_mod:initialize_message_logger_state("sink", sets:from_list(Tags))
+             end}
+    end;
+sink_get_option(Option, Options) ->
+    sink_get_option0(Option, Options).
 
--spec sink({'log_tags', [tag()]} | message_logger_init_fun()) -> 'ok'.
+-spec sink_get_option0(atom(), sink_options()) -> sink_option().
+sink_get_option0(Option, Options) ->
+    case lists:keyfind(Option, 1, Options) of
+        false ->
+            {Option, sink_default_option(Option)};
+        Result ->
+            Result
+    end.
+
+-spec sink_default_option(atom()) -> any().
+sink_default_option(log_tags) ->
+    [];
+sink_default_option(sink_wait_time) ->
+    ?SINK_WAITING_TIME_MS;
+sink_default_option(message_logger_init_fun) ->
+    fun log_mod:no_message_logger/0.
+
+
+-spec sink() -> 'ok'.
+sink() ->
+    sink0([]).
+
+-spec sink({'log_tags', [tag()]} | message_logger_init_fun() | sink_options()) -> 'ok'.
 sink({log_tags, Tags}) ->
-    LoggerInitFun =
-	fun() ->
-	        log_mod:initialize_message_logger_state("sink", sets:from_list(Tags))
-	end,
-    sink(LoggerInitFun);
+    sink0([{log_tags, Tags}]);
+sink(SinkOptions) when is_list(SinkOptions) ->
+    sink0(SinkOptions);
 sink(MsgLoggerInitFun) ->
-    sink(MsgLoggerInitFun, ?SINK_WAITING_TIME_MS).
+    sink0([{message_logger_init_fun, MsgLoggerInitFun}]).
+
 
 sink_no_log(WaitTime) ->
-    sink(fun log_mod:no_message_logger/0, WaitTime).
+    sink0([{sink_wait_time, WaitTime}]).
 
 sink(MsgLoggerInitFun, WaitTime) ->
+    sink0([{message_logger_init_fun, MsgLoggerInitFun},
+          {sink_wait_time, WaitTime}]).
+
+-spec sink0(sink_options()) -> 'ok'.
+sink0(Options) ->
+    {message_logger_init_fun, MsgLoggerInitFun} =
+        sink_get_option(message_logger_init_fun, Options),
+    {sink_wait_time, WaitTime} =
+        sink_get_option(sink_wait_time, Options),
     LoggerFun = MsgLoggerInitFun(),
     receive
 	finished ->
@@ -95,11 +139,11 @@ run_experiment(Module, Function, Options) ->
     Options1 = [{sink_name, SinkName}|Options],
     io:format("Mod: ~p, Fun: ~p, Opts: ~p~n", [Module, Function, Options1]),
     _ExecPid = spawn_link(Module, Function, [Options1]),
-    case lists:keyfind(log_tags, 1, Options1) of
-        {log_tags, Tags} ->
-            util:sink({log_tags, Tags});
+    case lists:keyfind(sink_options, 1, Options1) of
+        {sink_options, SinkOptions} ->
+            util:sink(SinkOptions);
         false ->
-            util:sink()
+            util:sink([])
     end.
 
 -spec log_time_and_number_of_messages_before_producers_spawn(string(), integer()) -> 'ok'.
