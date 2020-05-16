@@ -658,8 +658,7 @@ rate_multipliers = range(1,21,2)
 
 num_ids = [2]
 num_page_view_parallel = range(1,11)
-num_page_view_parallel = range(6,7)
-# rate_multipliers = [20]
+# num_page_view_parallel = range(6,11)
 rate_multipliers = [5]
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ns3=False)
