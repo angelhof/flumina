@@ -4,8 +4,7 @@
 	 make_producers/4,
 	 make_producers/5,
          make_producers/6,
-         init_producer/5,
-         init_producer/6,
+         init_producer/7,
 	 dumper/2,
 	 interleave_heartbeats/3,
 	 interleave_heartbeats/4,
@@ -78,6 +77,11 @@ make_producers0(InputGens, Configuration, ProducerOptions) ->
     {global_start_sync_wait_ms, GlobalStartSyncWaitMs} =
         get_option(global_start_sync_wait_ms, ProducerOptions),
 
+    %% Register to know when producers are done initializing
+    OldName = util:unregister_if_registered(),
+    true = register('producer_creator', self()),
+    MyNameNode = {'producer_creator', node()},
+
     ProducerPids =
 	lists:map(
 	  fun({MsgGenInit, ImplTag, Rate}) ->
@@ -85,12 +89,26 @@ make_producers0(InputGens, Configuration, ProducerOptions) ->
 		  %% Log producer creation
                   Pid = spawn_link(Node, producer, init_producer,
                                    [ProducerType, ImplTag, MsgGenInit, Rate,
-                                    Configuration, MessageLoggerInitFun]),
+                                    Configuration, MessageLoggerInitFun, MyNameNode]),
                   io:format("Spawning '~p' producer for"
                             "impl tag: ~p with pid: ~p in node: ~p~n",
                             [ProducerType, ImplTag, Pid, Node]),
                   Pid
 	  end, InputGens),
+
+    %% Wait until all producers are done initializing
+    lists:foreach(
+      fun({_MsgGenInit, ImplTag, _Rate}) ->
+              receive
+                  {'init_done', ImplTag} ->
+                      io:format("Producer for implementation tag: ~p is done initializing.~n", [ImplTag]),
+                      ok
+              end
+      end, InputGens),
+
+    %% Reregister using the old name
+    true = unregister('producer_creator'),
+    ok = util:reregister_if_registered(OldName),
 
     %% Get a global start timestamp to give to all producers.
     %%
@@ -173,12 +191,9 @@ default_option(global_start_sync_wait_ms) ->
 %%
 %% Common initialization for all producers
 %%
--spec init_producer(producer_type(), impl_tag(), msg_generator_init(), integer(), configuration()) -> ok.
-init_producer(ProducerType, ImplTag, MsgGenInit, Rate, Configuration) ->
-    init_producer(ProducerType, ImplTag, MsgGenInit, Rate, Configuration, fun log_mod:no_message_logger/0).
 -spec init_producer(producer_type(), impl_tag(), msg_generator_init(), integer(),
-                    configuration(), message_logger_init_fun()) -> ok.
-init_producer(ProducerType, ImplTag, MsgGenInit, Rate, Configuration, MsgLoggerInitFun) ->
+                    configuration(), message_logger_init_fun(), mailbox()) -> ok.
+init_producer(ProducerType, ImplTag, MsgGenInit, Rate, Configuration, MsgLoggerInitFun, Creator) ->
     log_mod:init_debug_log(),
     log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n",
 		      [util:local_timestamp(),self(), ImplTag, node()]),
@@ -191,6 +206,10 @@ init_producer(ProducerType, ImplTag, MsgGenInit, Rate, Configuration, MsgLoggerI
 		      [util:local_timestamp(), self(), SendTo]),
     %% Initialize the latency logger
     LoggerFun = MsgLoggerInitFun(),
+
+    %% Let the producer creator know that this producer is done initializing
+    Creator ! {'init_done', ImplTag},
+
     sync_producer(ProducerType, MsgGen, Rate, SendTo, LoggerFun).
 
 -spec sync_producer(producer_type(), msg_generator(), integer(), mailbox(), message_logger_log_fun()) -> ok.

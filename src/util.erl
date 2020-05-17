@@ -14,6 +14,8 @@
 	 map_focus/2,
 	 nothing/0,
 	 always_ok/1,
+         unregister_if_registered/0,
+         reregister_if_registered/1,
 	 unregister_names/1,
 	 local_timestamp/0,
 	 list_to_number/1,
@@ -229,6 +231,27 @@ map_focus(Fun, Prev, [X], Acc) ->
     lists:reverse([Fun(X, Prev)|Acc]);
 map_focus(Fun, Prev, [X|Rest], Acc) ->
     map_focus(Fun, [X|Prev], Rest, [Fun(X, Prev ++ Rest)|Acc]).
+
+%% Unregister if registered
+-spec unregister_if_registered() -> 'not_registered' | {'registered_name', atom()}.
+unregister_if_registered() ->
+    case erlang:process_info(self(), registered_name) of
+        {registered_name, Name} ->
+            true = unregister(Name),
+            {registered_name, Name};
+        [] ->
+            'not_registered'
+    end.
+
+-spec reregister_if_registered('not_registered' | {'registered_name', atom()}) -> 'ok'.
+reregister_if_registered(NameIfRegistered) ->
+    case NameIfRegistered of
+        {registered_name, Name} ->
+            true = register(Name, self()),
+            ok;
+        'not_registered' ->
+            ok
+    end.
 
 %% Eunit setup
 nothing() -> ok.
