@@ -21,10 +21,10 @@ greedy_big() ->
         [{experiment_args, Uids},
          {sink_options,
           [{log_tags, update_user_address_tags(Uids)},
-           {sink_wait_time, 15000}]},
+           {sink_wait_time, 5000}]},
          {producer_options,
           [{producer_type, steady_sync_timestamp},
-           {global_start_sync_wait_ms, 5000}]}],
+           {global_start_sync_wait_ms, 3000}]}],
     util:run_experiment(?MODULE, greedy_big_conf, Options).
 
 -spec greedy_big_conf(experiment_opts()) -> 'finished'.
@@ -65,11 +65,11 @@ experiment(Args) ->
         %% TODO: Add logging tags for latency measurement
         [{producer_options,
           [{producer_type, steady_sync_timestamp},
-           {global_start_sync_wait_ms, 5000}]},
+           {global_start_sync_wait_ms, 3000}]},
          {optimizer_type, optimizer_greedy},
          {sink_options,
           [{log_tags, update_user_address_tags(Uids)},
-           {sink_wait_time, 15000}]},
+           {sink_wait_time, 5000}]},
          {experiment_args, Args}],
     util:run_experiment(?MODULE, experiment_conf, Options).
 
