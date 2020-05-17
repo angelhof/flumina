@@ -1,5 +1,6 @@
 import subprocess
 import sys
+import time
 import os
 from datetime import datetime
 import shutil
@@ -134,6 +135,7 @@ def start_ec2_erlang_nodes(snames, hostnames):
 
     etime = datetime.now()
     print("took:", etime - stime)
+    time.sleep(3)
 
 def stop_ec2_erlang_nodes(node_names, main_stdout_log):
     stime = datetime.now()
@@ -397,8 +399,8 @@ def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, 
                my_sname = MAIN_SNAME
                my_ec2_hostname = get_ec2_main_hostname()
                my_hostname_prefix = my_ec2_hostname.split('.')[0]
-               my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
-               update_user_address_node = page_view_nodes[0]
+               my_node_name = "\\'{}@{}\\'".format(my_sname, my_hostname_prefix)
+               update_user_address_node = my_node_name
         else:
             update_user_address_node = page_view_nodes[0]
 
@@ -457,6 +459,9 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, rate_mu
 
         node_names = ['{}@{}'.format(sname, hostname.split('.')[0])
                       for sname, hostname in zip(snames, used_hostnames)]
+
+        ## Clean the log directory
+        clean_logs()
 
         ## Start the erlang nodes in the other EC2 instances
         start_ec2_erlang_nodes(snames, used_hostnames)
@@ -658,7 +663,7 @@ rate_multipliers = range(1,21,2)
 
 num_ids = [2]
 num_page_view_parallel = range(1,11)
-# num_page_view_parallel = range(6,11)
+num_page_view_parallel = range(1,4)
 rate_multipliers = [5]
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ns3=False)
