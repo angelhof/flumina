@@ -152,9 +152,11 @@ log_time_and_number_of_messages_before_producers_spawn(Prefix, NumberOfMessages)
     StatsFilename = "logs/experiment_stats.log",
     %% Log the time before the producers have been spawned and the
     %% number of events that will be sent in total.
-    BeforeProducersTimestamp = erlang:monotonic_time(),
-    StatsData = io_lib:format("~s -- Time before spawning producers: ~p, Number of messages: ~p~n",
-                              [Prefix, BeforeProducersTimestamp, NumberOfMessages]),
+    MonotonicBeforeProducersTimestamp = erlang:monotonic_time(),
+    BeforeProducersTimestamp = ?GET_SYSTEM_TIME(),
+    StatsData = io_lib:format("~s -- Time before spawning producers: ~p, Number of messages: ~p~n"
+                              "   -- Monotonic time before spawning producers: ~p~n",
+                              [Prefix, BeforeProducersTimestamp, NumberOfMessages, BeforeProducersTimestamp]),
     ok = file:write_file(StatsFilename, StatsData).
 
 
