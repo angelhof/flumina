@@ -37,6 +37,11 @@ def plot_stream_table_join_scaleup_rate(dirname, prefix, uids, page_view_nodes, 
                 for rate_multiplier in rate_multipliers]
     common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', 'stream_join_rate_scaleup', experiment="stream-table-join")
 
+def plot_stream_table_join_scaleup_nodes(dirname, prefix, uids, page_view_nodes, rate_multiplier):
+    dirnames = ['%s_%d_%d_%d_True' % (prefix, uids, page_view_node, rate_multiplier)
+                for page_view_node in page_view_nodes]
+    common_plot_scaleup(dirname, dirnames, page_view_nodes, 'Rate Multiplier', 'stream_join_node_scaleup', experiment="stream-table-join")
+
 
 def plot_scaleup_heartbeats(dirname, prefix, rate_multiplier, ratio_ab, heartbeat_rates, a_nodes_number, optimizer):
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_multiplier, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
@@ -168,8 +173,9 @@ if __name__ == '__main__':
     # The full range of rates is range(10, 35, 2)
     # plot_scaleup_rate('archive', 'ab_exp_1', range(20, 42, 2), 1000, 10, 10, 'optimizer_greedy')
 
-    # The "fine" range is 4-10
-    # plot_stream_table_join_scaleup_rate('archive', 'stream_table_join', 2, 5, range(4,12,2))
+    plot_stream_table_join_scaleup_rate('archive/archive', 'stream_table_join', 2, 5, range(3,15,2))
+
+    plot_stream_table_join_scaleup_nodes('archive/archive', 'stream_table_join', 2, range(1,11), 5)
 
     # # The full range of nodes is range(2, 33, 2)
     # plot_scaleup_node_rate('archive', 'ab_exp2', 15, 1000, 10, range(2, 29, 2), 'optimizer_greedy')
