@@ -305,7 +305,7 @@ is_uid_in_pred(Uid, Pred) ->
 -spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_options()) -> 'ok'.
 make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerOptions) ->
     {Streams, Lengths} =
-        lists:unzip([make_big_input_uid_producers(Uid, [node()], node(), node(), 1) || Uid <- Uids]),
+        lists:unzip([make_big_input_uid_producers(Uid, [node()], node(), node(), 100) || Uid <- Uids]),
     AllStreams =
         lists:flatten(Streams),
     NumberOfMessages = lists:sum(Lengths),
@@ -348,13 +348,13 @@ make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerOptio
 make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA, RateMultiplier) ->
     LengthPV = 1000000,
     PageViewStreams = [{{fun ?MODULE:make_page_view_events/4, [Uid, NodePV, LengthPV, 1]},
-                        {{page_view, Uid}, NodePV}, 1000 * RateMultiplier}
+                        {{page_view, Uid}, NodePV}, RateMultiplier}
                        || NodePV <- NodesPV],
     GUAevents = {fun ?MODULE:make_get_user_address_events/4, [Uid, NodeGUA, LengthPV, 100]},
     UUAevents = {fun ?MODULE:make_update_user_address_events/5, [Uid, NodeUUA, LengthPV, 1000, 100]},
     UserAddressStreams =
-        [{GUAevents, {{get_user_address, Uid}, NodeGUA}, 100 * RateMultiplier},
-         {UUAevents, {{update_user_address, Uid}, NodeUUA}, 1 * RateMultiplier}],
+        [{GUAevents, {{get_user_address, Uid}, NodeGUA}, RateMultiplier},
+         {UUAevents, {{update_user_address, Uid}, NodeUUA}, RateMultiplier}],
     {PageViewStreams ++ UserAddressStreams,
      LengthPV * length(NodesPV) +
          (LengthPV div 100) +
@@ -367,6 +367,7 @@ make_events_no_heartbeats(Tag, Node, Number, Step) ->
     Events =
         [{{Tag, T}, Node, T} || T <- lists:seq(1, Number, Step)]
         ++ [{heartbeat, {{Tag, Node}, Number + 1}}],
+    %% io:format("PV:~n~p~n", [Events]),
     producer:list_generator(Events).
 
 -spec make_update_events_heartbeats(update_user_address_tag(), node(), integer(),
@@ -380,6 +381,7 @@ make_update_events_heartbeats(Tag, Node, LengthFastStream, Ratio, HeartbeatRatio
            ++ [{{Tag, {Ratio + (Ratio * BT), Ratio + (Ratio * BT)}}, Node, Ratio + (Ratio * BT)}]
            || BT <- lists:seq(0,LengthStream - 1)])
 	++ [{heartbeat, {{Tag, Node}, LengthFastStream + 1}}],
+    %% io:format("UUA:~n~p~n", [Events]),
     producer:list_generator(Events).
 
 
