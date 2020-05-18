@@ -346,7 +346,7 @@ make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerOptio
 -spec make_big_input_uid_producers(uid(), [node()], node(), node(), RateMultiplier::integer())
                                   -> {gen_producer_init(), integer()}.
 make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA, RateMultiplier) ->
-    LengthPV = 1000000,
+    LengthPV = 500000,
     PageViewStreams = [{{fun ?MODULE:make_page_view_events/4, [Uid, NodePV, LengthPV, 1]},
                         {{page_view, Uid}, NodePV}, RateMultiplier}
                        || NodePV <- NodesPV],

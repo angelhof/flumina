@@ -428,7 +428,7 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, rate_mu
     print("Stream-Table Join Experiment:", num_ids, num_page_view_parallel, rate_multiplier)
 
     ## Prepate the node names and the experiment argument string
-    update_user_address_producers_in_main = True
+    update_user_address_producers_in_main = False
     uid_tag_node_arg_string, snames, used_hostnames = collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, rate_multiplier, update_user_address_producers_in_main, run_ec2=run_ec2)
 
     if(not run_ec2):
@@ -655,14 +655,14 @@ optimizers = ["optimizer_greedy"]
 num_ids = [2]
 num_page_view_parallel = [5]
 # rate_multipliers = [20]
-rate_multipliers = range(5,20)
+rate_multipliers = range(5,17,2)
 # It works fine with rates up to around 15. More than that starts to have issues.
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ns3=False)
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel, rate_multipliers, run_ec2=True)
 
 num_ids = [2]
-num_page_view_parallel = range(1,15)
+num_page_view_parallel = range(1,11)
 # num_page_view_parallel = range(1,4)
 rate_multipliers = [5]
 
