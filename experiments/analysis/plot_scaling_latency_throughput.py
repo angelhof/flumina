@@ -32,15 +32,15 @@ def plot_scaleup_ratioab(dirname, prefix, rate_multiplier, ratios_ab, heartbeat_
                 for ratio_ab in ratios_ab]
     common_plot_scaleup(dirname, dirnames, ratios_ab, 'Rate_a / Rate_b', 'ab_varied_abratio', 'linear')
 
-def plot_stream_table_join_scaleup_rate(dirname, prefix, uids, page_view_nodes, rate_multipliers):
-    dirnames = ['%s_%d_%d_%d_True' % (prefix, uids, page_view_nodes, rate_multiplier)
+def plot_stream_table_join_scaleup_rate(dirname, prefix, uids, page_view_nodes, thin_uids, rate_multipliers):
+    dirnames = ['%s_%d_%d_%d_%d' % (prefix, uids, page_view_nodes, thin_uids, rate_multiplier)
                 for rate_multiplier in rate_multipliers]
     common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', 'stream_join_rate_scaleup', experiment="stream-table-join")
 
-def plot_stream_table_join_scaleup_nodes(dirname, prefix, uids, page_view_nodes, rate_multiplier):
-    dirnames = ['%s_%d_%d_%d_True' % (prefix, uids, page_view_node, rate_multiplier)
+def plot_stream_table_join_scaleup_nodes(dirname, prefix, uids, page_view_nodes, thin_uids, rate_multiplier):
+    dirnames = ['%s_%d_%d_%d_%d' % (prefix, uids, page_view_node, thin_uids, rate_multiplier)
                 for page_view_node in page_view_nodes]
-    common_plot_scaleup(dirname, dirnames, page_view_nodes, 'Rate Multiplier', 'stream_join_node_scaleup', experiment="stream-table-join")
+    common_plot_scaleup(dirname, dirnames, page_view_nodes, 'Rate Multiplier', 'stream_join_node_scaleup', yscale='linear', experiment="stream-table-join")
 
 
 def plot_scaleup_heartbeats(dirname, prefix, rate_multiplier, ratio_ab, heartbeat_rates, a_nodes_number, optimizer):
@@ -171,11 +171,17 @@ if __name__ == '__main__':
     plt.rcParams.update({'font.size': 14})
 
     # The full range of rates is range(10, 35, 2)
-    # plot_scaleup_rate('archive', 'ab_exp_1', range(20, 42, 2), 1000, 10, 10, 'optimizer_greedy')
+    plot_scaleup_rate('archive/ab_example_rate_scaleup_20-64/archive', 'ab_exp_1', range(20, 62, 2), 1000, 10, 5, 'optimizer_greedy')
 
-    plot_stream_table_join_scaleup_rate('archive/archive', 'stream_table_join', 2, 5, range(3,15,2))
+    plot_scaleup_node_rate('archive/ab_example_node_scaleup_2-40/archive', 'ab_exp_2', 20, 1000, 10, range(2, 28, 2), 'optimizer_greedy')
 
-    plot_stream_table_join_scaleup_nodes('archive/archive', 'stream_table_join', 2, range(1,11), 5)
+    # plot_stream_table_join_scaleup_rate('archive/rate_scaleup_10-100/archive', 'stream_table_join', 2, 5, range(10,105,5))
+    plot_stream_table_join_scaleup_rate('archive/rate_scaleup_4-34_fat_main_prods_in_workers/archive', 'stream_table_join', 2, 2, 0, range(4,34,2))
+
+
+    plot_stream_table_join_scaleup_nodes('archive/node_scaleup_2-20_fat_main_prods_in_workers/archive', 'stream_table_join', 2, range(2,21,2), 0, 5)
+
+    # plot_stream_table_join_scaleup_nodes('archive/archive', 'stream_table_join', 2, range(1,11), 5)
 
     # # The full range of nodes is range(2, 33, 2)
     # plot_scaleup_node_rate('archive', 'ab_exp2', 15, 1000, 10, range(2, 29, 2), 'optimizer_greedy')
