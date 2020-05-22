@@ -1,17 +1,15 @@
 package edu.upenn.flumina.pageview;
 
-import edu.upenn.flumina.Generator;
-import edu.upenn.flumina.pageview.data.Get;
-import edu.upenn.flumina.pageview.data.GetOrUpdateOrHeartbeat;
-import edu.upenn.flumina.pageview.data.Heartbeat;
-import edu.upenn.flumina.pageview.data.Update;
+import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.pageview.data.*;
+import edu.upenn.flumina.source.GeneratorWithHeartbeats;
 
 import java.util.Iterator;
 import java.util.Random;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-public class GetOrUpdateGenerator implements Generator<GetOrUpdateOrHeartbeat> {
+public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate, Heartbeat> {
 
     // TODO: Perhaps have a centralized random?
     private final Random random = new Random();
@@ -32,8 +30,8 @@ public class GetOrUpdateGenerator implements Generator<GetOrUpdateOrHeartbeat> {
     }
 
     @Override
-    public Iterator<GetOrUpdateOrHeartbeat> getIterator() {
-        final Stream<GetOrUpdateOrHeartbeat> getOrUpdateStream = LongStream.range(0, totalEvents)
+    public Iterator<Union<GetOrUpdate, Heartbeat>> getIterator() {
+        final Stream<Union<GetOrUpdate, Heartbeat>> getOrUpdateStream = LongStream.range(0, totalEvents)
                 .mapToObj(ts -> {
                     final int nextUserId = random.nextInt(totalUsers);
                     if (random.nextBoolean()) {
@@ -43,8 +41,8 @@ public class GetOrUpdateGenerator implements Generator<GetOrUpdateOrHeartbeat> {
                         return new Update(nextUserId, nextZipCode, ts);
                     }
                 });
-        final Stream<GetOrUpdateOrHeartbeat> withFinalHeartbeat =
-                Stream.concat(getOrUpdateStream, Stream.of(new Heartbeat(totalEvents, Long.MAX_VALUE)));
+        final Stream<Union<GetOrUpdate, Heartbeat>> withFinalHeartbeat =
+                Stream.concat(getOrUpdateStream, Stream.of(new GetOrUpdateHeartbeat(totalEvents, Long.MAX_VALUE)));
         return withFinalHeartbeat.iterator();
     }
 

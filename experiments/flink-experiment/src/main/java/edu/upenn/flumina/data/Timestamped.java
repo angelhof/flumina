@@ -1,4 +1,4 @@
-package edu.upenn.flumina;
+package edu.upenn.flumina.data;
 
 import java.io.Serializable;
 

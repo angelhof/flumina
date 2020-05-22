@@ -1,4 +1,4 @@
-package edu.upenn.flumina;
+package edu.upenn.flumina.source;
 
 import java.io.Serializable;
 import java.util.Iterator;

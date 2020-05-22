@@ -1,10 +1,11 @@
 package edu.upenn.flumina.pageview.data;
 
-import edu.upenn.flumina.TimestampedCore;
+import edu.upenn.flumina.data.TimestampedCore;
+import edu.upenn.flumina.data.Union;
 
 import java.util.function.Function;
 
-public class PageView extends TimestampedCore implements PageViewOrHeartbeat {
+public class PageView extends TimestampedCore implements Union<PageView, Heartbeat> {
 
     private static final long serialVersionUID = -3329652472136820306L;
 
@@ -20,8 +21,8 @@ public class PageView extends TimestampedCore implements PageViewOrHeartbeat {
     }
 
     @Override
-    public <T> T match(final Function<PageView, T> pageViewCase, final HeartbeatPVHCase<T> heartbeatCase) {
-        return pageViewCase.apply(this);
+    public <R> R match(final Function<PageView, R> fstCase, final Function<Heartbeat, R> sndCase) {
+        return fstCase.apply(this);
     }
 
 }

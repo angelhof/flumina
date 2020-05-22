@@ -1,6 +1,6 @@
 package edu.upenn.flumina.valuebarrier.data;
 
-import edu.upenn.flumina.TimestampedCore;
+import edu.upenn.flumina.data.TimestampedCore;
 
 public class Barrier extends TimestampedCore implements BarrierOrHeartbeat {
 

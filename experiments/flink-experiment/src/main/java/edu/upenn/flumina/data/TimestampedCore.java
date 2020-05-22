@@ -1,4 +1,4 @@
-package edu.upenn.flumina;
+package edu.upenn.flumina.data;
 
 public class TimestampedCore implements Timestamped {
 

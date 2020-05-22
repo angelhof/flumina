@@ -1,6 +1,6 @@
 package edu.upenn.flumina.valuebarrier;
 
-import edu.upenn.flumina.GeneratorBasedSource;
+import edu.upenn.flumina.source.GeneratorBasedSource;
 import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
 
 public class BarrierSource extends GeneratorBasedSource<BarrierOrHeartbeat> {

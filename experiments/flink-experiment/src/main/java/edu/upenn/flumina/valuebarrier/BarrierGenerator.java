@@ -1,6 +1,6 @@
 package edu.upenn.flumina.valuebarrier;
 
-import edu.upenn.flumina.Generator;
+import edu.upenn.flumina.source.Generator;
 import edu.upenn.flumina.valuebarrier.data.Barrier;
 import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
 import edu.upenn.flumina.valuebarrier.data.Heartbeat;

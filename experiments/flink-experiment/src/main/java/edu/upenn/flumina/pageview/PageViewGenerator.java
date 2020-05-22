@@ -1,16 +1,17 @@
 package edu.upenn.flumina.pageview;
 
-import edu.upenn.flumina.Generator;
+import edu.upenn.flumina.data.Union;
 import edu.upenn.flumina.pageview.data.Heartbeat;
 import edu.upenn.flumina.pageview.data.PageView;
-import edu.upenn.flumina.pageview.data.PageViewOrHeartbeat;
+import edu.upenn.flumina.pageview.data.PageViewHeartbeat;
+import edu.upenn.flumina.source.GeneratorWithHeartbeats;
 
 import java.util.Iterator;
 import java.util.Random;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-public class PageViewGenerator implements Generator<PageViewOrHeartbeat> {
+public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Heartbeat> {
 
     // TODO: Perhaps have a centralized random?
     private final Random random = new Random();
@@ -31,14 +32,14 @@ public class PageViewGenerator implements Generator<PageViewOrHeartbeat> {
     }
 
     @Override
-    public Iterator<PageViewOrHeartbeat> getIterator() {
-        final Stream<PageViewOrHeartbeat> pageViewStream = LongStream.range(0, totalEvents)
+    public Iterator<Union<PageView, Heartbeat>> getIterator() {
+        final Stream<Union<PageView, Heartbeat>> pageViewStream = LongStream.range(0, totalEvents)
                 .mapToObj(ts -> {
                     final int nextUserId = random.nextInt(totalUsers);
                     return new PageView(nextUserId, ts);
                 });
-        final Stream<PageViewOrHeartbeat> withFinalHeartbeat =
-                Stream.concat(pageViewStream, Stream.of(new Heartbeat(totalEvents, Long.MAX_VALUE)));
+        final Stream<Union<PageView, Heartbeat>> withFinalHeartbeat =
+                Stream.concat(pageViewStream, Stream.of(new PageViewHeartbeat(totalEvents, Long.MAX_VALUE)));
         return withFinalHeartbeat.iterator();
     }
 
