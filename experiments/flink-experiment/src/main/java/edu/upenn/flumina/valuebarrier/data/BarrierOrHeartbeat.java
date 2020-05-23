@@ -1,4 +1,4 @@
-package edu.upenn.flumina.data.cases;
+package edu.upenn.flumina.valuebarrier.data;
 
 import edu.upenn.flumina.data.Timestamped;
 

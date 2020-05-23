@@ -1,8 +1,9 @@
-package edu.upenn.flumina.generator;
+package edu.upenn.flumina.valuebarrier;
 
-import edu.upenn.flumina.data.Heartbeat;
-import edu.upenn.flumina.data.Value;
-import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
+import edu.upenn.flumina.source.Generator;
+import edu.upenn.flumina.valuebarrier.data.Heartbeat;
+import edu.upenn.flumina.valuebarrier.data.Value;
+import edu.upenn.flumina.valuebarrier.data.ValueOrHeartbeat;
 
 import java.util.Iterator;
 import java.util.stream.LongStream;
@@ -15,7 +16,7 @@ public class ValueGenerator implements Generator<ValueOrHeartbeat> {
     private final int totalValues;
     private final double rate;
 
-    public ValueGenerator(int totalValues, double rate) {
+    public ValueGenerator(final int totalValues, final double rate) {
         this.totalValues = totalValues;
         this.rate = rate;
     }
@@ -34,4 +35,5 @@ public class ValueGenerator implements Generator<ValueOrHeartbeat> {
                 Stream.concat(values, Stream.of(new Heartbeat(totalValues, Long.MAX_VALUE)));
         return withFinalHeartbeat.iterator();
     }
+
 }

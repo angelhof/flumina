@@ -1,31 +1,29 @@
-package edu.upenn.flumina.sink;
+package edu.upenn.flumina.pageview;
 
+import edu.upenn.flumina.pageview.data.Update;
 import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.java.tuple.Tuple3;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class TimestampMapper implements MapFunction<Tuple3<Long, Long, Long>, String> {
+public class TimestampMapper implements MapFunction<Update, String> {
 
-    private static final long serialVersionUID = 933001174516035217L;
+    private static final long serialVersionUID = -4405814449111392712L;
 
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss,SSS");
 
     @Override
-    public String map(Tuple3<Long, Long, Long> tuple) {
+    public String map(final Update update) {
         final StringBuilder sb = new StringBuilder();
-        // The field tuple.f2 corresponds to the physical timestamp
-        final long latencyMillis = (System.nanoTime() - tuple.f2) / 1_000_000;
+        final long latencyMillis = (System.nanoTime() - update.getPhysicalTimestamp()) / 1_000_000;
         final LocalDateTime now = LocalDateTime.now();
         sb.append(now.format(TIMESTAMP_FORMATTER))
                 .append(' ')
-                .append(tuple.f0)
-                .append(" @ ")
-                .append(tuple.f1)
+                .append(update.toString())
                 .append(" [latency: ")
                 .append(latencyMillis)
                 .append(" ms]");
         return sb.toString();
     }
+
 }

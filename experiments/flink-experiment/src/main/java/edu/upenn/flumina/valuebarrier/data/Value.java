@@ -1,8 +1,6 @@
-package edu.upenn.flumina.data;
+package edu.upenn.flumina.valuebarrier.data;
 
-import edu.upenn.flumina.data.cases.HeartbeatVOHCase;
-import edu.upenn.flumina.data.cases.ValueCase;
-import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
+import edu.upenn.flumina.data.TimestampedCore;
 
 public class Value extends TimestampedCore implements ValueOrHeartbeat {
 
@@ -10,7 +8,7 @@ public class Value extends TimestampedCore implements ValueOrHeartbeat {
 
     private final long val;
 
-    public Value(long val, long logicalTimestamp) {
+    public Value(final long val, final long logicalTimestamp) {
         super(logicalTimestamp);
         this.val = val;
     }
@@ -20,7 +18,7 @@ public class Value extends TimestampedCore implements ValueOrHeartbeat {
     }
 
     @Override
-    public <T> T match(ValueCase<T> valueCase, HeartbeatVOHCase<T> heartbeatCase) {
+    public <T> T match(final ValueCase<T> valueCase, final HeartbeatVOHCase<T> heartbeatCase) {
         return valueCase.apply(this);
     }
 
@@ -28,4 +26,5 @@ public class Value extends TimestampedCore implements ValueOrHeartbeat {
     public String toString() {
         return "Value(" + getVal() + ") @ " + getLogicalTimestamp();
     }
+
 }

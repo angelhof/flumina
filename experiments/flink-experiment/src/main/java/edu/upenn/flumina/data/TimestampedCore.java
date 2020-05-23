@@ -9,12 +9,12 @@ public class TimestampedCore implements Timestamped {
     private long physicalTimestamp;
     private boolean hasPhysicalTimestamp;
 
-    public TimestampedCore(long logicalTimestamp) {
+    public TimestampedCore(final long logicalTimestamp) {
         this.logicalTimestamp = logicalTimestamp;
         this.hasPhysicalTimestamp = false;
     }
 
-    public TimestampedCore(long logicalTimestamp, long physicalTimestamp) {
+    public TimestampedCore(final long logicalTimestamp, final long physicalTimestamp) {
         this.logicalTimestamp = logicalTimestamp;
         this.physicalTimestamp = physicalTimestamp;
         this.hasPhysicalTimestamp = true;
@@ -31,7 +31,7 @@ public class TimestampedCore implements Timestamped {
     }
 
     @Override
-    public void setPhysicalTimestamp(long physicalTimestamp) {
+    public void setPhysicalTimestamp(final long physicalTimestamp) {
         this.physicalTimestamp = physicalTimestamp;
         this.hasPhysicalTimestamp = true;
     }
@@ -40,4 +40,5 @@ public class TimestampedCore implements Timestamped {
     public boolean hasPhysicalTimestamp() {
         return hasPhysicalTimestamp;
     }
+
 }

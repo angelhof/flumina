@@ -1,7 +1,9 @@
 package edu.upenn.flumina.source;
 
 import edu.upenn.flumina.data.Timestamped;
+import edu.upenn.flumina.data.Union;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
+import org.apache.flink.streaming.api.watermark.Watermark;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,33 +11,23 @@ import java.io.Serializable;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
-public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSourceFunction<T> implements Serializable {
+public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends Timestamped>
+        extends RichParallelSourceFunction<T> implements Serializable {
 
-    private static final long serialVersionUID = -6875008481095724331L;
+    private static final long serialVersionUID = -3245902708095159178L;
 
-    private static final Logger LOG = LoggerFactory.getLogger(GeneratorBasedSource.class);
+    private static final Logger LOG = LoggerFactory.getLogger(GeneratorWithHeartbeatsBasedSource.class);
 
     private static final long SLEEP_GRANULARITY_MILLIS = 2;
 
     private volatile boolean isRunning = true;
 
-    private final Generator<? extends T> generator;
+    private final GeneratorWithHeartbeats<T, H> generator;
 
     private final long startTime;
 
-    /**
-     * A parallel source that produces objects of type {@link T}. The objects are produced by {@code generator}
-     * at a rate of {@code generator.getRate()} values per millisecond.
-     * <p>
-     * The source is initialized with {@code startTime}, a timestamp equivalent to the one that would be obtained
-     * by running {@code System.nanoTime()}. This timestamp is used to synchronize multiple parallel instances
-     * with the same starting time.
-     *
-     * @param generator The generator used by the source
-     * @param startTime A timestamp equivalent to the one that would be obtained by running
-     *                  {@code System.nanoTime()}
-     */
-    public GeneratorBasedSource(final Generator<? extends T> generator, final long startTime) {
+    public GeneratorWithHeartbeatsBasedSource(final GeneratorWithHeartbeats<T, H> generator,
+                                              final long startTime) {
         this.generator = generator;
         this.startTime = startTime;
     }
@@ -43,8 +35,8 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
     @Override
     public void run(final SourceContext<T> ctx) {
         final double rate = generator.getRate();
-        final Iterator<? extends T> iterator = generator.getIterator();
-        T obj = iterator.next();
+        final Iterator<Union<T, H>> iterator = generator.getIterator();
+        Union<T, H> obj = iterator.next();
 
         // Future time is relative to startTime.
         if (LOG.isDebugEnabled()) {
@@ -63,10 +55,23 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
             // We're getting ready to sleep at least until sleepAtLeastUntil, so we first collect all objects
             // that should be collected prior to waking up.
             while (obj.getLogicalTimestamp() <= sleepAtLeastUntil) {
-                if (!obj.hasPhysicalTimestamp()) {
-                    obj.setPhysicalTimestamp(System.nanoTime());
+                final long physicalTimestamp;
+                if (obj.hasPhysicalTimestamp()) {
+                    physicalTimestamp = obj.getPhysicalTimestamp();
+                } else {
+                    physicalTimestamp = System.nanoTime();
+                    obj.setPhysicalTimestamp(physicalTimestamp);
                 }
-                ctx.collect(obj);
+                obj.match(
+                        event -> {
+                            ctx.collectWithTimestamp(event, physicalTimestamp);
+                            return null;
+                        },
+                        heartbeat -> {
+                            ctx.emitWatermark(new Watermark(physicalTimestamp));
+                            return null;
+                        }
+                );
                 if (iterator.hasNext()) {
                     obj = iterator.next();
                 } else {

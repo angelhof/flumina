@@ -1,4 +1,4 @@
-package edu.upenn.flumina.generator;
+package edu.upenn.flumina.source;
 
 import java.io.Serializable;
 import java.util.Iterator;
@@ -15,4 +15,5 @@ public interface Generator<T> extends Serializable {
     double getRate();
 
     Iterator<T> getIterator();
+
 }

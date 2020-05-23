@@ -11,11 +11,11 @@ public class SleepExperiment {
 
     private static final Logger LOG = LoggerFactory.getLogger(SleepExperiment.class);
 
-    private static double getAvg(long[] samples) {
+    private static double getAvg(final long[] samples) {
         return Arrays.stream(samples).average().getAsDouble();
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(final String[] args) throws Exception {
         // Running some experiments to measure the resolution of Thread.sleep()
 
         final long pauseInMicros = 10_000L;
@@ -30,7 +30,7 @@ public class SleepExperiment {
 
         // Measure Thread.sleep(long)
         for (int i = 0; i < samples.length; i++) {
-            long start = System.nanoTime();
+            final long start = System.nanoTime();
             Thread.sleep(minMillisPause);
             samples[i] = System.nanoTime() - start;
         }
@@ -38,7 +38,7 @@ public class SleepExperiment {
 
         // Measure Thread.sleep(long, int)
         for (int i = 0; i < samples.length; i++) {
-            long start = System.nanoTime();
+            final long start = System.nanoTime();
             Thread.sleep(millisPart, nanosPart);
             samples[i] = System.nanoTime() - start;
         }
@@ -46,10 +46,11 @@ public class SleepExperiment {
 
         // Measure LockSupport.parkNanos(long)
         for (int i = 0; i < samples.length; i++) {
-            long start = System.nanoTime();
+            final long start = System.nanoTime();
             LockSupport.parkNanos(pauseInNanos);
             samples[i] = System.nanoTime() - start;
         }
         LOG.info(String.format("Thread.sleep(long): avg = %.0f ns", getAvg(samples)));
     }
+
 }

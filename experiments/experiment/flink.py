@@ -118,13 +118,14 @@ class ValueBarrierExperiment:
                         '/opt/flink/bin/flink',
                         'run',
                         '/job.jar',
+                        '--experiment', 'value-barrier'
                         '--valueNodes', f'{self.total_value_nodes}',
                         '--totalValues', f'{self.total_values}',
                         '--valueRate', f'{self.value_rate:.1f}',
                         '--vbRatio', f'{self.vb_ratio}',
                         '--hbRatio', f'{self.hb_ratio}',
-                        '--outputFile', self.out_file,
-                        '--statisticsFile', self.stats_file])
+                        '--outFile', self.out_file,
+                        '--statsFile', self.stats_file])
 
     def _stop_nodes(self):
         if self._with_ns3():

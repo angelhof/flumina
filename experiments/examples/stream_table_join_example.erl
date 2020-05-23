@@ -377,7 +377,7 @@ make_update_events_heartbeats(Tag, Node, LengthFastStream, Ratio, HeartbeatRatio
     Events =
         lists:flatten(
           [[{heartbeat, {{Tag, Node}, (T * Ratio div HeartbeatRatio) + (Ratio * BT)}}
-            || T <- lists:seq(0, HeartbeatRatio - 2)]
+            || T <- lists:seq(1, HeartbeatRatio - 1)]
            ++ [{{Tag, {Ratio + (Ratio * BT), Ratio + (Ratio * BT)}}, Node, Ratio + (Ratio * BT)}]
            || BT <- lists:seq(0,LengthStream - 1)])
 	++ [{heartbeat, {{Tag, Node}, LengthFastStream + 1}}],

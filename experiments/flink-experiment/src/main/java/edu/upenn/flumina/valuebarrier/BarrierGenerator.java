@@ -1,8 +1,9 @@
-package edu.upenn.flumina.generator;
+package edu.upenn.flumina.valuebarrier;
 
-import edu.upenn.flumina.data.Barrier;
-import edu.upenn.flumina.data.Heartbeat;
-import edu.upenn.flumina.data.cases.BarrierOrHeartbeat;
+import edu.upenn.flumina.source.Generator;
+import edu.upenn.flumina.valuebarrier.data.Barrier;
+import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
+import edu.upenn.flumina.valuebarrier.data.Heartbeat;
 
 import java.util.Iterator;
 import java.util.stream.LongStream;
@@ -17,7 +18,7 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
     private final int vbRatio;
     private final int hbRatio;
 
-    public BarrierGenerator(int totalValues, double valuesRate, int vbRatio, int hbRatio) {
+    public BarrierGenerator(final int totalValues, final double valuesRate, final int vbRatio, final int hbRatio) {
         this.totalValues = totalValues;
         this.valuesRate = valuesRate;
         this.vbRatio = vbRatio;
@@ -59,4 +60,5 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
                 Stream.concat(barriers, Stream.of(new Heartbeat(totalValues, Long.MAX_VALUE)));
         return withFinalHeartbeat.iterator();
     }
+
 }

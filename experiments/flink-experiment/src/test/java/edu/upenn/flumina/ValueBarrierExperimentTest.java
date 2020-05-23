@@ -1,11 +1,11 @@
 package edu.upenn.flumina;
 
-import edu.upenn.flumina.data.Barrier;
-import edu.upenn.flumina.data.Value;
-import edu.upenn.flumina.data.cases.BarrierOrHeartbeat;
-import edu.upenn.flumina.data.cases.ValueOrHeartbeat;
-import edu.upenn.flumina.source.BarrierSource;
-import edu.upenn.flumina.source.ValueSource;
+import edu.upenn.flumina.valuebarrier.BarrierSource;
+import edu.upenn.flumina.valuebarrier.ValueSource;
+import edu.upenn.flumina.valuebarrier.data.Barrier;
+import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
+import edu.upenn.flumina.valuebarrier.data.Value;
+import edu.upenn.flumina.valuebarrier.data.ValueOrHeartbeat;
 import org.apache.flink.api.common.functions.AggregateFunction;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -28,7 +28,6 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
@@ -39,7 +38,7 @@ public class ValueBarrierExperimentTest {
     private static final Logger LOG = LoggerFactory.getLogger(ValueBarrierExperimentTest.class);
 
     @ClassRule
-    public static MiniClusterWithClientResource flinkCluster =
+    public static final MiniClusterWithClientResource flinkCluster =
             new MiniClusterWithClientResource(
                     new MiniClusterResourceConfiguration.Builder()
                             .setNumberSlotsPerTaskManager(1)
@@ -48,7 +47,7 @@ public class ValueBarrierExperimentTest {
 
     @Test
     public void testSanity() throws Exception {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setParallelism(2);
         env.fromElements(1, 2, 3, 4, 5, 6)
                 .windowAll(GlobalWindows.create())
@@ -56,7 +55,7 @@ public class ValueBarrierExperimentTest {
                 .reduce(Integer::sum)
                 .addSink(new SinkFunction<>() {
                     @Override
-                    public void invoke(Integer value, Context context) {
+                    public void invoke(final Integer value, final Context context) {
                         LOG.info("Cumulative sum: {}", value);
                     }
                 }).setParallelism(1);
@@ -65,18 +64,18 @@ public class ValueBarrierExperimentTest {
 
     @Test
     public void testValues() throws Exception {
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(4);
         env.addSource(new ValueSource(10_000, 10.0, System.nanoTime()))
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<ValueOrHeartbeat>() {
                     @Override
-                    public Watermark checkAndGetNextWatermark(ValueOrHeartbeat valueOrHeartbeat, long l) {
+                    public Watermark checkAndGetNextWatermark(final ValueOrHeartbeat valueOrHeartbeat, final long l) {
                         return new Watermark(l);
                     }
 
                     @Override
-                    public long extractTimestamp(ValueOrHeartbeat valueOrHeartbeat, long l) {
+                    public long extractTimestamp(final ValueOrHeartbeat valueOrHeartbeat, final long l) {
                         return valueOrHeartbeat.getLogicalTimestamp();
                     }
                 })
@@ -88,23 +87,23 @@ public class ValueBarrierExperimentTest {
                     }
 
                     @Override
-                    public Integer add(ValueOrHeartbeat valueOrHeartbeat, Integer acc) {
+                    public Integer add(final ValueOrHeartbeat valueOrHeartbeat, final Integer acc) {
                         return acc + valueOrHeartbeat.match(val -> 1, hb -> 0);
                     }
 
                     @Override
-                    public Integer getResult(Integer acc) {
+                    public Integer getResult(final Integer acc) {
                         return acc;
                     }
 
                     @Override
-                    public Integer merge(Integer acc1, Integer acc2) {
+                    public Integer merge(final Integer acc1, final Integer acc2) {
                         return acc1 + acc2;
                     }
                 })
                 .addSink(new SinkFunction<>() {
                     @Override
-                    public void invoke(Integer total, Context context) {
+                    public void invoke(final Integer total, final Context context) {
                         LOG.info("Total values: {}", total);
                         assertEquals(total.intValue(), 40_000);
                     }
@@ -115,25 +114,25 @@ public class ValueBarrierExperimentTest {
     @Test
     public void testBroadcast() throws Exception {
         // Parameters
-        int totalValues = 10_000;
-        double valueRate = 10.0;
-        int valueNodes = 3;
-        int vbRatio = 1_000;
-        int hbRatio = 10;
+        final int totalValues = 10_000;
+        final double valueRate = 10.0;
+        final int valueNodes = 3;
+        final int vbRatio = 1_000;
+        final int hbRatio = 10;
 
-        StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
+        final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(valueNodes + 1);
 
-        long startTime = System.nanoTime() + 500_000_000;
-        DataStream<ValueOrHeartbeat> valueStream =
+        final long startTime = System.nanoTime() + 500_000_000;
+        final DataStream<ValueOrHeartbeat> valueStream =
                 env.addSource(new ValueSource(totalValues, valueRate, startTime)).setParallelism(valueNodes);
-        DataStream<BarrierOrHeartbeat> barrierStream =
+        final DataStream<BarrierOrHeartbeat> barrierStream =
                 env.addSource(new BarrierSource(totalValues, valueRate, vbRatio, hbRatio, startTime)).setParallelism(1);
 
         final MapStateDescriptor<Void, Void> stateDescriptor =
                 new MapStateDescriptor<>("BroadcastState", Void.class, Void.class);
-        BroadcastStream<BarrierOrHeartbeat> broadcastStream = barrierStream.broadcast(stateDescriptor);
+        final BroadcastStream<BarrierOrHeartbeat> broadcastStream = barrierStream.broadcast(stateDescriptor);
 
         valueStream.connect(broadcastStream)
                 .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple2<Long, Long>>() {
@@ -145,7 +144,9 @@ public class ValueBarrierExperimentTest {
                     private final Deque<Barrier> unprocessedBarriers = new ArrayDeque<>();
 
                     @Override
-                    public void processElement(ValueOrHeartbeat item, ReadOnlyContext ctx, Collector<Tuple2<Long, Long>> collector) {
+                    public void processElement(final ValueOrHeartbeat item,
+                                               final ReadOnlyContext ctx,
+                                               final Collector<Tuple2<Long, Long>> collector) {
                         item.<Void>match(
                                 value -> {
                                     unprocessedValues.addLast(value);
@@ -158,7 +159,9 @@ public class ValueBarrierExperimentTest {
                     }
 
                     @Override
-                    public void processBroadcastElement(BarrierOrHeartbeat item, Context ctx, Collector<Tuple2<Long, Long>> collector) {
+                    public void processBroadcastElement(final BarrierOrHeartbeat item,
+                                                        final Context ctx,
+                                                        final Collector<Tuple2<Long, Long>> collector) {
                         item.<Void>match(
                                 barrier -> {
                                     unprocessedBarriers.addLast(barrier);
@@ -170,14 +173,14 @@ public class ValueBarrierExperimentTest {
                         makeProgress(collector);
                     }
 
-                    private void makeProgress(Collector<Tuple2<Long, Long>> collector) {
-                        long currentTime = Math.min(valueTimestamp, barrierTimestamp);
+                    private void makeProgress(final Collector<Tuple2<Long, Long>> collector) {
+                        final long currentTime = Math.min(valueTimestamp, barrierTimestamp);
                         while (!unprocessedValues.isEmpty() &&
                                 unprocessedValues.getFirst().getPhysicalTimestamp() <= currentTime) {
-                            Value value = unprocessedValues.removeFirst();
+                            final Value value = unprocessedValues.removeFirst();
                             while (!unprocessedBarriers.isEmpty() &&
                                     unprocessedBarriers.getFirst().getPhysicalTimestamp() < value.getPhysicalTimestamp()) {
-                                Barrier barrier = unprocessedBarriers.removeFirst();
+                                final Barrier barrier = unprocessedBarriers.removeFirst();
                                 LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getLogicalTimestamp());
                                 collector.collect(Tuple2.of(sum, barrier.getLogicalTimestamp()));
                                 sum = 0;
@@ -186,7 +189,7 @@ public class ValueBarrierExperimentTest {
                         }
                         while (!unprocessedBarriers.isEmpty() &&
                                 unprocessedBarriers.getFirst().getPhysicalTimestamp() <= currentTime) {
-                            Barrier barrier = unprocessedBarriers.removeFirst();
+                            final Barrier barrier = unprocessedBarriers.removeFirst();
                             LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getLogicalTimestamp());
                             collector.collect(Tuple2.of(sum, barrier.getLogicalTimestamp()));
                             sum = 0;
@@ -200,12 +203,12 @@ public class ValueBarrierExperimentTest {
                 }).setParallelism(valueNodes)
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<Tuple2<Long, Long>>() {
                     @Override
-                    public Watermark checkAndGetNextWatermark(Tuple2<Long, Long> tuple, long l) {
+                    public Watermark checkAndGetNextWatermark(final Tuple2<Long, Long> tuple, final long l) {
                         return new Watermark(l);
                     }
 
                     @Override
-                    public long extractTimestamp(Tuple2<Long, Long> tuple, long l) {
+                    public long extractTimestamp(final Tuple2<Long, Long> tuple, final long l) {
                         return tuple.f1;
                     }
                 })
@@ -213,10 +216,11 @@ public class ValueBarrierExperimentTest {
                 .reduce((x, y) -> Tuple2.of(x.f0 + y.f0, x.f1))
                 .addSink(new SinkFunction<>() {
                     @Override
-                    public void invoke(Tuple2<Long, Long> out, Context ctx) {
+                    public void invoke(final Tuple2<Long, Long> out, final Context ctx) {
                         LOG.info("out: {} @ {}", out.f0, out.f1);
                     }
                 }).setParallelism(1);
         env.execute();
     }
+
 }
