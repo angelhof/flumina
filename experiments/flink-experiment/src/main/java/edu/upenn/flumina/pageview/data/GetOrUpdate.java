@@ -1,11 +1,10 @@
 package edu.upenn.flumina.pageview.data;
 
 import edu.upenn.flumina.data.Timestamped;
-import edu.upenn.flumina.data.Union;
 
 import java.util.function.Function;
 
-public interface GetOrUpdate extends Timestamped, Union<GetOrUpdate, Heartbeat> {
+public interface GetOrUpdate extends Timestamped {
 
     interface GetCase<R> extends Function<Get, R> {
 
