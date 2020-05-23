@@ -30,4 +30,11 @@ public class Get extends TimestampedCore implements GetOrUpdate {
         return fstCase.apply(this);
     }
 
+    @Override
+    public String toString() {
+        return "Get{" +
+                "userId=" + userId +
+                "} @ " + getLogicalTimestamp();
+    }
+
 }

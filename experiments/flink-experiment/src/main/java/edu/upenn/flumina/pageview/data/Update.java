@@ -36,4 +36,12 @@ public class Update extends TimestampedCore implements GetOrUpdate {
         return fstCase.apply(this);
     }
 
+    @Override
+    public String toString() {
+        return "Update{" +
+                "userId=" + userId +
+                ", zipCode=" + zipCode +
+                "} @ " + getLogicalTimestamp();
+    }
+
 }

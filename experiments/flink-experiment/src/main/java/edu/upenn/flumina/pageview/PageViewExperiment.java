@@ -9,6 +9,8 @@ import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.common.typeinfo.BasicTypeInfo;
 import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.co.KeyedBroadcastProcessFunction;
+import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,8 +18,8 @@ public class PageViewExperiment implements Experiment {
 
     private static final Logger LOG = LoggerFactory.getLogger(PageViewExperiment.class);
 
-    private static final int TOTAL_USERS = 2;
-    private static final int TOTAL_EVENTS = 1_000_000;
+    // More precisely, total PageView events per user per source. Other events are scaled to this.
+    private static final int TOTAL_EVENTS = 500_000;
 
     private final PageViewConfig conf;
 
@@ -30,17 +32,30 @@ public class PageViewExperiment implements Experiment {
         env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        final var getOrUpdateSource = new GetOrUpdateSource(TOTAL_EVENTS, TOTAL_USERS, 10.0, startTime);
+        final var getOrUpdateSource =
+                new GetOrUpdateSource(TOTAL_EVENTS, conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var getOrUpdateStream = env.addSource(getOrUpdateSource);
-        final var pageViewSource = new PageViewSource(TOTAL_EVENTS, TOTAL_USERS, 100.0, startTime);
-        final var pageViewStream = env.addSource(pageViewSource).setParallelism(10);
+        final var pageViewSource =
+                new PageViewSource(TOTAL_EVENTS, conf.getTotalUsers(), conf.getPageViewRate(), startTime);
+        final var pageViewStream = env.addSource(pageViewSource)
+                .setParallelism(conf.getPageViewParallelism());
 
         // Broadcast state low-level join
         final var zipCodeDescriptor = new MapStateDescriptor<>("ZipCode",
                 BasicTypeInfo.INT_TYPE_INFO, BasicTypeInfo.INT_TYPE_INFO);
         final var broadcastStream = getOrUpdateStream.keyBy(GetOrUpdate::getUserId).broadcast(zipCodeDescriptor);
         pageViewStream.keyBy(PageView::getUserId)
-                .connect(broadcastStream);
+                .connect(broadcastStream)
+                .process(new KeyedBroadcastProcessFunction<Integer, PageView, GetOrUpdate, Integer>() {
+                    @Override
+                    public void processElement(final PageView value, final ReadOnlyContext ctx, final Collector<Integer> out) throws Exception {
+                    }
+
+                    @Override
+                    public void processBroadcastElement(final GetOrUpdate value, final Context ctx, final Collector<Integer> out) throws Exception {
+
+                    }
+                });
 
         // Normal low-level join
         getOrUpdateStream.keyBy(GetOrUpdate::getUserId)

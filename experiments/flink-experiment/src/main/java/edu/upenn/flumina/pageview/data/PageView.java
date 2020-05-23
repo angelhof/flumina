@@ -25,4 +25,11 @@ public class PageView extends TimestampedCore implements Union<PageView, Heartbe
         return fstCase.apply(this);
     }
 
+    @Override
+    public String toString() {
+        return "PageView{" +
+                "userId=" + userId +
+                "} @ " + getLogicalTimestamp();
+    }
+
 }
