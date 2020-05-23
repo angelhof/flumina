@@ -19,6 +19,8 @@
 	 greedy_complex_conf/1,
 	 greedy_local/0,
 	 greedy_local_conf/1,
+	 greedy_big_modulo/0,
+	 greedy_big_modulo_conf/1,
 	 make_as/4,
 	 make_bs_heartbeats/4
 	]).
@@ -185,7 +187,6 @@ greedy_big_conf_test(SinkPid, ProducerType) ->
     %% Setup logging
     producer:make_producers(InputStreams, ConfTree, Topology, ProducerType),
     SinkPid ! finished.
-
 
 greedy_complex() ->
     true = register('sink', self()),
@@ -513,6 +514,104 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 
     SinkPid ! finished,
     ok.
+
+
+
+
+-spec greedy_big_modulo() -> 'ok'.
+greedy_big_modulo() ->
+    Options =
+        [{sink_options, [{log_tags, [sum, {a,1}, {a,2}]}]},
+         {producer_options,
+          [{producer_type, steady_sync_timestamp}]}],
+    %% {experiment_args, Args}],
+    util:run_experiment(?MODULE, greedy_big_modulo_conf, Options).
+
+-spec greedy_big_modulo_conf(experiment_opts()) -> 'finished'.
+greedy_big_modulo_conf(Options) ->
+    %% Get arguments from options
+    {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
+    {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
+
+    %% Architecture
+    Rates = [{node(), b, 10},
+	     {node(), {a,1}, 1000},
+	     {node(), {a,2}, 1000}],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+    Tags = [b, {a,1}, {a,2}],
+    StateTypesMap =
+	#{'state0' => {sets:from_list(Tags), fun update_modulo/3},
+	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update_modulo/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun fork_modulo/2, fun join_modulo/2}}],
+    Dependencies = dependencies(),
+    InitState = {'state0', {0, 0}},
+    Specification =
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+
+    LogTriple = log_mod:make_num_log_triple(),
+    ConfTree = conf_gen:generate(Specification, Topology,
+				 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
+
+    configuration:pretty_print_configuration([b, {a,1}, {a,2}], ConfTree),
+
+    %% Set up where will the input arrive
+    {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
+    %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
+    InputStreams = [{A1, {{a,1}, node()}, 100},
+		    {A2, {{a,2}, node()}, 100},
+		    {Bs, {b, node()}, 100}],
+
+    util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment-modulo", 1001000),
+
+    %% Setup logging
+    FinalProducerOptions = [{log_tags, [b,{a,1},{a,2}]}|ProducerOptions],
+    producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
+
+    SinkPid ! finished.
+
+
+
+
+
+
+
+%%
+%% The specification for the full-value barrier example where 
+%%
+
+-type ab_tag() :: {'a', integer()} | 'b'.
+
+-type event() :: {ab_tag(), integer()}.
+
+-type state() :: {integer(), integer()}.
+
+-define(MODULO, 100).
+
+-spec update_modulo(event(), state(), mailbox()) -> state().
+update_modulo({{a,Key}, Value}, {Sum, PrevBModulo}, SendTo) ->
+    %% SendTo ! {{a,Key}, Value},
+    case Value rem ?MODULO == PrevBModulo of
+        true ->
+            SendTo ! {{a,Key}, Value};
+        false ->
+            ok
+    end,
+    {Sum + Value, PrevBModulo};
+update_modulo({b, Ts}, {Sum, _PrevBModulo}, SendTo) ->
+    SendTo ! {sum, {{b, Ts}, Sum}},
+    {Sum, (Ts + 1) rem ?MODULO}.
+
+-spec join_modulo(state(), state()) -> state().
+join_modulo({Sum1, PrevBModulo1}, {Sum2, PrevBModulo2}) when PrevBModulo1 =:= PrevBModulo2 ->
+    {Sum1 + Sum2, PrevBModulo1}.
+
+-spec fork_modulo({tag_predicate(), tag_predicate()}, state()) -> {state(), state()}.
+fork_modulo(_, {Sum, PrevBModulo}) ->
+    {{Sum, PrevBModulo},
+     {0, PrevBModulo}}.
 
 
 %% The specification of the computation

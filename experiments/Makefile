@@ -49,6 +49,9 @@ open_erl_noshell:
 abexample:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run abexample greedy_big $(args) $(HALT)
 
+abexample_modulo:
+	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run abexample greedy_big_modulo $(args) $(HALT)
+
 taxiexample_tumble:
 	$(ERL) $(NAME_OPT) -pa $(EBIN_DIRS) -noshell -run taxiexample main $(args) $(HALT)
 
