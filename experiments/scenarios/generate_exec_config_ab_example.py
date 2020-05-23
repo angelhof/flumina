@@ -161,9 +161,11 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
     print("|-- The stdout is logged in:", main_stdout_log)
 
     ## Read the hostnames from the ec2 internal hostnames file
-    my_sname = 'main'
-    my_hostname_prefix = 'ip-172-31-35-213'
-    my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
+    my_sname = MAIN_SNAME
+    my_hostname = get_ec2_main_hostname()
+    # my_hostname_prefix = my_hostname.split
+    my_node_name = format_ec2_node(my_sname, my_hostname)
+    # my_node_name = '{}@{}'.format(my_sname, my_hostname_prefix)
     hostnames = get_ec2_hostnames()
 
     ## Clean the log directory
@@ -193,8 +195,8 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
 
     exp_module = 'abexample.'
     exp_function = 'distributed_experiment.'
-    atom_node_names = ["\\'{}\\'".format(node_name)
-                       for node_name in [my_node_name] + node_names]
+    atom_node_names = [my_node_name] + ["\\'{}\\'".format(node_name)
+                       for node_name in node_names]
     node_names_exp_arg = ','.join(atom_node_names)
     exp_arguments = "[[{}],{},{},{},{}].".format(node_names_exp_arg, rate_multiplier,
                                                  ratio_ab, heartbeat_rate, optimizer)
@@ -204,8 +206,13 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
     # print(all_args)
     stime = datetime.now()
     print("|-- Running experiment...", end=" ", flush=True)
-    with open(main_stdout_log, "w") as f:
-        p = subprocess.run(all_args, stdout=f)
+    try:
+        with open(main_stdout_log, "w") as f:
+            p = subprocess.run(all_args, stdout=f)
+    except KeyboardInterrupt:
+        print(" ! INTERRUPTED !")
+        stop_ec2_erlang_nodes([my_node_name] + node_names, main_stdout_log)
+        exit(1)
     etime = datetime.now()
     print("took:", etime - stime)
 
@@ -428,18 +435,14 @@ def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, 
     ## Generate the producers for the fat nodes
     uid_tag_node_list, snames, used_hostnames = collect_fat_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, hostnames, uua_producer_in_main, run_ec2)
 
+    used_node_names = [format_ec2_node(sname, hostname)
+                       for sname, hostname in zip(snames, used_hostnames)]
     ## Generate the producers in the same hostnames for the light keys
     ## (without making new hostnames)
-    for uid in range(num_light_ids):
+    for uid in range(num_ids, num_light_ids + num_ids):
 
         ## The page view hosts
-        node_sname = "flumina{}".format(counter)
-        if(not(run_ec2)):
-            assert(False)
-            ## TODO: Maybe implement
-        else:
-            hostname = random.choice(used_hostnames)
-            page_view_nodes = format_ec2_node(node_sname, hostname)
+        page_view_node = random.choice(used_node_names)
         get_user_address_node = page_view_node
 
         ## Sometimes we might want the update_user_address producer to
@@ -471,7 +474,7 @@ def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, 
 def run_stream_table_join_configuration(num_ids, num_page_view_parallel, num_light_ids, rate_multiplier, run_ns3=False, run_ec2=False):
     assert(not (run_ns3 and run_ec2))
 
-    print("Stream-Table Join Experiment:", num_ids, num_page_view_parallel, rate_multiplier)
+    print("Stream-Table Join Experiment:", num_ids, num_page_view_parallel, num_light_ids, rate_multiplier)
 
     ## Prepate the node names and the experiment argument string
     update_user_address_producers_in_main = False
@@ -542,7 +545,7 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, num_lig
     ## Prepare log gathering
     dir_prefix = 'stream_table_join'
     nodes = ['main'] + snames
-    conf_string = '{}_{}_{}_{}'.format(num_ids, num_page_view_parallel, rate_multiplier, run_ec2)
+    conf_string = '{}_{}_{}_{}'.format(num_ids, num_page_view_parallel, num_light_ids, rate_multiplier, run_ec2)
 
     gather_logs(dir_prefix, snames, conf_string, run_ns3=run_ns3, run_ec2=run_ec2, log_name=main_stdout_log)
 
@@ -562,7 +565,7 @@ def run_stream_table_join_configurations(num_ids, num_page_view_parallel, num_li
         for num_page_view_p in num_page_view_parallel:
             for num_light_id in num_light_ids:
                 for rate_multiplier in rate_multipliers:
-                    run_stream_table_join_configuration(num_id, num_page_view_p, num_light_id
+                    run_stream_table_join_configuration(num_id, num_page_view_p, num_light_id,
                                                         rate_multiplier, run_ns3=run_ns3, run_ec2=run_ec2)
 
 
@@ -587,16 +590,17 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
 # rate_multipliers = range(30, 32, 2)
-rate_multipliers = range(20, 50, 2)
+rate_multipliers = range(20, 64, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [10]
-a_nodes_numbers = [10]
+a_nodes_numbers = [5]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
-## t2.micro instances reach peak for rate 38
+## t2.micro instances reach peak for 5 nodes for rate 60
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
 
 #dirname = os.path.join('archive')
 # plot_scaleup_rate(dirname, 'multi_run_ab_experiment',
@@ -622,16 +626,20 @@ optimizers = ["optimizer_greedy"]
 ## how well our system scales with the number of processors/cores
 ##
 ## NOTE: The rate should be reasonably high. Maybe 20 - 50?
-rate_multipliers = [15]
+rate_multipliers = [20]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 ## Note:
 ## Ideally we want to plot up to 38 (for rate multiplier 15), but I cannot get the server to behave and give us
 ## steady results for those, so I will give results up to 32
-a_nodes_numbers = range(2, 33, 2)
+a_nodes_numbers = range(2, 42, 2)
+a_nodes_numbers = range(20, 42, 2)
 optimizers = ["optimizer_greedy"]
 
 #run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
+
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
 
     #dirname = os.path.join('archive')
 #plot_scaleup_node_rate(dirname, 'multi_run_ab_experiment',
@@ -700,10 +708,10 @@ optimizers = ["optimizer_greedy"]
 ## ===============
 
 num_ids = [2]
-num_page_view_parallel = [5]
-num_light_ids = [8]
+num_page_view_parallel = [2]
+num_light_ids = [0]
 # rate_multipliers = [20]
-rate_multipliers = range(5,17,2)
+rate_multipliers = range(4,34,2)
 # It works fine with rates up to around 15. More than that starts to have issues.
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel,
@@ -712,9 +720,9 @@ rate_multipliers = range(5,17,2)
 #                                      num_light_ids, rate_multipliers, run_ec2=True)
 
 num_ids = [2]
-num_page_view_parallel = range(1,11)
-# num_page_view_parallel = range(1,4)
-num_light_ids = [8]
+num_page_view_parallel = range(2,21,2)
+# num_page_view_parallel = range(3,4)
+num_light_ids = [0]
 rate_multipliers = [5]
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel,
