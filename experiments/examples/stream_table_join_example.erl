@@ -302,7 +302,7 @@ is_uid_in_pred(Uid, Pred) ->
 %% Input generation
 %%
 
--spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_options()) -> 'ok'.
+-spec make_big_input_seq_producers(uids(), configuration(), topology(), producer_options()) -> [pid()].
 make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerOptions) ->
     {Streams, Lengths} =
         lists:unzip([make_big_input_uid_producers(Uid, [node()], node(), node(), 100) || Uid <- Uids]),
@@ -318,7 +318,7 @@ make_big_input_seq_producers(Uids, ConfTree, Topology, ProducerOptions) ->
     producer:make_producers(AllStreams, ConfTree, Topology, [{log_tags, LogTags}|ProducerOptions]).
 
 -spec make_big_input_distr_producers([{uid(), [{atom(), [node()]}]}], configuration(),
-                                     topology(), producer_options(), RateMultiplier::integer()) -> 'ok'.
+                                     topology(), producer_options(), RateMultiplier::integer()) -> [pid()].
 make_big_input_distr_producers(UidTagNodeList, ConfTree, Topology, ProducerOptions, RateMultiplier) ->
     %% Extract the nodes for each uid. Only page view events can be
     %% sent to many different nodes.

@@ -8,6 +8,8 @@
 	 real_distributed_conf/2,
 	 distributed_experiment/5,
 	 distributed_experiment_conf/6,
+	 distributed_experiment_modulo/5,
+	 distributed_experiment_modulo_conf/1,
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
@@ -573,7 +575,89 @@ greedy_big_modulo_conf(Options) ->
     SinkPid ! finished.
 
 
+-spec distributed_experiment_modulo([atom()], integer(), integer(), integer(), optimizer_type()) -> 'ok'.
+distributed_experiment_modulo(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer) ->
+    %% Find the a tags to log
+    NumberAs = length(NodeNames) - 1,
+    ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
+    Options =
+        [{sink_options,
+          [{log_tags, [sum|ATags]},
+           {sink_wait_time, 10000}]},
+         {producer_options,
+          [{producer_type, steady_sync_timestamp}]},
+         {optimizer_type, Optimizer},
+         {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio}}],
+    util:run_experiment(?MODULE, distributed_experiment_modulo_conf, Options).
 
+-spec distributed_experiment_modulo_conf(experiment_opts()) -> {'finished', [pid()]}.
+distributed_experiment_modulo_conf(Options) ->
+    %% Get arguments from options
+    {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
+    {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
+    {optimizer_type, Optimizer} = lists:keyfind(optimizer_type, 1, Options),
+    {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio}} =
+        lists:keyfind(experiment_args, 1, Options),
+
+    io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer]]),
+
+    %% We assume that the first node name is the B node
+    [BNodeName|ANodeNames] = NodeNames,
+
+    %% We assume that there is one node for each a and one for b
+    NumberAs = length(NodeNames) - 1,
+    %% For the rates we only care about ratios
+    ARate = 1000000,
+    BRate = ARate div RatioAB,
+
+    %% Tags
+    ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
+    Tags = [b] ++ ATags,
+
+
+    %% Architecture
+    ARatesTopo = [{ANN, AT, ARate} || {ANN, AT} <- lists:zip(ANodeNames, ATags)],
+    BRateTopo = {BNodeName, b, BRate},
+    Rates = [BRateTopo|ARatesTopo],
+    Topology =
+	conf_gen:make_topology(Rates, SinkPid),
+
+    %% Computation
+
+    StateTypesMap =
+	#{'state0' => {sets:from_list(Tags), fun update_modulo/3},
+	  'state_a' => {sets:from_list(ATags), fun update_modulo/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun fork_modulo/2, fun join_modulo/2}},
+		    {{'state_a', 'state_a', 'state_a'}, {fun fork_modulo/2, fun join_modulo/2}}],
+    Dependencies = parametrized_dependencies(ATags),
+    InitState = {'state0', {0,0}},
+    Specification =
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+
+    ConfTree = conf_gen:generate(Specification, Topology,
+				 [{optimizer,Optimizer}]),
+
+    configuration:pretty_print_configuration(Tags, ConfTree),
+
+    %% Set up where will the input arrive
+
+    %% Input Streams
+    {As, BsMsgInit, NumberOfMessages} =
+        parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
+    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier}
+		     || {AIn, ATag, ANode} <- lists:zip3(As, ATags, ANodeNames)],
+    BInputStream = {BsMsgInit, {b, BNodeName}, RateMultiplier},
+    InputStreams = [BInputStream|AInputStreams],
+
+    %% Log the current time and total number of events
+    util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment-modulo", NumberOfMessages),
+
+    %% Log the input times of b messages
+    %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+    FinalProducerOptions = [{log_tags, [b|ATags]}|ProducerOptions],
+    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
+
+    SinkPid ! {finished, ProducerPids}.
 
 
 

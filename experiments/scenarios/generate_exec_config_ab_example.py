@@ -154,9 +154,12 @@ def stop_ec2_erlang_nodes(node_names, main_stdout_log):
     etime = datetime.now()
     print("took:", etime - stime)
 
-def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer):
+def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, full_value_barrier=False):
 
-    print("Experiment:", experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
+    if(full_value_barrier):
+        print("Full Value Barrier Experiment:", experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
+    else:
+        print("Experiment:", experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
     main_stdout_log = "/tmp/flumina_main_stdout"
     print("|-- The stdout is logged in:", main_stdout_log)
 
@@ -194,7 +197,11 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
     name_opt = ['NAME_OPT=-sname main -setcookie flumina']
 
     exp_module = 'abexample.'
-    exp_function = 'distributed_experiment.'
+    ## If the experiment is for the full value barrier
+    if(full_value_barrier):
+        exp_function = 'distributed_experiment_modulo.'
+    else:
+        exp_function = 'distributed_experiment.'
     atom_node_names = [my_node_name] + ["\\'{}\\'".format(node_name)
                        for node_name in node_names]
     node_names_exp_arg = ','.join(atom_node_names)
@@ -220,7 +227,10 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
     stop_ec2_erlang_nodes(node_names, main_stdout_log)
 
     ## Gather logs
-    dir_prefix = 'ab_exp'
+    if(full_value_barrier):
+        dir_prefix = 'ab_exp_full'
+    else:
+        dir_prefix = 'ab_exp'
     conf_string = '{}_{}_{}_{}_{}_{}'.format(experiment, rate_multiplier,
                                              ratio_ab, heartbeat_rate, a_node_numbers, optimizer)
     gather_logs(dir_prefix, node_names, conf_string, run_ec2=True, log_name=main_stdout_log)
@@ -231,11 +241,12 @@ def execute_ec2_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_r
 
 
 
-def run_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False):
+def run_configuration(experiment, rate_multiplier, ratio_ab, heartbeat_rate, a_node_numbers, optimizer, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False, full_value_barrier=False):
     assert(not (run_ec2 and run_ns3))
     if(run_ec2):
         execute_ec2_configuration(experiment, rate_multiplier, ratio_ab,
-                                  heartbeat_rate, a_node_numbers, optimizer)
+                                  heartbeat_rate, a_node_numbers, optimizer,
+                                  full_value_barrier=full_value_barrier)
     else:
         a_nodes_names = ['a%dnode' % (node) for node in range(1,a_node_numbers+1)]
         exec_a_nodes = [format_node(node_name) for node_name in a_nodes_names]
@@ -569,7 +580,7 @@ def run_stream_table_join_configurations(num_ids, num_page_view_parallel, num_li
                                                         rate_multiplier, run_ns3=run_ns3, run_ec2=run_ec2)
 
 
-def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False):
+def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False, full_value_barrier=False):
     assert(not (run_ns3 and run_ec2))
     ## Find a better way to do this than
     ## indented for loops :'(
@@ -578,7 +589,7 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
             for heartbeat_rate in heartbeat_rates:
                 for a_node in a_nodes_numbers:
                     for optimizer in optimizers:
-                        run_configuration(experiment, rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf, run_ec2=run_ec2)
+                        run_configuration(experiment, rate_m, ratio_ab, heartbeat_rate, a_node, optimizer, run_ns3, ns3_conf, run_ec2=run_ec2, full_value_barrier=full_value_barrier)
 
 
 ## Experiment 1
@@ -591,6 +602,7 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ## NOTE: I have to fine tune these numbers to fit the server
 # rate_multipliers = range(30, 32, 2)
 rate_multipliers = range(20, 64, 2)
+rate_multipliers = range(20, 22, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [10]
@@ -600,6 +612,12 @@ optimizers = ["optimizer_greedy"]
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
 ## t2.micro instances reach peak for 5 nodes for rate 60
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+## Full value barrier experiment one
+run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers,
+                   optimizers, run_ec2=True, full_value_barrier=True)
+
+
 
 
 #dirname = os.path.join('archive')

@@ -1,8 +1,10 @@
 -module(log_mod).
 
 -export([initialize_message_logger_state/2,
-	 maybe_log_message/2,
+	 maybe_log_message/3,
 	 no_message_logger/0,
+
+         message_logger/1,
 
 	 init_num_log_state/0,
 	 reset_num_log_state/1,
@@ -23,35 +25,75 @@ initialize_message_logger_state(Prefix, Tags) ->
     Filename =
         io_lib:format("~s/~s_~s_~s_messages.log",
 		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
-    filelib:ensure_dir(Filename),
-    {ok, IoDevice} = file:open(Filename, [append]),
-    ok = file:truncate(IoDevice),
+    Pid = spawn_link(?MODULE, message_logger, [Filename]),
     fun(Msg) ->
-	    maybe_log_message(Msg, {Tags, IoDevice})
+	    maybe_log_message(Msg, Tags, Pid)
     end.
 
 %% Generalize the predicate to be anything instead of just a tag set
 %% WARNING: At the moment this only logs messages, not heartbeats
--spec maybe_log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
-maybe_log_message({{Tag, _}, _, _} = Msg, {Tags, _} = LoggerState) ->
+-spec maybe_log_message(gen_impl_message(), sets:set(tag()), pid()) -> 'ok'.
+maybe_log_message({{Tag, _}, _, _} = Msg, Tags, Pid) ->
     case sets:is_element(Tag, Tags) of
 	true ->
-	    log_message(Msg, LoggerState);
+            Pid ! Msg,
+            ok;
 	false ->
 	    ok
     end;
-maybe_log_message(Msg, LoggerState) ->
+maybe_log_message(_Msg, _Tags, _Pid) ->
     ok.
 
--spec log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
-log_message(Msg, {_Tags, File}) ->
-    CurrentTimestamp = ?GET_SYSTEM_TIME(),
-    %% CurrentTimestamp = erlang:system_time(nanosecond),
-    PidNode = {self(), node()},
-    Data = io_lib:format("~w~n", [{Msg, PidNode, CurrentTimestamp}]),
-    ok = file:write(File, Data),
-    ok.
+%% Obsolete synchronous logging code
+%% %% Generalize the predicate to be anything instead of just a tag set
+%% %% WARNING: At the moment this only logs messages, not heartbeats
+%% -spec old_maybe_log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
+%% old_maybe_log_message({{Tag, _}, _, _} = Msg, {Tags, _} = LoggerState) ->
+%%     case sets:is_element(Tag, Tags) of
+%% 	true ->
+%% 	    log_message(Msg, LoggerState);
+%% 	false ->
+%% 	    ok
+%%     end;
+%% old_maybe_log_message(Msg, LoggerState) ->
+%%     ok.
 
+%% -spec log_message(gen_impl_message(), message_logger_state()) -> 'ok'.
+%% log_message(Msg, {_Tags, File}) ->
+%%     CurrentTimestamp = ?GET_SYSTEM_TIME(),
+%%     %% CurrentTimestamp = erlang:system_time(nanosecond),
+%%     PidNode = {self(), node()},
+%%     Data = io_lib:format("~w~n", [{Msg, PidNode, CurrentTimestamp}]),
+%%     ok = file:write(File, Data).
+
+%% Have a message logger to asynchronously log messages
+-spec message_logger(file:filename()) -> ok.
+message_logger(Filename) ->
+    %% Trap exits to empty buffer if the producer exits
+    process_flag(trap_exit, true),
+    filelib:ensure_dir(Filename),
+    {ok, IoDevice} = file:open(Filename, [append, raw]),
+    ok = file:truncate(IoDevice),
+    message_logger_loop(IoDevice, [], 0).
+
+-type message_logger_buffer() :: [string()].
+-spec message_logger_loop(file:io_device(), message_logger_buffer(), integer()) -> ok.
+message_logger_loop(IoDevice, Buffer, N) when N >= ?ASYNC_MESSAGE_LOGGER_BUFFER_SIZE->
+    OrderedBuffer = lists:reverse(Buffer),
+    FlatOutput = lists:flatten(OrderedBuffer),
+    ok = file:write(IoDevice, FlatOutput),
+    message_logger_loop(IoDevice, [], 0);
+message_logger_loop(IoDevice, Buffer, N) ->
+    receive
+        {'EXIT', _, _} ->
+            %% If some linked process exits, then we have to empty buffer
+            message_logger_loop(IoDevice, Buffer, ?ASYNC_MESSAGE_LOGGER_BUFFER_SIZE);
+        Msg ->
+            CurrentTimestamp = ?GET_SYSTEM_TIME(),
+            PidNode = {self(), node()},
+            Data = io_lib:format("~w~n", [{Msg, PidNode, CurrentTimestamp}]),
+            message_logger_loop(IoDevice, [Data|Buffer], N+1)
+    end.
 
 -spec no_message_logger() -> message_logger_log_fun().
 no_message_logger() ->
