@@ -581,7 +581,9 @@ distributed_experiment_modulo(NodeNames, RateMultiplier, RatioAB, HeartbeatBRati
     NumberAs = length(NodeNames) - 1,
     ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
     Options =
-        [{sink_options, [{log_tags, [sum|ATags]}]},
+        [{sink_options,
+          [{log_tags, [sum|ATags]},
+           {sink_wait_time, 10000}]},
          {producer_options,
           [{producer_type, steady_sync_timestamp}]},
          {optimizer_type, Optimizer},
@@ -623,17 +625,19 @@ distributed_experiment_modulo_conf(Options) ->
     %% Computation
 
     StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3},
-	  'state_a' => {sets:from_list(ATags), fun update/3}},
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
-		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+	#{'state0' => {sets:from_list(Tags), fun update_modulo/3},
+	  'state_a' => {sets:from_list(ATags), fun update_modulo/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun fork_modulo/2, fun join_modulo/2}},
+		    {{'state_a', 'state_a', 'state_a'}, {fun fork_modulo/2, fun join_modulo/2}}],
     Dependencies = parametrized_dependencies(ATags),
-    InitState = {'state0', 0},
+    InitState = {'state0', {0,0}},
     Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology,
 				 [{optimizer,Optimizer}]),
+
+    configuration:pretty_print_configuration(Tags, ConfTree),
 
     %% Set up where will the input arrive
 
@@ -646,7 +650,7 @@ distributed_experiment_modulo_conf(Options) ->
     InputStreams = [BInputStream|AInputStreams],
 
     %% Log the current time and total number of events
-    util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment", NumberOfMessages),
+    util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment-modulo", NumberOfMessages),
 
     %% Log the input times of b messages
     %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
