@@ -24,7 +24,8 @@ initialize_message_logger_state(Prefix, Tags) ->
         io_lib:format("~s/~s_~s_~s_messages.log",
 		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
     filelib:ensure_dir(Filename),
-    {ok, IoDevice} = file:open(Filename, [append]),
+    %% File is opened using delayed write to reduce logging overheads
+    {ok, IoDevice} = file:open(Filename, [append, delayed_write]),
     ok = file:truncate(IoDevice),
     fun(Msg) ->
 	    maybe_log_message(Msg, {Tags, IoDevice})
