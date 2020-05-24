@@ -8,6 +8,7 @@ import edu.upenn.flumina.pageview.data.Update;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
@@ -52,24 +53,24 @@ public class PageViewExperiment implements Experiment {
 
                     private final ValueStateDescriptor<Integer> zipCodeDescriptor = new ValueStateDescriptor<>(
                             "ZipCode",
-                            Integer.class
+                            TypeInformation.of(Integer.class)
                     );
 
                     private ValueState<Integer> zipCodeState;
 
                     @Override
-                    public void open(final Configuration parameters) throws IOException {
+                    public void open(final Configuration parameters) {
                         zipCodeState = getRuntimeContext().getState(zipCodeDescriptor);
-                        if (zipCodeState.value() == null) {
-                            // Store some initial value; could be more sophisticated
-                            zipCodeState.update(10_000);
-                        }
                     }
 
                     @Override
                     public void processElement1(final GetOrUpdate getOrUpdate,
                                                 final Context ctx,
-                                                final Collector<Update> out) {
+                                                final Collector<Update> out) throws IOException {
+                        if (zipCodeState.value() == null) {
+                            // Store some initial value; could be more sophisticated
+                            zipCodeState.update(10_000);
+                        }
                         getOrUpdate.match(
                                 get -> null,
                                 update -> {
@@ -91,6 +92,7 @@ public class PageViewExperiment implements Experiment {
 
                     }
                 })
+                .setParallelism(conf.getTotalUsers())
                 .map(new TimestampMapper())
                 .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE)
                 .setParallelism(1);
@@ -100,14 +102,14 @@ public class PageViewExperiment implements Experiment {
 
     @Override
     public long getTotalEvents() {
-        // TODO
-        return 0;
+        // PageView events + Get events + Update events
+        return (TOTAL_EVENTS * conf.getPageViewParallelism() + TOTAL_EVENTS / 100 + TOTAL_EVENTS / 1000) *
+                conf.getTotalUsers();
     }
 
     @Override
     public long getOptimalThroughput() {
-        // TODO
-        return 0;
+        return (long) ((conf.getPageViewParallelism() + 0.011) * conf.getTotalUsers() * conf.getPageViewRate());
     }
 
 }

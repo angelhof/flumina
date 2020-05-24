@@ -7,7 +7,6 @@ import edu.upenn.flumina.source.GeneratorWithHeartbeats;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -54,11 +53,12 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
     }
 
     private Stream<Union<GetOrUpdate, Heartbeat>> generateGetStream(final long logicalTimestamp) {
-        return IntStream.range(0, totalUsers).mapToObj(userId -> new Get(userId, logicalTimestamp));
+        return UserIdHelper.getUserIds(totalUsers).stream()
+                .map(userId -> new Get(userId, logicalTimestamp));
     }
 
     private Stream<Union<GetOrUpdate, Heartbeat>> generateUpdateStream(final long logicalTimestamp) {
-        return IntStream.range(0, totalUsers).mapToObj(userId -> {
+        return UserIdHelper.getUserIds(totalUsers).stream().map(userId -> {
             final int zipCode = 10_000 + random.nextInt(90_000);
             return new Update(userId, zipCode, logicalTimestamp);
         });

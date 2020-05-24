@@ -8,7 +8,6 @@ import edu.upenn.flumina.source.GeneratorWithHeartbeats;
 
 import java.util.Iterator;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
@@ -40,7 +39,8 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Hear
     }
 
     private Stream<Union<PageView, Heartbeat>> generatePageViewStream(final long logicalTimestamp) {
-        return IntStream.range(0, totalUsers).mapToObj(userId -> new PageView(userId, logicalTimestamp));
+        return UserIdHelper.getUserIds(totalUsers).stream()
+                .map(userId -> new PageView(userId, logicalTimestamp));
     }
 
 }
