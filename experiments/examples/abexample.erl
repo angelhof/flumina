@@ -590,7 +590,7 @@ distributed_experiment_modulo(NodeNames, RateMultiplier, RatioAB, HeartbeatBRati
          {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio}}],
     util:run_experiment(?MODULE, distributed_experiment_modulo_conf, Options).
 
--spec distributed_experiment_modulo_conf(experiment_opts()) -> 'finished'.
+-spec distributed_experiment_modulo_conf(experiment_opts()) -> {'finished', [pid()]}.
 distributed_experiment_modulo_conf(Options) ->
     %% Get arguments from options
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
@@ -655,9 +655,9 @@ distributed_experiment_modulo_conf(Options) ->
     %% Log the input times of b messages
     %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
     FinalProducerOptions = [{log_tags, [b|ATags]}|ProducerOptions],
-    producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
+    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
 
-    SinkPid ! finished.
+    SinkPid ! {finished, ProducerPids}.
 
 
 

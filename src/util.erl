@@ -117,6 +117,11 @@ sink0(Options) ->
 	finished ->
 	    io:format("Configuration done~n", []),
             log_sink_configuration_finish_time(),
+	    sink_loop(LoggerFun, WaitTime);
+        {finished, Pids} ->
+            io:format("Configuration done~n", []),
+            log_sink_configuration_finish_time(),
+            link_pids(Pids),
 	    sink_loop(LoggerFun, WaitTime)
     end.
 
@@ -188,6 +193,12 @@ log_sink_finish_time(WaitTime) ->
                          [self(), FinalTimeWithoutWait]),
     ok = file:write_file(Filename, Data, [append]).
 
+
+%% Links all pids to the current process
+-spec link_pids([pid()]) -> 'ok'.
+link_pids(Pids) ->
+    [true = link(Pid) || Pid <- Pids],
+    ok.
 
 %% This function accepts a merging function that takes a 
 %% key and the two associated values and then merges them.

@@ -11,6 +11,10 @@
 -define(SINK_WAITING_TIME_MS, 5000).
 -endif.
 
+-ifndef(ASYNC_MESSAGE_LOGGER_BUFFER_SIZE).
+-define(ASYNC_MESSAGE_LOGGER_BUFFER_SIZE, 100).
+-endif.
+
 %% This time is not monotonic, however it can be used to synchronize
 %% processes residing in different machines. Erlang monotonic time is
 %% unique to one erlang vm and does not have anything to do with the

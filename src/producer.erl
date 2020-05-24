@@ -30,12 +30,12 @@
 %%%
 %%% This module contains code that will be usually used by producer nodes
 %%%
--spec make_producers(gen_producer_init(), configuration(), topology()) -> ok.
+-spec make_producers(gen_producer_init(), configuration(), topology()) -> [pid()].
 make_producers(InputGens, Configuration, _Topology) ->
     make_producers0(InputGens, Configuration, []).
 
 -spec make_producers(gen_producer_init(), configuration(),
-		     topology(), producer_type() | producer_options()) -> ok.
+		     topology(), producer_type() | producer_options()) -> [pid()].
 make_producers(InputGens, Configuration, _Topology, ProducerType) when is_atom(ProducerType) ->
     make_producers0(InputGens, Configuration, [{producer_type, ProducerType}]);
 
@@ -46,7 +46,7 @@ make_producers(InputGens, Configuration, _Topology, ProducerOpts) when is_list(P
 
 -spec make_producers(gen_producer_init(), configuration(),
 		     topology(), producer_type(),
-                     {'log_tags', [tag()]} | message_logger_init_fun()) -> ok.
+                     {'log_tags', [tag()]} | message_logger_init_fun()) -> [pid()].
 make_producers(InputGens, Configuration, _Topology, ProducerType, {log_tags, Tags}) ->
     ProducerOptions = [{producer_type, ProducerType},
                        {log_tags, Tags}],
@@ -58,14 +58,14 @@ make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerI
 
 %% TODO: Instead of sending the beginning of time, we should pass it as an argument
 -spec make_producers(gen_producer_init(), configuration(),
-		     topology(), producer_type(), message_logger_init_fun(), integer()) -> ok.
+		     topology(), producer_type(), message_logger_init_fun(), integer()) -> [pid()].
 make_producers(InputGens, Configuration, _Topology, ProducerType, MessageLoggerInitFun, BeginningOfTime) ->
     ProducerOptions = [{producer_type, ProducerType},
                        {message_logger_init_fun, MessageLoggerInitFun},
                        {producers_begin_time, BeginningOfTime}],
     make_producers0(InputGens, Configuration, ProducerOptions).
 
--spec make_producers0(gen_producer_init(), configuration(), producer_options()) -> ok.
+-spec make_producers0(gen_producer_init(), configuration(), producer_options()) -> [pid()].
 make_producers0(InputGens, Configuration, ProducerOptions) ->
     %% Get options
     {producer_type, ProducerType} =
@@ -135,7 +135,8 @@ make_producers0(InputGens, Configuration, ProducerOptions) ->
             timer:sleep(SleepingTime);
         _ ->
             ok
-    end.
+    end,
+    ProducerPids.
 
 -spec log_producers_spawn_finish_time(integer()) -> ok.
 log_producers_spawn_finish_time(GlobalStartSyncWaitMs) ->
@@ -161,6 +162,9 @@ get_option(message_logger_init_fun, ProducerOptions) ->
             false = lists:keyfind(message_logger_init_fun, 1, ProducerOptions),
             {message_logger_init_fun,
              fun() ->
+                     %% Possible optimization to not check for logging unnecessary tags
+                     %% LogTags =
+                     %%     sets:interesection(sets:from_list(ProdTags), sets:from_list(Tags)),
                      log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
              end}
     end;
