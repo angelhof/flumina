@@ -1,11 +1,11 @@
 package edu.upenn.flumina.pageview.data;
 
 import edu.upenn.flumina.data.TimestampedCore;
-import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.data.TimestampedUnion;
 
 import java.util.function.Function;
 
-public class Update extends TimestampedCore implements GetOrUpdate, Union<GetOrUpdate, Heartbeat> {
+public class Update extends TimestampedCore implements GetOrUpdate, TimestampedUnion<GetOrUpdate, Heartbeat> {
 
     private static final long serialVersionUID = -5650272144418361376L;
 

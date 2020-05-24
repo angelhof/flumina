@@ -1,11 +1,11 @@
 package edu.upenn.flumina.pageview.data;
 
 import edu.upenn.flumina.data.TimestampedCore;
-import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.data.TimestampedUnion;
 
 import java.util.function.Function;
 
-public class PageView extends TimestampedCore implements Union<PageView, Heartbeat> {
+public class PageView extends TimestampedCore implements TimestampedUnion<PageView, Heartbeat> {
 
     private static final long serialVersionUID = -3329652472136820306L;
 

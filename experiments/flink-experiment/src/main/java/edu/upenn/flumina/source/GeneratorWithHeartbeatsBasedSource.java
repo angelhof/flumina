@@ -1,7 +1,7 @@
 package edu.upenn.flumina.source;
 
 import edu.upenn.flumina.data.Timestamped;
-import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.data.TimestampedUnion;
 import org.apache.flink.streaming.api.functions.source.RichParallelSourceFunction;
 import org.apache.flink.streaming.api.watermark.Watermark;
 import org.slf4j.Logger;
@@ -35,8 +35,8 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
     @Override
     public void run(final SourceContext<T> ctx) {
         final double rate = generator.getRate();
-        final Iterator<Union<T, H>> iterator = generator.getIterator();
-        Union<T, H> obj = iterator.next();
+        final Iterator<TimestampedUnion<T, H>> iterator = generator.getIterator();
+        TimestampedUnion<T, H> obj = iterator.next();
 
         // Future time is relative to startTime.
         if (LOG.isDebugEnabled()) {

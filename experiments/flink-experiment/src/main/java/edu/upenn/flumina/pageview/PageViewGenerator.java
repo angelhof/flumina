@@ -1,6 +1,6 @@
 package edu.upenn.flumina.pageview;
 
-import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.data.TimestampedUnion;
 import edu.upenn.flumina.pageview.data.Heartbeat;
 import edu.upenn.flumina.pageview.data.PageView;
 import edu.upenn.flumina.pageview.data.PageViewHeartbeat;
@@ -29,7 +29,7 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Hear
     }
 
     @Override
-    public Iterator<Union<PageView, Heartbeat>> getIterator() {
+    public Iterator<TimestampedUnion<PageView, Heartbeat>> getIterator() {
         final var pageViewStream = LongStream.range(0, totalEvents)
                 .mapToObj(this::generatePageViewStream)
                 .flatMap(Function.identity());
@@ -38,7 +38,7 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Hear
         return withFinalHeartbeat.iterator();
     }
 
-    private Stream<Union<PageView, Heartbeat>> generatePageViewStream(final long logicalTimestamp) {
+    private Stream<TimestampedUnion<PageView, Heartbeat>> generatePageViewStream(final long logicalTimestamp) {
         return UserIdHelper.getUserIds(totalUsers).stream()
                 .map(userId -> new PageView(userId, logicalTimestamp));
     }

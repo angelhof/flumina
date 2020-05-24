@@ -1,6 +1,6 @@
 package edu.upenn.flumina.pageview;
 
-import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.data.TimestampedUnion;
 import edu.upenn.flumina.pageview.data.*;
 import edu.upenn.flumina.source.GeneratorWithHeartbeats;
 
@@ -31,7 +31,7 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
     }
 
     @Override
-    public Iterator<Union<GetOrUpdate, Heartbeat>> getIterator() {
+    public Iterator<TimestampedUnion<GetOrUpdate, Heartbeat>> getIterator() {
         final int total = totalEvents / 10;
         final var getOrUpdateStream = LongStream.range(0, total)
                 .mapToObj(ts -> {
@@ -40,10 +40,10 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
                             Stream.of(new GetOrUpdateHeartbeat(logicalTimestamp));
                     final var getStream = (logicalTimestamp % 100 == 0) ?
                             generateGetStream(logicalTimestamp + 1) :
-                            Stream.<Union<GetOrUpdate, Heartbeat>>empty();
+                            Stream.<TimestampedUnion<GetOrUpdate, Heartbeat>>empty();
                     final var updateStream = (logicalTimestamp % 1000 == 990) ?
                             generateUpdateStream(logicalTimestamp + 9) :
-                            Stream.<Union<GetOrUpdate, Heartbeat>>empty();
+                            Stream.<TimestampedUnion<GetOrUpdate, Heartbeat>>empty();
                     return Stream.concat(Stream.concat(heartbeatStream, getStream), updateStream);
                 })
                 .flatMap(Function.identity());
@@ -52,12 +52,12 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
         return withFinalHeartbeat.iterator();
     }
 
-    private Stream<Union<GetOrUpdate, Heartbeat>> generateGetStream(final long logicalTimestamp) {
+    private Stream<TimestampedUnion<GetOrUpdate, Heartbeat>> generateGetStream(final long logicalTimestamp) {
         return UserIdHelper.getUserIds(totalUsers).stream()
                 .map(userId -> new Get(userId, logicalTimestamp));
     }
 
-    private Stream<Union<GetOrUpdate, Heartbeat>> generateUpdateStream(final long logicalTimestamp) {
+    private Stream<TimestampedUnion<GetOrUpdate, Heartbeat>> generateUpdateStream(final long logicalTimestamp) {
         return UserIdHelper.getUserIds(totalUsers).stream().map(userId -> {
             final int zipCode = 10_000 + random.nextInt(90_000);
             return new Update(userId, zipCode, logicalTimestamp);
