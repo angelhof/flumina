@@ -66,11 +66,11 @@ suites = {
     ),
     'value-barrier-rates-ec2': ExperimentSuite(
         'value-barrier-rates-ec2',
-        [ValueBarrierEC2(5, 1_000_000, r, 1_000, 10) for r in range(20, 61, 2)]
+        [ValueBarrierEC2(5, 1_000_000, r, 1_000, 10) for r in range(20, 101, 2)]
     ),
     'value-barrier-nodes-ec2': ExperimentSuite(
         'value-barrier-nodes-ec2',
-        [ValueBarrierEC2(n, 1_000_000, 20, 1_000, 10) for n in range(2, 29, 2)]
+        [ValueBarrierEC2(n, 1_000_000, 20, 1_000, 10) for n in range(2, 39, 2)]
     ),
     'pageview-test-ec2': ExperimentSuite(
         'pageview-test-ec2',
