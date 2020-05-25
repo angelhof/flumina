@@ -4,9 +4,9 @@
 #   - the experiment suite to run
 #     (check experiment/suites.py or run python experiment/ -l)
 #   - the number of Flink workers
-
 SUITE="${1}"
 COUNT="${2}"
+
 # Make sure the Python virtual environment is active
 source .venv/bin/activate
 
