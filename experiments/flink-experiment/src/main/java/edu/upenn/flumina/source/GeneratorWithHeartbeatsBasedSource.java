@@ -12,8 +12,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
 
-import static edu.upenn.flumina.time.TimeHelper.localFormat;
-import static edu.upenn.flumina.time.TimeHelper.millisSince;
+import static edu.upenn.flumina.time.TimeHelper.*;
 
 public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends Timestamped>
         extends RichParallelSourceFunction<T> implements Serializable {
@@ -68,11 +67,11 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
                 }
                 obj.match(
                         event -> {
-                            ctx.collectWithTimestamp(event, physicalTimestamp.toEpochMilli());
+                            ctx.collectWithTimestamp(event, toEpochMilli(physicalTimestamp));
                             return null;
                         },
                         heartbeat -> {
-                            ctx.emitWatermark(new Watermark(physicalTimestamp.toEpochMilli()));
+                            ctx.emitWatermark(new Watermark(toEpochMilli(physicalTimestamp)));
                             return null;
                         }
                 );
