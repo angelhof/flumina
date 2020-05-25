@@ -1,3 +1,4 @@
+
 import subprocess
 import sys
 import time
@@ -601,8 +602,8 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
 # rate_multipliers = range(30, 32, 2)
-rate_multipliers = range(20, 64, 2)
-rate_multipliers = range(20, 22, 2)
+rate_multipliers = range(20, 62, 2)
+# rate_multipliers = range(20, 22, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [10]
@@ -614,8 +615,10 @@ optimizers = ["optimizer_greedy"]
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
 
 ## Full value barrier experiment one
-run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers,
-                   optimizers, run_ec2=True, full_value_barrier=True)
+rate_multipliers = range(10, 32, 2)
+# run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers,
+#                    optimizers, run_ec2=True, full_value_barrier=True)
+
 
 
 
@@ -656,6 +659,13 @@ optimizers = ["optimizer_greedy"]
 
 #run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
 
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+## 3 configs for the synchronization overhead evaluation section
+rate_multipliers = [10]
+ratios_ab = [1000]
+heartbeat_rates = [10]
+a_nodes_numbers = range(2,30,2)
 # run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
 
 
