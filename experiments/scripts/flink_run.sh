@@ -27,6 +27,6 @@ python experiment/ \
   --flink-workers flink_workers \
   >/dev/null 2>&1 &
 
-echo "The experiment is now running. You can detach the process by running"
+echo -e "\nThe experiment is now running. You can detach the process by running"
 echo -e "\n  disown -ah\n"
-echo "Once the process is detached, you can log out."
+echo -e "Once the process is detached, you can log out.\n"
