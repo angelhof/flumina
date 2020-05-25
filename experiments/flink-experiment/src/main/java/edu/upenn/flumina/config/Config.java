@@ -51,6 +51,8 @@ public class Config {
                 return new ValueBarrierConfig(parameterTool);
             case "pageview":
                 return new PageViewConfig(parameterTool);
+            case "fraud-detection":
+                return new FraudDetectionConfig(parameterTool);
             default:
                 throw new ConfigException("Experiment was either not specified or it does not exist.");
         }

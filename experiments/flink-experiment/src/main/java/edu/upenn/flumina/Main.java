@@ -1,9 +1,7 @@
 package edu.upenn.flumina;
 
-import edu.upenn.flumina.config.Config;
-import edu.upenn.flumina.config.ConfigException;
-import edu.upenn.flumina.config.PageViewConfig;
-import edu.upenn.flumina.config.ValueBarrierConfig;
+import edu.upenn.flumina.config.*;
+import edu.upenn.flumina.frauds.FraudDetectionSeq;
 import edu.upenn.flumina.pageview.PageViewExperiment;
 import edu.upenn.flumina.valuebarrier.ValueBarrierExperiment;
 import org.apache.flink.api.common.JobExecutionResult;
@@ -54,7 +52,11 @@ public class Main {
     public static void main(final String[] args) throws Exception {
         try {
             final Config conf = Config.fromArgs(args);
-            if (conf instanceof ValueBarrierConfig) {
+            if (conf instanceof FraudDetectionConfig) {
+                final FraudDetectionConfig fraudDetectionConf = (FraudDetectionConfig) conf;
+                final FraudDetectionSeq fraudDetectionSeq = new FraudDetectionSeq(fraudDetectionConf);
+                run(fraudDetectionSeq, conf);
+            } else if (conf instanceof ValueBarrierConfig) {
                 final ValueBarrierConfig valueBarrierConf = (ValueBarrierConfig) conf;
                 final ValueBarrierExperiment valueBarrierExperiment = new ValueBarrierExperiment(valueBarrierConf);
                 run(valueBarrierExperiment, conf);
