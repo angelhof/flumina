@@ -24,10 +24,10 @@ def main():
     if args.flink_results is not None:
         p10, p50, p90 = results.get_flink_latencies(args.flink_results)
         throughput = results.get_flink_throughput(args.flink_results)
-        network_data = results.get_network_data(args.flink_results) / 1024.0 / 1024.0
+        #network_data = results.get_network_data(args.flink_results) / 1024.0 / 1024.0
         print(f'Latency percentiles (ms):  {p10:.0f}  {p50:.0f}  {p90:.0f}')
         print(f'Mean throughput (events/ms): {throughput}')
-        print(f'Network data (MB): {network_data:0.1f}')
+        #print(f'Network data (MB): {network_data:0.1f}')
         exit(0)
 
     if args.erlang_results is not None:
