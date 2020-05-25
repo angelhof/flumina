@@ -26,6 +26,11 @@ def plot_scaleup_rate(dirname, prefix, rate_multipliers, ratio_ab, heartbeat_rat
                 for rate_mult in rate_multipliers]
     common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', 'ab_varied_rates')
 
+def plot_scaleup_full_value_barrier_rate(dirname, prefix, rate_multipliers, ratio_ab, heartbeat_rate, a_nodes_number, optimizer):
+
+    dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_mult, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
+                for rate_mult in rate_multipliers]
+    common_plot_scaleup(dirname, dirnames, rate_multipliers, 'Rate Multiplier', 'full_ab_varied_rates', experiment="full-value-barrier")
 
 def plot_scaleup_ratioab(dirname, prefix, rate_multiplier, ratios_ab, heartbeat_rate, a_nodes_number, optimizer):
     dirnames = ['%s_%d_%d_%d_%d_%s' % (prefix, rate_multiplier, ratio_ab, heartbeat_rate, a_nodes_number, optimizer)
@@ -72,6 +77,7 @@ def plot_scaleup_heartbeats(dirname, prefix, rate_multiplier, ratio_ab, heartbea
 
 
 def common_plot_scaleup(dirname, dirnames, xticks, xlabel, output_name, yscale='log', experiment="value-barrier"):
+    print("Plotting:", output_name, experiment)
     ## We assume that all directories are there
     path_dirnames = [os.path.join(dirname, name) for name in dirnames]
     latencies = [results.read_preprocess_latency_data(path_dirname, experiment) for path_dirname in path_dirnames]
@@ -180,6 +186,10 @@ if __name__ == '__main__':
 
 
     plot_stream_table_join_scaleup_nodes('archive/node_scaleup_2-20_fat_main_prods_in_workers/archive', 'stream_table_join', 2, range(2,21,2), 0, 5)
+
+    ## Full value barrier
+    plot_scaleup_full_value_barrier_rate('archive/full_ab_rate/archive', 'ab_exp_full_1', range(10, 30, 2), 1000, 10, 5, 'optimizer_greedy')
+
 
     # plot_stream_table_join_scaleup_nodes('archive/archive', 'stream_table_join', 2, range(1,11), 5)
 

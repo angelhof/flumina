@@ -52,6 +52,31 @@ def parse_stream_table_join_sink_line(line):
     message = line.split('}}')[0].lstrip('{')
     return '{{' + message + '}}', int(timestamp)
 
+
+def parse_full_vb_producer_line(line):
+    timestamp = line.split("}")[-2].split(',')[-1]
+    if(line[4] == 'a'):
+        message = "}".join(line[2:].split("}")[0:2]) + "}"
+    else:
+        message = line[2:].split("}")[0] + '}'
+    # print(line)
+    # print(message, int(timestamp))
+    # exit(1)
+    return message, int(timestamp)
+
+
+def parse_full_vb_sink_line(line):
+    timestamp = line.split("}")[-2].split(',')[-1]
+    if(line[4] == 'a'):
+        message = "}".join(line[2:].split("}")[0:2]) + "}"
+    else:
+        message = '{' + line[2:].split("}")[0].split('{')[-1] + '}'
+    # print(line)
+    # print(message, int(timestamp))
+    # exit(1)
+    return message, int(timestamp)
+
+
 ## Here we need to register all different producer-sink line-parsing
 ## functions for different experiments
 def parse_producer_line(line, experiment):
@@ -59,6 +84,8 @@ def parse_producer_line(line, experiment):
         return parse_vb_producer_line(line)
     elif(experiment == "stream-table-join"):
         return parse_stream_table_join_producer_line(line)
+    elif(experiment == "full-value-barrier"):
+        return parse_full_vb_producer_line(line)
     else:
         print("Error: Don't know how to parse producer lines for {} experiment!".format(experiment))
         exit(1)
@@ -68,6 +95,8 @@ def parse_sink_line(line, experiment):
         return parse_vb_sink_line(line)
     elif(experiment == "stream-table-join"):
         return parse_stream_table_join_sink_line(line)
+    elif(experiment == "full-value-barrier"):
+        return parse_full_vb_sink_line(line)
     else:
         print("Error: Don't know how to parse sink lines for {} experiment!".format(experiment))
         exit(1)
@@ -92,9 +121,17 @@ def read_preprocess_latency_data(log_dir_name, experiment="value-barrier"):
     for sink_file_name in sink_file_names:
         with open(sink_file_name) as file:
             sink_dic.update(parse_sink_line(line, experiment) for line in file.readlines())
-
     # print(sink_dic)
-    unsorted_latency_pairs = [(sink_dic[msg] - producer_dic[msg], sink_dic[msg]) for msg in sink_dic.keys()]
+
+    if(experiment == "full-value-barrier"):
+        unsorted_latency_pairs = [(sink_dic[msg] - producer_dic[msg], sink_dic[msg])
+                                  for msg in sink_dic.keys() if msg in producer_dic]
+        not_found_keys = [msg for msg in sink_dic.keys() if not msg in producer_dic]
+        if(len(not_found_keys) > 0):
+            print(" !! {} keys not found:".format(len(not_found_keys)))
+    else:
+        unsorted_latency_pairs = [(sink_dic[msg] - producer_dic[msg], sink_dic[msg])
+                                  for msg in sink_dic.keys()]
     latency_pairs = sorted(unsorted_latency_pairs, key=itemgetter(1))
 
     ## Latencies and timestamps are per millisecond
