@@ -75,5 +75,13 @@ suites = {
     'pageview-test-ec2': ExperimentSuite(
         'pageview-test-ec2',
         [PageViewEC2(500_000, 2, 2, 20)]
+    ),
+    'pageview-rates-ec2': ExperimentSuite(
+        'pageview-rates-ec2',
+        [PageViewEC2(500_000, 2, 2, r) for r in range(2, 101, 2)]
+    ),
+    'pageview-parallelism-ec2': ExperimentSuite(
+        'pageview-parallelism-ec2',
+        [PageViewEC2(500_000, 2, p, 5) for p in range(2, 41, 2)]
     )
 }
