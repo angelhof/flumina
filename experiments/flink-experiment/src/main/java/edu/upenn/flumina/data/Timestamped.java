@@ -1,14 +1,15 @@
 package edu.upenn.flumina.data;
 
 import java.io.Serializable;
+import java.time.Instant;
 
 public interface Timestamped extends Serializable {
 
     long getLogicalTimestamp();
 
-    long getPhysicalTimestamp();
+    Instant getPhysicalTimestamp();
 
-    void setPhysicalTimestamp(long physicalTimestamp);
+    void setPhysicalTimestamp(Instant physicalTimestamp);
 
     boolean hasPhysicalTimestamp();
 

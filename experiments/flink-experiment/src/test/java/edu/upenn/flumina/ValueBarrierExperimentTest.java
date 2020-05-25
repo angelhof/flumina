@@ -28,9 +28,12 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
+import static edu.upenn.flumina.time.TimeHelper.max;
+import static edu.upenn.flumina.time.TimeHelper.min;
 import static org.junit.Assert.assertEquals;
 
 public class ValueBarrierExperimentTest {
@@ -67,7 +70,7 @@ public class ValueBarrierExperimentTest {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(4);
-        env.addSource(new ValueSource(10_000, 10.0, System.nanoTime()))
+        env.addSource(new ValueSource(10_000, 10.0, Instant.now()))
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<ValueOrHeartbeat>() {
                     @Override
                     public Watermark checkAndGetNextWatermark(final ValueOrHeartbeat valueOrHeartbeat, final long l) {
@@ -124,7 +127,7 @@ public class ValueBarrierExperimentTest {
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(valueNodes + 1);
 
-        final long startTime = System.nanoTime() + 500_000_000;
+        final Instant startTime = Instant.now().plusMillis(500L);
         final DataStream<ValueOrHeartbeat> valueStream =
                 env.addSource(new ValueSource(totalValues, valueRate, startTime)).setParallelism(valueNodes);
         final DataStream<BarrierOrHeartbeat> barrierStream =
@@ -136,8 +139,8 @@ public class ValueBarrierExperimentTest {
 
         valueStream.connect(broadcastStream)
                 .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple2<Long, Long>>() {
-                    private long valueTimestamp = Long.MIN_VALUE;
-                    private long barrierTimestamp = Long.MIN_VALUE;
+                    private Instant valueTimestamp = Instant.MIN;
+                    private Instant barrierTimestamp = Instant.MIN;
                     private long sum = 0;
 
                     private final Deque<Value> unprocessedValues = new ArrayDeque<>();
@@ -154,7 +157,7 @@ public class ValueBarrierExperimentTest {
                                 },
                                 heartbeat -> null
                         );
-                        valueTimestamp = Math.max(valueTimestamp, item.getPhysicalTimestamp());
+                        valueTimestamp = max(valueTimestamp, item.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
 
@@ -169,17 +172,17 @@ public class ValueBarrierExperimentTest {
                                 },
                                 heartbeat -> null
                         );
-                        barrierTimestamp = Math.max(barrierTimestamp, item.getPhysicalTimestamp());
+                        barrierTimestamp = max(barrierTimestamp, item.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
 
                     private void makeProgress(final Collector<Tuple2<Long, Long>> collector) {
-                        final long currentTime = Math.min(valueTimestamp, barrierTimestamp);
+                        final Instant currentTime = min(valueTimestamp, barrierTimestamp);
                         while (!unprocessedValues.isEmpty() &&
-                                unprocessedValues.getFirst().getPhysicalTimestamp() <= currentTime) {
+                                unprocessedValues.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
                             final Value value = unprocessedValues.removeFirst();
                             while (!unprocessedBarriers.isEmpty() &&
-                                    unprocessedBarriers.getFirst().getPhysicalTimestamp() < value.getPhysicalTimestamp()) {
+                                    unprocessedBarriers.getFirst().getPhysicalTimestamp().isBefore(value.getPhysicalTimestamp())) {
                                 final Barrier barrier = unprocessedBarriers.removeFirst();
                                 LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getLogicalTimestamp());
                                 collector.collect(Tuple2.of(sum, barrier.getLogicalTimestamp()));
@@ -188,7 +191,7 @@ public class ValueBarrierExperimentTest {
                             sum += value.getVal();
                         }
                         while (!unprocessedBarriers.isEmpty() &&
-                                unprocessedBarriers.getFirst().getPhysicalTimestamp() <= currentTime) {
+                                unprocessedBarriers.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
                             final Barrier barrier = unprocessedBarriers.removeFirst();
                             LOG.debug("[{}] collecting {} @ {}", getRuntimeContext().getIndexOfThisSubtask(), sum, barrier.getLogicalTimestamp());
                             collector.collect(Tuple2.of(sum, barrier.getLogicalTimestamp()));

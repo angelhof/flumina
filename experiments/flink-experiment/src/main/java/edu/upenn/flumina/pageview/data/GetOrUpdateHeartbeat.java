@@ -1,16 +1,17 @@
 package edu.upenn.flumina.pageview.data;
 
-import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.data.TimestampedUnion;
 
+import java.time.Instant;
 import java.util.function.Function;
 
-public class GetOrUpdateHeartbeat extends Heartbeat implements Union<GetOrUpdate, Heartbeat> {
+public class GetOrUpdateHeartbeat extends Heartbeat implements TimestampedUnion<GetOrUpdate, Heartbeat> {
 
     public GetOrUpdateHeartbeat(final long logicalTimestamp) {
         super(logicalTimestamp);
     }
 
-    public GetOrUpdateHeartbeat(final long logicalTimestamp, final long physicalTimestamp) {
+    public GetOrUpdateHeartbeat(final long logicalTimestamp, final Instant physicalTimestamp) {
         super(logicalTimestamp, physicalTimestamp);
     }
 

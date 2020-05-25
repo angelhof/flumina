@@ -2,6 +2,8 @@ package edu.upenn.flumina.valuebarrier.data;
 
 import edu.upenn.flumina.data.TimestampedCore;
 
+import java.time.Instant;
+
 public class Heartbeat extends TimestampedCore implements BarrierOrHeartbeat, ValueOrHeartbeat {
 
     private static final long serialVersionUID = -5830590449039737456L;
@@ -10,7 +12,7 @@ public class Heartbeat extends TimestampedCore implements BarrierOrHeartbeat, Va
         super(logicalTimestamp);
     }
 
-    public Heartbeat(final long logicalTimestamp, final long physicalTimestamp) {
+    public Heartbeat(final long logicalTimestamp, final Instant physicalTimestamp) {
         super(logicalTimestamp, physicalTimestamp);
     }
 

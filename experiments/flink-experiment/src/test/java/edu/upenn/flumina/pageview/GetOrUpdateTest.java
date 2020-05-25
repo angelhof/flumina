@@ -1,6 +1,6 @@
 package edu.upenn.flumina.pageview;
 
-import edu.upenn.flumina.data.Union;
+import edu.upenn.flumina.data.TimestampedUnion;
 import edu.upenn.flumina.pageview.data.Get;
 import edu.upenn.flumina.pageview.data.GetOrUpdate;
 import edu.upenn.flumina.pageview.data.Heartbeat;
@@ -13,14 +13,14 @@ public class GetOrUpdateTest {
 
     @Test
     public void testGetOrUpdateMatch1() {
-        final Union<GetOrUpdate, Heartbeat> get = new Get(1, 1);
+        final TimestampedUnion<GetOrUpdate, Heartbeat> get = new Get(1, 1);
         final int obtained = get.match(gou -> 1, hb -> 2);
         assertEquals("Match should return 1", 1, obtained);
     }
 
     @Test
     public void testGetOrUpdateMatch2() {
-        final Union<GetOrUpdate, Heartbeat> update = new Update(1, 10000, 1);
+        final TimestampedUnion<GetOrUpdate, Heartbeat> update = new Update(1, 10000, 1);
         final int obtained = update.match(gou -> 1, hb -> 2);
         assertEquals("Match should return 1", 1, obtained);
     }

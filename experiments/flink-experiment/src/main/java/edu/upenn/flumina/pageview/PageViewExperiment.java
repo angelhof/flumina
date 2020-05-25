@@ -19,13 +19,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Instant;
 
 public class PageViewExperiment implements Experiment {
 
     private static final Logger LOG = LoggerFactory.getLogger(PageViewExperiment.class);
-
-    // More precisely, total PageView events per user per source. Other events are scaled to this.
-    private static final int TOTAL_EVENTS = 500_000;
 
     private final PageViewConfig conf;
 
@@ -34,15 +32,15 @@ public class PageViewExperiment implements Experiment {
     }
 
     @Override
-    public JobExecutionResult run(final StreamExecutionEnvironment env, final long startTime) throws Exception {
+    public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
         // env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        final var getOrUpdateSource =
-                new GetOrUpdateSource(TOTAL_EVENTS, conf.getTotalUsers(), conf.getPageViewRate(), startTime);
+        final var getOrUpdateSource = new GetOrUpdateSource(conf.getTotalPageViews(), conf.getTotalUsers(),
+                conf.getPageViewRate(), startTime);
         final var getOrUpdateStream = env.addSource(getOrUpdateSource);
         final var pageViewSource =
-                new PageViewSource(TOTAL_EVENTS, conf.getTotalUsers(), conf.getPageViewRate(), startTime);
+                new PageViewSource(conf.getTotalPageViews(), conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var pageViewStream = env.addSource(pageViewSource)
                 .setParallelism(conf.getPageViewParallelism());
 
@@ -103,8 +101,8 @@ public class PageViewExperiment implements Experiment {
     @Override
     public long getTotalEvents() {
         // PageView events + Get events + Update events
-        return (TOTAL_EVENTS * conf.getPageViewParallelism() + TOTAL_EVENTS / 100 + TOTAL_EVENTS / 1000) *
-                conf.getTotalUsers();
+        return (conf.getTotalPageViews() * conf.getPageViewParallelism() +
+                conf.getTotalPageViews() / 100 + conf.getTotalPageViews() / 1000) * conf.getTotalUsers();
     }
 
     @Override
