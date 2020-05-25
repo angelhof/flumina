@@ -173,22 +173,180 @@ def common_plot_scaleup_old(dirname, dirnames, xticks, xlabel, output_name):
     # plt.show()
 
 
+def collect_latency_line(dirname, dirnames):
+    return []
+
+def plot_latency_over_nodes_and_ratios(dirname, prefix):
+    experiment = "value-barrier"
+    # ratios = [10, 100, 1000, 10000]
+    ratios = [100, 1000, 10000]
+    all_nodes = range(2, 42, 2)
+    # nodes = range(2, 24, 2)
+    multiplier = 10
+
+
+    ## Collect and plot results
+    fig, ax = plt.subplots()
+    ax.set_xlabel('#Workers')
+    ax.set_ylabel('Latency (ms)')
+    # plt.yscale("log")
+    plt.ylim(top=40)
+    for ratio in ratios:
+        if(ratio == 100):
+            nodes = range(2,23,2)
+        else:
+            nodes = all_nodes
+        heartbeat_rate = ratio // 100
+        dirnames = ['{}_{}_{}_{}_{}_optimizer_greedy'.format(prefix,
+                                                             multiplier,
+                                                             ratio, heartbeat_rate, a_node)
+                    for a_node in nodes]
+        path_dirnames = [os.path.join(dirname, name) for name in dirnames]
+        latencies = [results.read_preprocess_latency_data(path_dirname, experiment)
+                     for path_dirname in path_dirnames]
+        median_latencies = [np.percentile(lats, 50) for ts, lats in latencies]
+        ten_latencies = [np.percentile(lats, 10) for ts, lats in latencies]
+        ninety_latencies = [np.percentile(lats, 90) for ts, lats in latencies]
+        ten_latencies_diff = [l - ml for l, ml in zip(median_latencies, ten_latencies)]
+        ninety_latencies_diff = [ml - l for l, ml in zip(median_latencies, ninety_latencies)]
+
+        ## Plot
+        ax.errorbar(nodes, median_latencies, [ten_latencies_diff, ninety_latencies_diff],
+                    linestyle = '-', marker = 'o', label = 'vb-ratio: {}'.format(ratio),
+                    # color = color,
+                    capthick = 1, capsize = 4)
+    ax.legend()
+
+    plt.tight_layout()
+    plt.savefig(os.path.join('plots', "synchronization_cost_ratios_nodes.pdf"))
+
+
+def plot_latency_over_heartbeats_ratios(dirname, prefix):
+    experiment = "value-barrier"
+    ratios = [1000, 10000]
+    nodes = 5
+    multiplier = 10
+    heartbeat_rates = [10, 20, 50, 100, 200, 500, 1000]
+
+    ## Collect results
+    all_latencies = []
+    for ratio in ratios:
+        dirnames = ['{}_{}_{}_{}_{}_optimizer_greedy'.format(prefix,
+                                                             multiplier,
+                                                             ratio, heartbeat_rate, nodes)
+                    for heartbeat_rate in heartbeat_rates]
+        path_dirnames = [os.path.join(dirname, name) for name in dirnames]
+        latencies = [results.read_preprocess_latency_data(path_dirname, experiment)
+                     for path_dirname in path_dirnames]
+        median_latencies = [np.percentile(lats, 50) for ts, lats in latencies]
+        ten_latencies = [np.percentile(lats, 10) for ts, lats in latencies]
+        ninety_latencies = [np.percentile(lats, 90) for ts, lats in latencies]
+        ten_latencies_diff = [l - ml for l, ml in zip(median_latencies, ten_latencies)]
+        ninety_latencies_diff = [ml - l for l, ml in zip(median_latencies, ninety_latencies)]
+        all_latencies.append((median_latencies, ten_latencies_diff, ninety_latencies_diff))
+
+    ## Plot results
+    fig, ax = plt.subplots()
+    ax.set_xlabel('Heartbeat Rate (per Barrier event)')
+    ax.set_ylabel('Latency (ms)')
+    # plt.yscale("log")
+    for i, lats in enumerate(all_latencies):
+        median_lats, ten_lats, ninety_lats = lats
+        ax.errorbar(heartbeat_rates, median_lats, [ten_lats, ninety_lats],
+                    linestyle = '-', marker = 'o', label = 'vb-ratio: {}'.format(ratios[i]),
+                    # color = color,
+                    capthick = 1, capsize = 4)
+    ax.legend()
+    # fig.set_size_inches(6, 4)
+    plt.tight_layout()
+    plt.savefig(os.path.join('plots', "synchronization_cost_heartbeats_ratios.pdf"))
+
+
+def plot_checkpointing_latencies(dirname, prefix):
+    experiment = "value-barrier"
+    ratio = 1000
+    ratio = 100
+    nodes = 5
+    multiplier = 10
+    heartbeat_rate = 10
+
+    ## Collect results
+    no_check_dirname = '{}_{}_{}_{}_{}_optimizer_greedy'.format(prefix,
+                                                                multiplier,
+                                                                ratio, heartbeat_rate, nodes)
+    no_check_full_dirname = os.path.join(dirname, no_check_dirname)
+    _ts, no_check_latencies = results.read_preprocess_latency_data(no_check_full_dirname, experiment)
+
+    check_dirname = '{}_{}_{}_{}_{}_optimizer_greedy_with_checkpoint'.format(prefix,
+                                                                             multiplier,
+                                                                             ratio, heartbeat_rate, nodes)
+    check_full_dirname = os.path.join(dirname, check_dirname)
+    _cts, check_latencies = results.read_preprocess_latency_data(check_full_dirname, experiment)
+
+    # print(check_latencies[:10])
+    # exit(1)
+    no_check_latencies.sort()
+    check_latencies.sort()
+    fractions = [x / len(no_check_latencies) for x in range(len(no_check_latencies))]
+
+    ## Plot results
+    fig, ax = plt.subplots()
+    ax.set_xlabel('Latencies')
+    ax.set_ylabel('Fraction')
+    plt.xscale("log")
+    plt.ylim(top=1)
+    plt.ylim(bottom=0)
+    ax.plot(no_check_latencies, fractions, label = 'No Checkpointing')
+    ax.plot(check_latencies, fractions, label = 'Checkpointing')
+    ax.legend()
+    # fig.set_size_inches(6, 4)
+    plt.tight_layout()
+    plt.savefig(os.path.join('plots', "checkpointing_costs.pdf"))
+
+
+
+
 if __name__ == '__main__':
     plt.rcParams.update({'font.size': 14})
 
-    # The full range of rates is range(10, 35, 2)
-    plot_scaleup_rate('archive/ab_example_rate_scaleup_20-64/archive', 'ab_exp_1', range(20, 62, 2), 1000, 10, 5, 'optimizer_greedy')
+    SMALL_SIZE = 22
+    MEDIUM_SIZE = 24
+    BIGGER_SIZE = 30
 
-    plot_scaleup_node_rate('archive/ab_example_node_scaleup_2-40/archive', 'ab_exp_2', 20, 1000, 10, range(2, 28, 2), 'optimizer_greedy')
+    plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+    plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
-    # plot_stream_table_join_scaleup_rate('archive/rate_scaleup_10-100/archive', 'stream_table_join', 2, 5, range(10,105,5))
-    plot_stream_table_join_scaleup_rate('archive/rate_scaleup_4-34_fat_main_prods_in_workers/archive', 'stream_table_join', 2, 2, 0, range(4,34,2))
+    plt.rcParams['mathtext.fontset'] = 'stix'
+    plt.rcParams['font.family'] = 'STIXGeneral'
 
 
-    plot_stream_table_join_scaleup_nodes('archive/node_scaleup_2-20_fat_main_prods_in_workers/archive', 'stream_table_join', 2, range(2,21,2), 0, 5)
+    # # The full range of rates is range(10, 35, 2)
+    # plot_scaleup_rate('archive/ab_example_rate_scaleup_20-64/archive', 'ab_exp_1', range(20, 62, 2), 1000, 10, 5, 'optimizer_greedy')
 
-    ## Full value barrier
-    plot_scaleup_full_value_barrier_rate('archive/full_ab_rate/archive', 'ab_exp_full_1', range(10, 30, 2), 1000, 10, 5, 'optimizer_greedy')
+    # plot_scaleup_node_rate('archive/ab_example_node_scaleup_2-40/archive', 'ab_exp_2', 20, 1000, 10, range(2, 28, 2), 'optimizer_greedy')
+
+    # # plot_stream_table_join_scaleup_rate('archive/rate_scaleup_10-100/archive', 'stream_table_join', 2, 5, range(10,105,5))
+    # plot_stream_table_join_scaleup_rate('archive/rate_scaleup_4-34_fat_main_prods_in_workers/archive', 'stream_table_join', 2, 2, 0, range(4,34,2))
+
+
+    # plot_stream_table_join_scaleup_nodes('archive/node_scaleup_2-20_fat_main_prods_in_workers/archive', 'stream_table_join', 2, range(2,21,2), 0, 5)
+
+    # ## Full value barrier
+    # plot_scaleup_full_value_barrier_rate('archive/full_ab_rate/archive', 'ab_exp_full_1', range(10, 30, 2), 1000, 10, 5, 'optimizer_greedy')
+
+
+    ## Synchronization costs
+    # plot_latency_over_nodes_and_ratios('archive/synchronization_costs/ratios_nodes/archive', 'ab_exp_2')
+
+    # plot_latency_over_heartbeats_ratios('archive/synchronization_costs/ratios_nodes/archive', 'ab_exp_2')
+
+    ## Checkpointing_cost
+    plot_checkpointing_latencies('archive/checkpointing_cost/archive', 'ab_exp_2')
 
 
     # plot_stream_table_join_scaleup_nodes('archive/archive', 'stream_table_join', 2, range(1,11), 5)

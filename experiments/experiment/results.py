@@ -132,12 +132,15 @@ def read_preprocess_latency_data(log_dir_name, experiment="value-barrier"):
     else:
         unsorted_latency_pairs = [(sink_dic[msg] - producer_dic[msg], sink_dic[msg])
                                   for msg in sink_dic.keys()]
+    # print(sink_dic)
+    # print(producer_dic)
     latency_pairs = sorted(unsorted_latency_pairs, key=itemgetter(1))
 
     ## Latencies and timestamps are per millisecond
     raw_timestamps = [ts for lat, ts in latency_pairs]
     if not raw_timestamps:
         print(f'{log_dir_name}: No raw timestamps!')
+        return [0], [0]
     first_ts = raw_timestamps[0]
     timestamps = [(ts - first_ts) / 1_000_000.0 for ts in raw_timestamps]
     latencies = [lat / 1_000_000.0 for lat, ts in latency_pairs]
