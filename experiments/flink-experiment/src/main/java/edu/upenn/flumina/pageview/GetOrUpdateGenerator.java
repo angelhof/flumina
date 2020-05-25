@@ -4,6 +4,7 @@ import edu.upenn.flumina.data.TimestampedUnion;
 import edu.upenn.flumina.pageview.data.*;
 import edu.upenn.flumina.source.GeneratorWithHeartbeats;
 
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.Random;
 import java.util.function.Function;
@@ -48,7 +49,7 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
                 })
                 .flatMap(Function.identity());
         final var withFinalHeartbeat =
-                Stream.concat(getOrUpdateStream, Stream.of(new GetOrUpdateHeartbeat(totalEvents, Long.MAX_VALUE)));
+                Stream.concat(getOrUpdateStream, Stream.of(new GetOrUpdateHeartbeat(totalEvents, Instant.MAX)));
         return withFinalHeartbeat.iterator();
     }
 

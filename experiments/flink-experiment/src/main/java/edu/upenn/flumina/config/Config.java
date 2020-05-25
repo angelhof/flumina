@@ -6,7 +6,7 @@ import org.apache.flink.core.fs.Path;
 public class Config {
 
     // Default parameter values
-    private static final long INIT_SYNC_DELAY = 2_000_000_000L;
+    private static final long INIT_SYNC_DELAY = 2_000L;
     private static final String OUT_FILE = Path.CUR_DIR + Path.SEPARATOR + "out.txt";
     private static final String STATS_FILE = Path.CUR_DIR + Path.SEPARATOR + "stats.txt";
 
@@ -26,6 +26,11 @@ public class Config {
         return experiment;
     }
 
+    /**
+     * Delay in milliseconds for synchronizing the sources
+     *
+     * @return Delay in milliseconds
+     */
     public long getInitSyncDelay() {
         return initSyncDelay;
     }

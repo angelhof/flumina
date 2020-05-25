@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.Instant;
 
 public class PageViewExperiment implements Experiment {
 
@@ -31,7 +32,7 @@ public class PageViewExperiment implements Experiment {
     }
 
     @Override
-    public JobExecutionResult run(final StreamExecutionEnvironment env, final long startTime) throws Exception {
+    public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
         // env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 

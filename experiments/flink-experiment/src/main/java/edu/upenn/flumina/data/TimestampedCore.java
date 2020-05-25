@@ -1,12 +1,14 @@
 package edu.upenn.flumina.data;
 
+import java.time.Instant;
+
 public class TimestampedCore implements Timestamped {
 
     private static final long serialVersionUID = -8445219260831559864L;
 
     private final long logicalTimestamp;
 
-    private long physicalTimestamp;
+    private Instant physicalTimestamp;
     private boolean hasPhysicalTimestamp;
 
     public TimestampedCore(final long logicalTimestamp) {
@@ -14,7 +16,7 @@ public class TimestampedCore implements Timestamped {
         this.hasPhysicalTimestamp = false;
     }
 
-    public TimestampedCore(final long logicalTimestamp, final long physicalTimestamp) {
+    public TimestampedCore(final long logicalTimestamp, final Instant physicalTimestamp) {
         this.logicalTimestamp = logicalTimestamp;
         this.physicalTimestamp = physicalTimestamp;
         this.hasPhysicalTimestamp = true;
@@ -26,12 +28,12 @@ public class TimestampedCore implements Timestamped {
     }
 
     @Override
-    public long getPhysicalTimestamp() {
+    public Instant getPhysicalTimestamp() {
         return physicalTimestamp;
     }
 
     @Override
-    public void setPhysicalTimestamp(final long physicalTimestamp) {
+    public void setPhysicalTimestamp(final Instant physicalTimestamp) {
         this.physicalTimestamp = physicalTimestamp;
         this.hasPhysicalTimestamp = true;
     }

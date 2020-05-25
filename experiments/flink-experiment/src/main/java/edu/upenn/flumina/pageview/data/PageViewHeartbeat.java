@@ -2,6 +2,7 @@ package edu.upenn.flumina.pageview.data;
 
 import edu.upenn.flumina.data.TimestampedUnion;
 
+import java.time.Instant;
 import java.util.function.Function;
 
 public class PageViewHeartbeat extends Heartbeat implements TimestampedUnion<PageView, Heartbeat> {
@@ -10,7 +11,7 @@ public class PageViewHeartbeat extends Heartbeat implements TimestampedUnion<Pag
         super(logicalTimestamp);
     }
 
-    public PageViewHeartbeat(final long logicalTimestamp, final long physicalTimestamp) {
+    public PageViewHeartbeat(final long logicalTimestamp, final Instant physicalTimestamp) {
         super(logicalTimestamp, physicalTimestamp);
     }
 

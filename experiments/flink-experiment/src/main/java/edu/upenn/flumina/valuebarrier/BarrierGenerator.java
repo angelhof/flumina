@@ -5,6 +5,7 @@ import edu.upenn.flumina.valuebarrier.data.Barrier;
 import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
 import edu.upenn.flumina.valuebarrier.data.Heartbeat;
 
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -57,7 +58,7 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
                     }
                 });
         final Stream<BarrierOrHeartbeat> withFinalHeartbeat =
-                Stream.concat(barriers, Stream.of(new Heartbeat(totalValues, Long.MAX_VALUE)));
+                Stream.concat(barriers, Stream.of(new Heartbeat(totalValues, Instant.MAX)));
         return withFinalHeartbeat.iterator();
     }
 

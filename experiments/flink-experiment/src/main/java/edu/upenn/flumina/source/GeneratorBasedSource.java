@@ -6,8 +6,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
+
+import static edu.upenn.flumina.time.TimeHelper.localFormat;
+import static edu.upenn.flumina.time.TimeHelper.millisSince;
 
 public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSourceFunction<T> implements Serializable {
 
@@ -21,7 +25,7 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
 
     private final Generator<? extends T> generator;
 
-    private final long startTime;
+    private final Instant startTime;
 
     /**
      * A parallel source that produces objects of type {@link T}. The objects are produced by {@code generator}
@@ -35,7 +39,7 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
      * @param startTime A timestamp equivalent to the one that would be obtained by running
      *                  {@code System.nanoTime()}
      */
-    public GeneratorBasedSource(final Generator<? extends T> generator, final long startTime) {
+    public GeneratorBasedSource(final Generator<? extends T> generator, final Instant startTime) {
         this.generator = generator;
         this.startTime = startTime;
     }
@@ -48,13 +52,13 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
 
         // Future time is relative to startTime.
         if (LOG.isDebugEnabled()) {
-            final long systemNanoTime = System.nanoTime();
-            LOG.debug("[{}] startTime = {} System.nanoTime() = {} diff = {} ms",
-                    getRuntimeContext().getIndexOfThisSubtask(), startTime, systemNanoTime,
-                    TimeUnit.NANOSECONDS.toMillis(systemNanoTime - startTime));
+            final Instant currentTime = Instant.now();
+            LOG.debug("[{}] startTime = {} currentTime = {} diff = {} ms",
+                    getRuntimeContext().getIndexOfThisSubtask(), localFormat(startTime), localFormat(currentTime),
+                    startTime.until(currentTime, ChronoUnit.MILLIS));
         }
         do {
-            final double iterationStartTime = (System.nanoTime() - startTime) / 1_000_000.0;
+            final long iterationStartTime = millisSince(startTime);
             final long iterationStartTimeNormalized = (long) (iterationStartTime * rate);
             final long sleepAtLeastUntil = (long) ((iterationStartTime + SLEEP_GRANULARITY_MILLIS) * rate);
             LOG.trace("[{}] normalizedTime = {} sleepAtLeastUntil = {}",
@@ -64,7 +68,7 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
             // that should be collected prior to waking up.
             while (obj.getLogicalTimestamp() <= sleepAtLeastUntil) {
                 if (!obj.hasPhysicalTimestamp()) {
-                    obj.setPhysicalTimestamp(System.nanoTime());
+                    obj.setPhysicalTimestamp(Instant.now());
                 }
                 ctx.collect(obj);
                 if (iterator.hasNext()) {
@@ -81,7 +85,7 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
                 try {
                     // At this point some time has passed while collecting objects. We need to make a correction and
                     // calculate the sleep time against current time instead of iterationStartTime.
-                    final double currentTime = (System.nanoTime() - startTime) / 1_000_000.0;
+                    final long currentTime = millisSince(startTime);
 
                     // In fact, the normalized current time may be way past obj.getTimestamp(), so we use Math.max.
                     // We max with 0 instead of SLEEP_GRANULARITY_MILLIS: if we are already past obj.getTimestamp(),

@@ -13,7 +13,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
+
+import static edu.upenn.flumina.time.TimeHelper.millisSince;
 
 public class Main {
 
@@ -28,13 +31,13 @@ public class Main {
         env.setBufferTimeout(0);
 
         // We sync all the input sources with the same start time
-        final long startTime = System.nanoTime() + conf.getInitSyncDelay();
+        final Instant startTime = Instant.now().plusMillis(conf.getInitSyncDelay());
 
         final JobExecutionResult result = experiment.run(env, startTime);
 
         try (final FileWriter statsFile = new FileWriter(conf.getStatsFile())) {
             final long totalEvents = experiment.getTotalEvents();
-            final long totalTimeMillis = (System.nanoTime() - startTime) / 1_000_000;
+            final long totalTimeMillis = millisSince(startTime);
             final long netRuntimeMillis = result.getNetRuntime(TimeUnit.MILLISECONDS);
             final long meanThroughput = Math.floorDiv(totalEvents, netRuntimeMillis);
             final long optimalThroughput = experiment.getOptimalThroughput();

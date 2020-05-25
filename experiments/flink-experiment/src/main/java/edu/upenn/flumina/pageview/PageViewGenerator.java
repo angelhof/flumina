@@ -6,6 +6,7 @@ import edu.upenn.flumina.pageview.data.PageView;
 import edu.upenn.flumina.pageview.data.PageViewHeartbeat;
 import edu.upenn.flumina.source.GeneratorWithHeartbeats;
 
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Function;
 import java.util.stream.LongStream;
@@ -34,7 +35,7 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Hear
                 .mapToObj(this::generatePageViewStream)
                 .flatMap(Function.identity());
         final var withFinalHeartbeat =
-                Stream.concat(pageViewStream, Stream.of(new PageViewHeartbeat(totalEvents, Long.MAX_VALUE)));
+                Stream.concat(pageViewStream, Stream.of(new PageViewHeartbeat(totalEvents, Instant.MAX)));
         return withFinalHeartbeat.iterator();
     }
 

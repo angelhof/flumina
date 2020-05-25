@@ -8,8 +8,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Serializable;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Iterator;
-import java.util.concurrent.TimeUnit;
+
+import static edu.upenn.flumina.time.TimeHelper.localFormat;
+import static edu.upenn.flumina.time.TimeHelper.millisSince;
 
 public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends Timestamped>
         extends RichParallelSourceFunction<T> implements Serializable {
@@ -24,10 +28,10 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
 
     private final GeneratorWithHeartbeats<T, H> generator;
 
-    private final long startTime;
+    private final Instant startTime;
 
     public GeneratorWithHeartbeatsBasedSource(final GeneratorWithHeartbeats<T, H> generator,
-                                              final long startTime) {
+                                              final Instant startTime) {
         this.generator = generator;
         this.startTime = startTime;
     }
@@ -40,13 +44,13 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
 
         // Future time is relative to startTime.
         if (LOG.isDebugEnabled()) {
-            final long systemNanoTime = System.nanoTime();
-            LOG.debug("[{}] startTime = {} System.nanoTime() = {} diff = {} ms",
-                    getRuntimeContext().getIndexOfThisSubtask(), startTime, systemNanoTime,
-                    TimeUnit.NANOSECONDS.toMillis(systemNanoTime - startTime));
+            final Instant currentTime = Instant.now();
+            LOG.debug("[{}] startTime = {} currentTime = {} diff = {} ms",
+                    getRuntimeContext().getIndexOfThisSubtask(), localFormat(startTime), localFormat(currentTime),
+                    startTime.until(currentTime, ChronoUnit.MILLIS));
         }
         do {
-            final double iterationStartTime = (System.nanoTime() - startTime) / 1_000_000.0;
+            final long iterationStartTime = millisSince(startTime);
             final long iterationStartTimeNormalized = (long) (iterationStartTime * rate);
             final long sleepAtLeastUntil = (long) ((iterationStartTime + SLEEP_GRANULARITY_MILLIS) * rate);
             LOG.trace("[{}] normalizedTime = {} sleepAtLeastUntil = {}",
@@ -55,20 +59,20 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
             // We're getting ready to sleep at least until sleepAtLeastUntil, so we first collect all objects
             // that should be collected prior to waking up.
             while (obj.getLogicalTimestamp() <= sleepAtLeastUntil) {
-                final long physicalTimestamp;
+                final Instant physicalTimestamp;
                 if (obj.hasPhysicalTimestamp()) {
                     physicalTimestamp = obj.getPhysicalTimestamp();
                 } else {
-                    physicalTimestamp = System.nanoTime();
+                    physicalTimestamp = Instant.now();
                     obj.setPhysicalTimestamp(physicalTimestamp);
                 }
                 obj.match(
                         event -> {
-                            ctx.collectWithTimestamp(event, physicalTimestamp);
+                            ctx.collectWithTimestamp(event, physicalTimestamp.toEpochMilli());
                             return null;
                         },
                         heartbeat -> {
-                            ctx.emitWatermark(new Watermark(physicalTimestamp));
+                            ctx.emitWatermark(new Watermark(physicalTimestamp.toEpochMilli()));
                             return null;
                         }
                 );
@@ -86,7 +90,7 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
                 try {
                     // At this point some time has passed while collecting objects. We need to make a correction and
                     // calculate the sleep time against current time instead of iterationStartTime.
-                    final double currentTime = (System.nanoTime() - startTime) / 1_000_000.0;
+                    final long currentTime = millisSince(startTime);
 
                     // In fact, the normalized current time may be way past obj.getTimestamp(), so we use Math.max.
                     // We max with 0 instead of SLEEP_GRANULARITY_MILLIS: if we are already past obj.getTimestamp(),
