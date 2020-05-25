@@ -168,7 +168,7 @@ class ValueBarrierEC2:
         self.stats_file = stats_file
 
     def __str__(self):
-        return 'ValueBarrierExperiment(' \
+        return 'ValueBarrierEC2(' \
                f'value_nodes={self.total_value_nodes}, ' \
                f'values={self.total_values}, ' \
                f'value_rate={self.value_rate:.1f}, ' \
