@@ -161,11 +161,18 @@ get_option(message_logger_init_fun, ProducerOptions) ->
             %% message logger init fun have been given.
             false = lists:keyfind(message_logger_init_fun, 1, ProducerOptions),
             {message_logger_init_fun,
-             fun() ->
-                     %% Possible optimization to not check for logging unnecessary tags
-                     %% LogTags =
-                     %%     sets:interesection(sets:from_list(ProdTags), sets:from_list(Tags)),
-                     log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
+             case get_option0(log_node, ProducerOptions) of
+                 {log_node, same} ->
+                     fun() ->
+                             %% Possible optimization to not check for logging unnecessary tags
+                             %% LogTags =
+                             %%     sets:interesection(sets:from_list(ProdTags), sets:from_list(Tags)),
+                             log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
+                     end;
+                 {log_node, {other, Node}} ->
+                     fun() ->
+                             log_mod:initialize_message_logger_state("producer", sets:from_list(Tags), Node)
+                     end
              end}
     end;
 get_option(Option, ProducerOptions) ->
@@ -185,6 +192,8 @@ default_option(producer_type) ->
     constant;
 default_option(log_tags) ->
     [];
+default_option(log_node) ->
+    same;
 default_option(producers_begin_time) ->
     0;
 default_option(message_logger_init_fun) ->
