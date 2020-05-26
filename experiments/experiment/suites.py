@@ -86,10 +86,10 @@ suites = {
     ),
     'fraud-detection-rates-ec2': ExperimentSuite(
         'fraud-detection-rates-ec2',
-        [FraudDetectionEC2(5, 1_000_000, r, 1_000, 10) for r in range(20, 101, 2)]
+        [FraudDetectionEC2(5, 1_000_000, r, 10_000, 100) for r in range(20, 101, 2)]
     ),
     'fraud-detection-nodes-ec2': ExperimentSuite(
         'fraud-detection-nodes-ec2',
-        [FraudDetectionEC2(n, 1_000_000, 40, 1_000, 10) for n in range(2, 39, 2)]
+        [FraudDetectionEC2(n, 1_000_000, 20, 10_000, 100) for n in range(2, 39, 2)]
     )
 }
