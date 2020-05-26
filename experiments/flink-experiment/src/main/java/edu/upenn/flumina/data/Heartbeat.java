@@ -2,7 +2,7 @@ package edu.upenn.flumina.data;
 
 import java.time.Instant;
 
-public class TimestampedCore implements Timestamped {
+public class Heartbeat implements Timestamped {
 
     private static final long serialVersionUID = -8445219260831559864L;
 
@@ -11,12 +11,12 @@ public class TimestampedCore implements Timestamped {
     private Instant physicalTimestamp;
     private boolean hasPhysicalTimestamp;
 
-    public TimestampedCore(final long logicalTimestamp) {
+    public Heartbeat(final long logicalTimestamp) {
         this.logicalTimestamp = logicalTimestamp;
         this.hasPhysicalTimestamp = false;
     }
 
-    public TimestampedCore(final long logicalTimestamp, final Instant physicalTimestamp) {
+    public Heartbeat(final long logicalTimestamp, final Instant physicalTimestamp) {
         this.logicalTimestamp = logicalTimestamp;
         this.physicalTimestamp = physicalTimestamp;
         this.hasPhysicalTimestamp = true;
@@ -41,6 +41,11 @@ public class TimestampedCore implements Timestamped {
     @Override
     public boolean hasPhysicalTimestamp() {
         return hasPhysicalTimestamp;
+    }
+
+    @Override
+    public String toString() {
+        return "Heartbeat @ " + getLogicalTimestamp();
     }
 
 }

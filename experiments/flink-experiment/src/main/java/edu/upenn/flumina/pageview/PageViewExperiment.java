@@ -2,7 +2,7 @@ package edu.upenn.flumina.pageview;
 
 import edu.upenn.flumina.Experiment;
 import edu.upenn.flumina.config.PageViewConfig;
-import edu.upenn.flumina.data.TimestampedCore;
+import edu.upenn.flumina.data.Heartbeat;
 import edu.upenn.flumina.pageview.data.GetOrUpdate;
 import edu.upenn.flumina.pageview.data.PageView;
 import edu.upenn.flumina.pageview.data.Update;
@@ -100,7 +100,7 @@ public class PageViewExperiment implements Experiment {
                                                 final Collector<Update> out) throws IOException {
                         if (pageViewBufferState.value() == null) {
                             pageViewBufferState.update(new PriorityQueue<>(
-                                    Comparator.comparing(TimestampedCore::getPhysicalTimestamp)));
+                                    Comparator.comparing(Heartbeat::getPhysicalTimestamp)));
                         }
                         pageViewBufferState.value().add(pageView);
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());

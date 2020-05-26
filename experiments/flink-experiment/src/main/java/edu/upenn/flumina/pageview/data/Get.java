@@ -1,11 +1,11 @@
 package edu.upenn.flumina.pageview.data;
 
-import edu.upenn.flumina.data.TimestampedCore;
+import edu.upenn.flumina.data.Heartbeat;
 import edu.upenn.flumina.data.TimestampedUnion;
 
 import java.util.function.Function;
 
-public class Get extends TimestampedCore implements GetOrUpdate, TimestampedUnion<GetOrUpdate, Heartbeat> {
+public class Get extends Heartbeat implements GetOrUpdate, TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat> {
 
     private static final long serialVersionUID = 4186323117708023380L;
 
@@ -27,7 +27,7 @@ public class Get extends TimestampedCore implements GetOrUpdate, TimestampedUnio
     }
 
     @Override
-    public <R> R match(final Function<GetOrUpdate, R> fstCase, final Function<Heartbeat, R> sndCase) {
+    public <R> R match(final Function<GetOrUpdate, R> fstCase, final Function<GetOrUpdateHeartbeat, R> sndCase) {
         return fstCase.apply(this);
     }
 

@@ -1,7 +1,6 @@
 package edu.upenn.flumina.pageview;
 
 import edu.upenn.flumina.data.TimestampedUnion;
-import edu.upenn.flumina.pageview.data.Heartbeat;
 import edu.upenn.flumina.pageview.data.PageView;
 import edu.upenn.flumina.pageview.data.PageViewHeartbeat;
 import edu.upenn.flumina.source.GeneratorWithHeartbeats;
@@ -12,7 +11,9 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Heartbeat> {
+public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, PageViewHeartbeat> {
+
+    private static final long serialVersionUID = 2311453754387707501L;
 
     private final int totalEvents;
     private final int totalUsers;
@@ -30,7 +31,7 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Hear
     }
 
     @Override
-    public Iterator<TimestampedUnion<PageView, Heartbeat>> getIterator() {
+    public Iterator<TimestampedUnion<PageView, PageViewHeartbeat>> getIterator() {
         final var pageViewStream = LongStream.range(0, totalEvents)
                 .mapToObj(this::generatePageViewStream)
                 .flatMap(Function.identity());
@@ -39,10 +40,9 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Hear
         return withFinalHeartbeat.iterator();
     }
 
-    private Stream<TimestampedUnion<PageView, Heartbeat>> generatePageViewStream(final long logicalTimestamp) {
-        final var pageViewStream = UserIdHelper.getUserIds(totalUsers).stream()
+    private Stream<TimestampedUnion<PageView, PageViewHeartbeat>> generatePageViewStream(final long logicalTimestamp) {
+        return UserIdHelper.getUserIds(totalUsers).stream()
                 .map(userId -> new PageView(userId, logicalTimestamp));
-        return Stream.concat(pageViewStream, Stream.of(new PageViewHeartbeat(logicalTimestamp)));
     }
 
 }

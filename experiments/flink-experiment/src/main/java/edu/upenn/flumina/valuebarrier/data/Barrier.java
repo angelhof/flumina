@@ -1,8 +1,10 @@
 package edu.upenn.flumina.valuebarrier.data;
 
-import edu.upenn.flumina.data.TimestampedCore;
+import edu.upenn.flumina.data.Heartbeat;
 
-public class Barrier extends TimestampedCore implements BarrierOrHeartbeat {
+import java.util.function.Function;
+
+public class Barrier extends Heartbeat implements BarrierOrHeartbeat {
 
     private static final long serialVersionUID = -168675275747391818L;
 
@@ -11,7 +13,7 @@ public class Barrier extends TimestampedCore implements BarrierOrHeartbeat {
     }
 
     @Override
-    public <T> T match(final BarrierCase<T> barrierCase, final HeartbeatBOHCase<T> heartbeatCase) {
+    public <T> T match(final Function<Barrier, T> barrierCase, final Function<BarrierHeartbeat, T> heartbeatCase) {
         return barrierCase.apply(this);
     }
 

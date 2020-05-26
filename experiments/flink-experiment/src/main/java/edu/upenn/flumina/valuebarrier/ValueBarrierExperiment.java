@@ -11,8 +11,6 @@ import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.TimeCharacteristic;
-import org.apache.flink.streaming.api.datastream.BroadcastStream;
-import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.AssignerWithPunctuatedWatermarks;
 import org.apache.flink.streaming.api.functions.co.BroadcastProcessFunction;
@@ -44,24 +42,24 @@ public class ValueBarrierExperiment implements Experiment {
         env.setParallelism(conf.getValueNodes() + 1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        final ValueSource valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
-        final DataStream<ValueOrHeartbeat> valueStream = env.addSource(valueSource)
+        final var valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
+        final var valueStream = env.addSource(valueSource)
                 .setParallelism(conf.getValueNodes())
                 .slotSharingGroup("values");
-        final BarrierSource barrierSource = new BarrierSource(
+        final var barrierSource = new BarrierSource(
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
-        final DataStream<BarrierOrHeartbeat> barrierStream = env.addSource(barrierSource)
+        final var barrierStream = env.addSource(barrierSource)
                 .setParallelism(1)
                 .slotSharingGroup("barriers");
 
         // Broadcast the barrier stream and connect it with the value stream
         // We use a dummy broadcast state descriptor that is never actually used.
-        final MapStateDescriptor<Void, Void> broadcastStateDescriptor =
+        final var broadcastStateDescriptor =
                 new MapStateDescriptor<>("BroadcastState", Void.class, Void.class);
-        final BroadcastStream<BarrierOrHeartbeat> broadcastStream = barrierStream.broadcast(broadcastStateDescriptor);
+        final var broadcastStream = barrierStream.broadcast(broadcastStateDescriptor);
 
-        final DataStream<String> output = valueStream.connect(broadcastStream)
+        final var output = valueStream.connect(broadcastStream)
                 .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple3<Long, Long, Instant>>() {
                     private Instant valuePhysicalTimestamp = Instant.MIN;
                     private Instant barrierPhysicalTimestamp = Instant.MIN;
@@ -101,24 +99,29 @@ public class ValueBarrierExperiment implements Experiment {
                     }
 
                     private void makeProgress(final Collector<Tuple3<Long, Long, Instant>> collector) {
-                        final Instant currentTime = min(valuePhysicalTimestamp, barrierPhysicalTimestamp);
+                        final var currentTime = min(valuePhysicalTimestamp, barrierPhysicalTimestamp);
                         while (!unprocessedValues.isEmpty() &&
                                 unprocessedValues.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
-                            final Value value = unprocessedValues.removeFirst();
+                            final var value = unprocessedValues.removeFirst();
                             while (!unprocessedBarriers.isEmpty() &&
                                     unprocessedBarriers.getFirst().getPhysicalTimestamp().isBefore(value.getPhysicalTimestamp())) {
-                                final Barrier barrier = unprocessedBarriers.removeFirst();
-                                collector.collect(Tuple3.of(sum, barrier.getLogicalTimestamp(), barrier.getPhysicalTimestamp()));
-                                sum = 0;
+                                update(unprocessedBarriers.removeFirst(), collector);
                             }
-                            sum += value.getVal();
+                            update(value, collector);
                         }
                         while (!unprocessedBarriers.isEmpty() &&
                                 unprocessedBarriers.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
-                            final Barrier barrier = unprocessedBarriers.removeFirst();
-                            collector.collect(Tuple3.of(sum, barrier.getLogicalTimestamp(), barrier.getPhysicalTimestamp()));
-                            sum = 0;
+                            update(unprocessedBarriers.removeFirst(), collector);
                         }
+                    }
+
+                    private void update(final Value value, final Collector<Tuple3<Long, Long, Instant>> collector) {
+                        sum += value.getVal();
+                    }
+
+                    private void update(final Barrier barrier, final Collector<Tuple3<Long, Long, Instant>> collector) {
+                        collector.collect(Tuple3.of(sum, barrier.getLogicalTimestamp(), barrier.getPhysicalTimestamp()));
+                        sum = 0;
                     }
                 })
                 .setParallelism(conf.getValueNodes())
