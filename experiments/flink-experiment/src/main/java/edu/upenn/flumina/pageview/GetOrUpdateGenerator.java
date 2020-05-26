@@ -33,17 +33,17 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
 
     @Override
     public Iterator<TimestampedUnion<GetOrUpdate, Heartbeat>> getIterator() {
-        final int total = totalEvents / 10;
+        final int total = totalEvents / 100;
         final var getOrUpdateStream = LongStream.range(0, total)
                 .mapToObj(ts -> {
-                    final var logicalTimestamp = ts * 10;
+                    final var logicalTimestamp = ts * 100;
                     final var heartbeatStream =
                             Stream.of(new GetOrUpdateHeartbeat(logicalTimestamp));
-                    final var getStream = (logicalTimestamp % 100 == 0) ?
+                    final var getStream = (logicalTimestamp % 1000 == 0) ?
                             generateGetStream(logicalTimestamp + 1) :
                             Stream.<TimestampedUnion<GetOrUpdate, Heartbeat>>empty();
-                    final var updateStream = (logicalTimestamp % 1000 == 990) ?
-                            generateUpdateStream(logicalTimestamp + 9) :
+                    final var updateStream = (logicalTimestamp % 10_000 == 9900) ?
+                            generateUpdateStream(logicalTimestamp + 99) :
                             Stream.<TimestampedUnion<GetOrUpdate, Heartbeat>>empty();
                     return Stream.concat(Stream.concat(heartbeatStream, getStream), updateStream);
                 })
