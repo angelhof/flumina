@@ -145,6 +145,8 @@ def start_ec2_erlang_nodes(snames, hostnames):
     time.sleep(3)
 
 def stop_ec2_erlang_nodes(node_names, main_stdout_log):
+    ## Wait a little to ensure that final logging is done
+    time.sleep(3)
     stime = datetime.now()
     print("|-- Stopping erlang nodes...", end=" ", flush=True)
     for node_name in node_names:
@@ -602,8 +604,8 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
 # rate_multipliers = range(30, 32, 2)
-rate_multipliers = range(20, 62, 2)
-# rate_multipliers = range(20, 22, 2)
+rate_multipliers = range(30, 62, 2)
+# rate_multipliers = range(30, 50, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [10]
@@ -615,7 +617,9 @@ optimizers = ["optimizer_greedy"]
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
 
 ## Full value barrier experiment one
-rate_multipliers = range(10, 32, 2)
+ratios_ab = [10000]
+heartbeat_rates = [100]
+rate_multipliers = range(20, 42, 2)
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers,
 #                    optimizers, run_ec2=True, full_value_barrier=True)
 
@@ -647,14 +651,14 @@ rate_multipliers = range(10, 32, 2)
 ## how well our system scales with the number of processors/cores
 ##
 ## NOTE: The rate should be reasonably high. Maybe 20 - 50?
-rate_multipliers = [20]
+rate_multipliers = [40]
 ratios_ab = [1000]
 heartbeat_rates = [10]
 ## Note:
 ## Ideally we want to plot up to 38 (for rate multiplier 15), but I cannot get the server to behave and give us
 ## steady results for those, so I will give results up to 32
 a_nodes_numbers = range(2, 42, 2)
-a_nodes_numbers = range(20, 42, 2)
+# a_nodes_numbers = range(20, 42, 2)
 optimizers = ["optimizer_greedy"]
 
 #run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
@@ -774,10 +778,10 @@ optimizers = ["optimizer_greedy"]
 ## ===============
 
 num_ids = [2]
-num_page_view_parallel = [2]
+num_page_view_parallel = [1]
 num_light_ids = [0]
 # rate_multipliers = [20]
-rate_multipliers = range(4,34,2)
+rate_multipliers = range(10,64,2)
 # It works fine with rates up to around 15. More than that starts to have issues.
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel,
@@ -787,9 +791,9 @@ rate_multipliers = range(4,34,2)
 
 num_ids = [2]
 num_page_view_parallel = range(2,21,2)
-# num_page_view_parallel = range(3,4)
+# num_page_view_parallel = range(2,3)
 num_light_ids = [0]
-rate_multipliers = [5]
+rate_multipliers = [20]
 
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel,
 #                                      num_light_ids, rate_multipliers, run_ns3=False)
