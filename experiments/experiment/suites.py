@@ -78,7 +78,7 @@ suites = {
     ),
     'pageview-rates-ec2': ExperimentSuite(
         'pageview-rates-ec2',
-        [PageViewEC2(500_000, 2, 2, r) for r in range(2, 101, 2)]
+        [PageViewEC2(500_000, 2, 1, r) for r in range(2, 101, 2)]
     ),
     'pageview-parallelism-ec2': ExperimentSuite(
         'pageview-parallelism-ec2',
