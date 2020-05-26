@@ -69,7 +69,7 @@ experiment(Args) ->
          {optimizer_type, optimizer_greedy},
          {sink_options,
           [{log_tags, update_user_address_tags(Uids)},
-           {sink_wait_time, 5000}]},
+           {sink_wait_time, 15000}]},
          {experiment_args, Args}],
     util:run_experiment(?MODULE, experiment_conf, Options).
 
@@ -350,15 +350,15 @@ make_big_input_uid_producers(Uid, NodesPV, NodeGUA, NodeUUA, RateMultiplier) ->
     PageViewStreams = [{{fun ?MODULE:make_page_view_events/4, [Uid, NodePV, LengthPV, 1]},
                         {{page_view, Uid}, NodePV}, RateMultiplier}
                        || NodePV <- NodesPV],
-    GUAevents = {fun ?MODULE:make_get_user_address_events/4, [Uid, NodeGUA, LengthPV, 100]},
-    UUAevents = {fun ?MODULE:make_update_user_address_events/5, [Uid, NodeUUA, LengthPV, 1000, 100]},
+    GUAevents = {fun ?MODULE:make_get_user_address_events/4, [Uid, NodeGUA, LengthPV, 1000]},
+    UUAevents = {fun ?MODULE:make_update_user_address_events/5, [Uid, NodeUUA, LengthPV, 10000, 100]},
     UserAddressStreams =
         [{GUAevents, {{get_user_address, Uid}, NodeGUA}, RateMultiplier},
          {UUAevents, {{update_user_address, Uid}, NodeUUA}, RateMultiplier}],
     {PageViewStreams ++ UserAddressStreams,
      LengthPV * length(NodesPV) +
-         (LengthPV div 100) +
-         (LengthPV div 1000)}.
+         (LengthPV div 1000) +
+         (LengthPV div 10000)}.
 
 
 -spec make_events_no_heartbeats(page_view_tag() | get_user_address_tag(),

@@ -585,7 +585,9 @@ distributed_experiment_modulo(NodeNames, RateMultiplier, RatioAB, HeartbeatBRati
           [{log_tags, [sum|ATags]},
            {sink_wait_time, 10000}]},
          {producer_options,
-          [{producer_type, steady_sync_timestamp}]},
+          [{producer_type, steady_sync_timestamp},
+           {log_tags, [b|ATags]},
+           {log_node, {other, node()}}]},
          {optimizer_type, Optimizer},
          {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio}}],
     util:run_experiment(?MODULE, distributed_experiment_modulo_conf, Options).
@@ -653,9 +655,7 @@ distributed_experiment_modulo_conf(Options) ->
     util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment-modulo", NumberOfMessages),
 
     %% Log the input times of b messages
-    %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    FinalProducerOptions = [{log_tags, [b|ATags]}|ProducerOptions],
-    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
+    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, ProducerOptions),
 
     SinkPid ! {finished, ProducerPids}.
 

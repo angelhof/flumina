@@ -1,6 +1,7 @@
 -module(log_mod).
 
 -export([initialize_message_logger_state/2,
+         initialize_message_logger_state/3,
 	 maybe_log_message/3,
 	 no_message_logger/0,
 
@@ -22,10 +23,14 @@
 
 -spec initialize_message_logger_state(string(), sets:set(tag())) -> message_logger_log_fun().
 initialize_message_logger_state(Prefix, Tags) ->
+    initialize_message_logger_state(Prefix, Tags, node()).
+
+-spec initialize_message_logger_state(string(), sets:set(tag()), node()) -> message_logger_log_fun().
+initialize_message_logger_state(Prefix, Tags, Node) ->
     Filename =
         io_lib:format("~s/~s_~s_~s_messages.log",
 		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
-    Pid = spawn_link(?MODULE, message_logger, [Filename]),
+    Pid = spawn_link(Node, ?MODULE, message_logger, [Filename]),
     fun(Msg) ->
 	    maybe_log_message(Msg, Tags, Pid)
     end.

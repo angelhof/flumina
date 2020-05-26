@@ -19,7 +19,7 @@ BEAM_FILES = $(subst .erl,.beam,$(ERL_FILES))
 NNAME ?= main
 NAME_OPT ?= -sname $(NNAME)
 
-HALT = -s erlang halt
+HALT = -s init stop
 
 ## Create needed folders (if not exist):
 $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
