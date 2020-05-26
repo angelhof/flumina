@@ -40,8 +40,9 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Hear
     }
 
     private Stream<TimestampedUnion<PageView, Heartbeat>> generatePageViewStream(final long logicalTimestamp) {
-        return UserIdHelper.getUserIds(totalUsers).stream()
+        final var pageViewStream = UserIdHelper.getUserIds(totalUsers).stream()
                 .map(userId -> new PageView(userId, logicalTimestamp));
+        return Stream.concat(pageViewStream, Stream.of(new PageViewHeartbeat(logicalTimestamp)));
     }
 
 }
