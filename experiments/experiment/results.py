@@ -10,7 +10,7 @@ import numpy as np
 def get_flink_latencies(result_path):
     out_file = path.join(result_path, 'out.txt')
     with open(out_file, 'r') as f:
-        pattern = re.compile(r'\[latency: (\d+) ms\]')
+        pattern = re.compile(r'\[latency: (-?\d+) ms\]')
         latencies = [int(re.search(pattern, line).group(1)) for line in f.readlines()]
         p10 = np.percentile(latencies, 10)
         p50 = np.percentile(latencies, 50)
