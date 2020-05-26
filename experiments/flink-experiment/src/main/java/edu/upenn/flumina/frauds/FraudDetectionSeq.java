@@ -79,9 +79,7 @@ public class FraudDetectionSeq implements Experiment {
                     public void processElement1(final Rule rule,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        if (rulesState.value() == null) {
-                            rulesState.update(new ArrayDeque<>());
-                        }
+                        initRules();
                         rulesState.value().addAll(rule.match(List::of, hb -> Collections.emptyList()));
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
@@ -90,10 +88,7 @@ public class FraudDetectionSeq implements Experiment {
                     public void processElement2(final Transaction transaction,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        if (transactionsState.value() == null) {
-                            transactionsState.update(new PriorityQueue<>(
-                                    Comparator.comparing(Transaction::getPhysicalTimestamp)));
-                        }
+                        initTransactions();
                         transactionsState.value().addAll(transaction.match(List::of, hb -> Collections.emptyList()));
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
@@ -102,8 +97,11 @@ public class FraudDetectionSeq implements Experiment {
                     public void onTimer(final long timestamp,
                                         final OnTimerContext ctx,
                                         final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
+                        initRules();
                         final var rules = rulesState.value();
+                        initTransactions();
                         final var transactions = transactionsState.value();
+
                         while (!rules.isEmpty() &&
                                 toEpochMilli(rules.getFirst().getPhysicalTimestamp()) <= timestamp) {
                             final var rule = rules.removeFirst();
@@ -117,6 +115,19 @@ public class FraudDetectionSeq implements Experiment {
                         while (!transactions.isEmpty() &&
                                 toEpochMilli(transactions.element().getPhysicalTimestamp()) <= timestamp) {
                             update(transactions.remove(), out);
+                        }
+                    }
+
+                    private void initRules() throws IOException {
+                        if (rulesState.value() == null) {
+                            rulesState.update(new ArrayDeque<>());
+                        }
+                    }
+
+                    private void initTransactions() throws IOException {
+                        if (transactionsState.value() == null) {
+                            transactionsState.update(new PriorityQueue<>(
+                                    Comparator.comparing(Transaction::getPhysicalTimestamp)));
                         }
                     }
 

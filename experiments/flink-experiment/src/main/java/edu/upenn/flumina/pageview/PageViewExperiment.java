@@ -80,9 +80,7 @@ public class PageViewExperiment implements Experiment {
                     public void processElement1(final GetOrUpdate getOrUpdate,
                                                 final Context ctx,
                                                 final Collector<Update> out) throws IOException {
-                        if (updateBufferState.value() == null) {
-                            updateBufferState.update(new ArrayDeque<>());
-                        }
+                        initUpdateBuffer();
                         final var updateBuffer = updateBufferState.value();
                         getOrUpdate.match(
                                 get -> null,
@@ -98,18 +96,18 @@ public class PageViewExperiment implements Experiment {
                     public void processElement2(final PageView pageView,
                                                 final Context ctx,
                                                 final Collector<Update> out) throws IOException {
-                        if (pageViewBufferState.value() == null) {
-                            pageViewBufferState.update(new PriorityQueue<>(
-                                    Comparator.comparing(Heartbeat::getPhysicalTimestamp)));
-                        }
+                        initPageViewBuffer();
                         pageViewBufferState.value().add(pageView);
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 
                     @Override
                     public void onTimer(final long timestamp, final OnTimerContext ctx, final Collector<Update> out) throws Exception {
+                        initUpdateBuffer();
                         final var updateBuffer = updateBufferState.value();
+                        initPageViewBuffer();
                         final var pageViewBuffer = pageViewBufferState.value();
+
                         while (!updateBuffer.isEmpty() &&
                                 toEpochMilli(updateBuffer.getFirst().getPhysicalTimestamp()) <= timestamp) {
                             final var update = updateBuffer.removeFirst();
@@ -123,6 +121,19 @@ public class PageViewExperiment implements Experiment {
                         while (!pageViewBuffer.isEmpty() &&
                                 toEpochMilli(pageViewBuffer.element().getPhysicalTimestamp()) <= timestamp) {
                             update(pageViewBuffer.remove(), out);
+                        }
+                    }
+
+                    private void initUpdateBuffer() throws IOException {
+                        if (updateBufferState.value() == null) {
+                            updateBufferState.update(new ArrayDeque<>());
+                        }
+                    }
+
+                    private void initPageViewBuffer() throws IOException {
+                        if (pageViewBufferState.value() == null) {
+                            pageViewBufferState.update(new PriorityQueue<>(
+                                    Comparator.comparing(Heartbeat::getPhysicalTimestamp)));
                         }
                     }
 
