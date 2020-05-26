@@ -39,7 +39,7 @@ public class ValueBarrierExperiment implements Experiment {
 
     @Override
     public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
-        env.setParallelism(conf.getValueNodes() + 1);
+        env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         final var valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
@@ -50,7 +50,6 @@ public class ValueBarrierExperiment implements Experiment {
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
         final var barrierStream = env.addSource(barrierSource)
-                .setParallelism(1)
                 .slotSharingGroup("barriers");
 
         // Broadcast the barrier stream and connect it with the value stream
@@ -59,7 +58,7 @@ public class ValueBarrierExperiment implements Experiment {
                 new MapStateDescriptor<>("BroadcastState", Void.class, Void.class);
         final var broadcastStream = barrierStream.broadcast(broadcastStateDescriptor);
 
-        final var output = valueStream.connect(broadcastStream)
+        valueStream.connect(broadcastStream)
                 .process(new BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Tuple3<Long, Long, Instant>>() {
                     private Instant valuePhysicalTimestamp = Instant.MIN;
                     private Instant barrierPhysicalTimestamp = Instant.MIN;
@@ -138,6 +137,7 @@ public class ValueBarrierExperiment implements Experiment {
                         return tuple.f1;
                     }
                 })
+                .setParallelism(conf.getValueNodes())
                 .timeWindowAll(Time.milliseconds(conf.getValueBarrierRatio()))
                 .reduce((x, y) -> {
                     x.f0 += y.f0;
@@ -146,9 +146,7 @@ public class ValueBarrierExperiment implements Experiment {
                 .slotSharingGroup("barriers")
                 .startNewChain()
                 .map(new TimestampMapper())
-                .setParallelism(1);
-        output.writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1);
+                .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 
         return env.execute("ValueBarrier Experiment");
     }

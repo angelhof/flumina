@@ -41,7 +41,7 @@ public class PageViewExperiment implements Experiment {
 
     @Override
     public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
-        // env.setParallelism(1);
+        env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         final var getOrUpdateSource = new GetOrUpdateSource(conf.getTotalPageViews(), conf.getTotalUsers(),
@@ -152,8 +152,7 @@ public class PageViewExperiment implements Experiment {
                 })
                 .setParallelism(conf.getTotalUsers())
                 .map(new TimestampMapper())
-                .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1);
+                .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 
         return env.execute("PageView Experiment");
     }

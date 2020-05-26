@@ -33,7 +33,7 @@ public class FraudDetectionSeq implements Experiment {
 
     @Override
     public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
-        env.setParallelism(conf.getValueNodes() + 1);
+        env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
         final var transactionSource = new TransactionSource(conf.getTotalValues(), conf.getValueRate(), startTime);
@@ -44,7 +44,6 @@ public class FraudDetectionSeq implements Experiment {
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
         final var ruleStream = env.addSource(ruleSource)
-                .setParallelism(1)
                 .slotSharingGroup("rules");
 
         final var transactionsDescriptor = new ValueStateDescriptor<>("UnprocessedTransactions",
@@ -155,11 +154,9 @@ public class FraudDetectionSeq implements Experiment {
                         sumState.update(sumState.value() + transaction.getVal());
                     }
                 })
-                .setParallelism(1)
                 .slotSharingGroup("rules")
                 .map(new TimestampMapper())
-                .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1);
+                .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 
         return env.execute("FraudDetection Experiment");
     }
