@@ -70,11 +70,9 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
                             ctx.collectWithTimestamp(event, toEpochMilli(physicalTimestamp));
                             return null;
                         },
-                        heartbeat -> {
-                            ctx.emitWatermark(new Watermark(toEpochMilli(physicalTimestamp)));
-                            return null;
-                        }
+                        heartbeat -> null
                 );
+                ctx.emitWatermark(new Watermark(toEpochMilli(physicalTimestamp)));
                 if (iterator.hasNext()) {
                     obj = iterator.next();
                 } else {

@@ -249,3 +249,52 @@ class PageViewEC2:
                                 exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
         shutil.move(self.stats_file, exp_path)
+
+
+class FraudDetectionEC2:
+    def __init__(self, total_value_nodes, total_values, value_rate, vb_ratio, hb_ratio,
+                 out_file='out.txt', stats_file='stats.txt'):
+        self.total_value_nodes = total_value_nodes
+        self.total_values = total_values
+        self.value_rate = value_rate
+        self.vb_ratio = vb_ratio
+        self.hb_ratio = hb_ratio
+        self.out_file = out_file
+        self.stats_file = stats_file
+
+    def __str__(self):
+        return 'FraudDetectionEC2(' \
+               f'value_nodes={self.total_value_nodes}, ' \
+               f'values={self.total_values}, ' \
+               f'value_rate={self.value_rate:.1f}, ' \
+               f'vb_ratio={self.vb_ratio}, ' \
+               f'hb_ratio={self.hb_ratio})'
+
+    def run(self, args):
+        if not args.flink_workers:
+            print('A file containing a list of Flink worker hostnames hasn\'t been provided')
+            exit(1)
+        self.flink_workers = args.flink_workers
+        run_job(['--experiment', 'fraud-detection',
+                 '--valueNodes', f'{self.total_value_nodes}',
+                 '--totalValues', f'{self.total_values}',
+                 '--valueRate', f'{self.value_rate:.1f}',
+                 '--vbRatio', f'{self.vb_ratio}',
+                 '--hbRatio', f'{self.hb_ratio}'])
+
+    def archive_results(self, to_path):
+        exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}'
+        exp_path = path.join(to_path, exp_dir_name)
+        if path.isdir(exp_path):
+            shutil.rmtree(exp_path)
+        os.makedirs(exp_path)
+
+        with open(self.flink_workers, 'r') as f:
+            for host in f:
+                # Here we assume that the Flink cluster was started from the home directory,
+                # and self.out_file is given relative to home.
+                subprocess.run(['scp',
+                                host.rstrip() + ':' + self.out_file,
+                                exp_path])
+                subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+        shutil.move(self.stats_file, exp_path)

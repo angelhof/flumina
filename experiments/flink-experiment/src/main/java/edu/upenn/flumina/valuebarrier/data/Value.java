@@ -1,8 +1,10 @@
 package edu.upenn.flumina.valuebarrier.data;
 
-import edu.upenn.flumina.data.TimestampedCore;
+import edu.upenn.flumina.data.Heartbeat;
 
-public class Value extends TimestampedCore implements ValueOrHeartbeat {
+import java.util.function.Function;
+
+public class Value extends Heartbeat implements ValueOrHeartbeat {
 
     private static final long serialVersionUID = -950069087838302251L;
 
@@ -18,7 +20,7 @@ public class Value extends TimestampedCore implements ValueOrHeartbeat {
     }
 
     @Override
-    public <T> T match(final ValueCase<T> valueCase, final HeartbeatVOHCase<T> heartbeatCase) {
+    public <T> T match(final Function<Value, T> valueCase, final Function<ValueHeartbeat, T> heartbeatCase) {
         return valueCase.apply(this);
     }
 

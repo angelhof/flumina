@@ -2,8 +2,8 @@ package edu.upenn.flumina.valuebarrier;
 
 import edu.upenn.flumina.source.Generator;
 import edu.upenn.flumina.valuebarrier.data.Barrier;
+import edu.upenn.flumina.valuebarrier.data.BarrierHeartbeat;
 import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
-import edu.upenn.flumina.valuebarrier.data.Heartbeat;
 
 import java.time.Instant;
 import java.util.Iterator;
@@ -54,11 +54,11 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
                         // Assumes that hbRatio divides vbRatio.
                         return new Barrier(i * (vbRatio / hbRatio) - 1);
                     } else {
-                        return new Heartbeat(i * (vbRatio / hbRatio) - 1);
+                        return new BarrierHeartbeat(i * (vbRatio / hbRatio) - 1);
                     }
                 });
         final Stream<BarrierOrHeartbeat> withFinalHeartbeat =
-                Stream.concat(barriers, Stream.of(new Heartbeat(totalValues, Instant.MAX)));
+                Stream.concat(barriers, Stream.of(new BarrierHeartbeat(totalValues, Instant.MAX)));
         return withFinalHeartbeat.iterator();
     }
 

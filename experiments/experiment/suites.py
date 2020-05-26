@@ -1,7 +1,7 @@
 import os
 from os import path
 
-from flink import ValueBarrierExperiment, ValueBarrierEC2, PageViewEC2
+from flink import ValueBarrierExperiment, ValueBarrierEC2, PageViewEC2, FraudDetectionEC2
 from ns3 import NS3Conf
 
 
@@ -70,7 +70,7 @@ suites = {
     ),
     'value-barrier-nodes-ec2': ExperimentSuite(
         'value-barrier-nodes-ec2',
-        [ValueBarrierEC2(n, 1_000_000, 20, 1_000, 10) for n in range(2, 39, 2)]
+        [ValueBarrierEC2(n, 1_000_000, 40, 1_000, 10) for n in range(2, 39, 2)]
     ),
     'pageview-test-ec2': ExperimentSuite(
         'pageview-test-ec2',
@@ -78,10 +78,18 @@ suites = {
     ),
     'pageview-rates-ec2': ExperimentSuite(
         'pageview-rates-ec2',
-        [PageViewEC2(500_000, 2, 2, r) for r in range(2, 101, 2)]
+        [PageViewEC2(500_000, 2, 1, r) for r in range(2, 101, 2)]
     ),
     'pageview-parallelism-ec2': ExperimentSuite(
         'pageview-parallelism-ec2',
-        [PageViewEC2(500_000, 2, p, 5) for p in range(2, 41, 2)]
+        [PageViewEC2(500_000, 2, p, 15) for p in range(2, 41, 2)]
+    ),
+    'fraud-detection-rates-ec2': ExperimentSuite(
+        'fraud-detection-rates-ec2',
+        [FraudDetectionEC2(5, 1_000_000, r, 1_000, 10) for r in range(20, 101, 2)]
+    ),
+    'fraud-detection-nodes-ec2': ExperimentSuite(
+        'fraud-detection-nodes-ec2',
+        [FraudDetectionEC2(n, 1_000_000, 40, 1_000, 10) for n in range(2, 39, 2)]
     )
 }

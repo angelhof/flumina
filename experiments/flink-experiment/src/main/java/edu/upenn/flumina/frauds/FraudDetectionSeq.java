@@ -2,12 +2,8 @@ package edu.upenn.flumina.frauds;
 
 import edu.upenn.flumina.Experiment;
 import edu.upenn.flumina.config.FraudDetectionConfig;
-import edu.upenn.flumina.valuebarrier.BarrierSource;
-import edu.upenn.flumina.valuebarrier.ValueSource;
-import edu.upenn.flumina.valuebarrier.data.Barrier;
-import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
-import edu.upenn.flumina.valuebarrier.data.Value;
-import edu.upenn.flumina.valuebarrier.data.ValueOrHeartbeat;
+import edu.upenn.flumina.frauds.data.Rule;
+import edu.upenn.flumina.frauds.data.Transaction;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -23,12 +19,9 @@ import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.List;
+import java.util.*;
 
-import static edu.upenn.flumina.time.TimeHelper.min;
+import static edu.upenn.flumina.time.TimeHelper.toEpochMilli;
 
 public class FraudDetectionSeq implements Experiment {
 
@@ -40,128 +33,130 @@ public class FraudDetectionSeq implements Experiment {
 
     @Override
     public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
-        env.setParallelism(conf.getValueNodes() + 1);
+        env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        final var valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
-        final var valueStream = env.addSource(valueSource)
+        final var transactionSource = new TransactionSource(conf.getTotalValues(), conf.getValueRate(), startTime);
+        final var transactionStream = env.addSource(transactionSource)
                 .setParallelism(conf.getValueNodes())
-                .slotSharingGroup("values");
-        final var barrierSource = new BarrierSource(
+                .slotSharingGroup("transactions");
+        final var ruleSource = new RuleSource(
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
-        final var barrierStream = env.addSource(barrierSource)
-                .setParallelism(1)
-                .slotSharingGroup("barriers");
+        final var ruleStream = env.addSource(ruleSource)
+                .slotSharingGroup("rules");
 
-        final var unprocessedValuesDescriptor = new ValueStateDescriptor<>("UnprocessedValues",
-                TypeInformation.of(new TypeHint<Deque<Value>>() {
+        final var transactionsDescriptor = new ValueStateDescriptor<>("UnprocessedTransactions",
+                TypeInformation.of(new TypeHint<PriorityQueue<Transaction>>() {
                 }));
-        final var unprocessedBarriersDescriptor = new ValueStateDescriptor<>("UnprocessedBarriers",
-                TypeInformation.of(new TypeHint<Deque<Barrier>>() {
+        final var rulesDescriptor = new ValueStateDescriptor<>("UnprocessedRules",
+                TypeInformation.of(new TypeHint<Deque<Rule>>() {
                 }));
-        final var valueTimestampDescriptor = new ValueStateDescriptor<>("ValueTimestamp",
-                TypeInformation.of(Instant.class));
-        final var barrierTimestampDescriptor = new ValueStateDescriptor<>("BarrierTimestamp",
-                TypeInformation.of(Instant.class));
         final var sumDescriptor = new ValueStateDescriptor<>("Sum",
                 TypeInformation.of(Long.class));
+        final var previousSumDescriptor = new ValueStateDescriptor<>("PreviousSum",
+                TypeInformation.of(Long.class));
 
-        barrierStream.keyBy(x -> 0)
-                .connect(valueStream.keyBy(x -> 0))
-                .process(new KeyedCoProcessFunction<Integer, BarrierOrHeartbeat, ValueOrHeartbeat, Tuple3<String, Long, Instant>>() {
+        ruleStream.keyBy(x -> 0)
+                .connect(transactionStream.keyBy(x -> 0))
+                .process(new KeyedCoProcessFunction<Integer, Rule, Transaction, Tuple3<String, Long, Instant>>() {
 
-                    private ValueState<Instant> valueTimestampState;
-                    private ValueState<Instant> barrierTimestampState;
                     private ValueState<Long> sumState;
-                    private ValueState<Deque<Value>> unprocessedValuesState;
-                    private ValueState<Deque<Barrier>> unprocessedBarriersState;
+                    private ValueState<Long> previousSumState;
+                    private ValueState<PriorityQueue<Transaction>> transactionsState;
+                    private ValueState<Deque<Rule>> rulesState;
 
                     @Override
                     public void open(final Configuration parameters) {
-                        valueTimestampState = getRuntimeContext().getState(valueTimestampDescriptor);
-                        barrierTimestampState = getRuntimeContext().getState(barrierTimestampDescriptor);
                         sumState = getRuntimeContext().getState(sumDescriptor);
-                        unprocessedValuesState = getRuntimeContext().getState(unprocessedValuesDescriptor);
-                        unprocessedBarriersState = getRuntimeContext().getState(unprocessedBarriersDescriptor);
+                        previousSumState = getRuntimeContext().getState(previousSumDescriptor);
+                        transactionsState = getRuntimeContext().getState(transactionsDescriptor);
+                        rulesState = getRuntimeContext().getState(rulesDescriptor);
                     }
 
                     @Override
-                    public void processElement1(final BarrierOrHeartbeat barrierOrHeartbeat,
+                    public void processElement1(final Rule rule,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        updateUnprocessedElements(unprocessedBarriersState,
-                                barrierOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-                        updateTimestamp(barrierTimestampState, barrierOrHeartbeat.getPhysicalTimestamp());
-                        makeProgress(out);
+                        initRules();
+                        rulesState.value().addAll(rule.match(List::of, hb -> Collections.emptyList()));
+                        ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 
                     @Override
-                    public void processElement2(final ValueOrHeartbeat valueOrHeartbeat,
+                    public void processElement2(final Transaction transaction,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        updateUnprocessedElements(unprocessedValuesState,
-                                valueOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-                        updateTimestamp(valueTimestampState, valueOrHeartbeat.getPhysicalTimestamp());
-                        makeProgress(out);
+                        initTransactions();
+                        transactionsState.value().addAll(transaction.match(List::of, hb -> Collections.emptyList()));
+                        ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 
-                    private <T> void updateUnprocessedElements(final ValueState<Deque<T>> unprocessedElementsState,
-                                                               final List<T> listToAdd) throws IOException {
-                        if (unprocessedElementsState.value() == null) {
-                            unprocessedElementsState.update(new ArrayDeque<>());
+                    @Override
+                    public void onTimer(final long timestamp,
+                                        final OnTimerContext ctx,
+                                        final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
+                        initRules();
+                        final var rules = rulesState.value();
+                        initTransactions();
+                        final var transactions = transactionsState.value();
+
+                        while (!rules.isEmpty() &&
+                                toEpochMilli(rules.getFirst().getPhysicalTimestamp()) <= timestamp) {
+                            final var rule = rules.removeFirst();
+                            while (!transactions.isEmpty() &&
+                                    transactions.element().getPhysicalTimestamp()
+                                            .isBefore(rule.getPhysicalTimestamp())) {
+                                update(transactions.remove(), out);
+                            }
+                            update(rule, out);
                         }
-                        unprocessedElementsState.value().addAll(listToAdd);
+                        while (!transactions.isEmpty() &&
+                                toEpochMilli(transactions.element().getPhysicalTimestamp()) <= timestamp) {
+                            update(transactions.remove(), out);
+                        }
                     }
 
-                    private void updateTimestamp(final ValueState<Instant> timestampState,
-                                                 final Instant timestamp) throws IOException {
-                        if (timestampState.value() == null) {
-                            timestampState.update(Instant.MIN);
-                        }
-                        if (timestampState.value().isBefore(timestamp)) {
-                            timestampState.update(timestamp);
+                    private void initRules() throws IOException {
+                        if (rulesState.value() == null) {
+                            rulesState.update(new ArrayDeque<>());
                         }
                     }
 
-                    private void makeProgress(final Collector<Tuple3<String, Long, Instant>> out) throws IOException {
-                        final Instant currentTime = min(valueTimestampState.value(), barrierTimestampState.value());
-                        final Deque<Value> unprocessedValues = unprocessedValuesState.value();
-                        final Deque<Barrier> unprocessedBarriers = unprocessedBarriersState.value();
-                        while (!unprocessedValues.isEmpty() &&
-                                unprocessedValues.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
-                            final Value value = unprocessedValues.removeFirst();
-                            while (!unprocessedBarriers.isEmpty() &&
-                                    unprocessedBarriers.getFirst().getPhysicalTimestamp().isBefore(value.getPhysicalTimestamp())) {
-                                final Barrier barrier = unprocessedBarriers.removeFirst();
-                                if (sumState.value() == null) {
-                                    sumState.update(0L);
-                                }
-                                out.collect(Tuple3.of("Barrier", sumState.value(), barrier.getPhysicalTimestamp()));
-                                sumState.update(0L);
-                            }
-                            // TODO: Change to make this the full value-barrier example
-                            if (sumState.value() == null) {
-                                sumState.update(0L);
-                            }
-                            sumState.update(sumState.value() + value.getVal());
+                    private void initTransactions() throws IOException {
+                        if (transactionsState.value() == null) {
+                            transactionsState.update(new PriorityQueue<>(
+                                    Comparator.comparing(Transaction::getPhysicalTimestamp)));
                         }
-                        while (!unprocessedBarriers.isEmpty() &&
-                                unprocessedBarriers.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
-                            final Barrier barrier = unprocessedBarriers.removeFirst();
-                            if (sumState.value() == null) {
-                                sumState.update(0L);
-                            }
-                            out.collect(Tuple3.of("Barrier", sumState.value(), barrier.getPhysicalTimestamp()));
+                    }
+
+                    private void update(final Rule rule,
+                                        final Collector<Tuple3<String, Long, Instant>> out) throws IOException {
+                        if (sumState.value() == null) {
                             sumState.update(0L);
                         }
+                        out.collect(Tuple3.of("Rule", sumState.value(), rule.getPhysicalTimestamp()));
+                        previousSumState.update(sumState.value());
+                        sumState.update(0L);
+                    }
+
+                    private void update(final Transaction transaction,
+                                        final Collector<Tuple3<String, Long, Instant>> out) throws IOException {
+                        if (sumState.value() == null) {
+                            sumState.update(0L);
+                        }
+                        if (previousSumState.value() == null) {
+                            previousSumState.update(0L);
+                        }
+                        if (previousSumState.value() % 100L == transaction.getVal() % 100L) {
+                            out.collect(Tuple3.of("Transaction", transaction.getVal(), transaction.getPhysicalTimestamp()));
+                        }
+                        sumState.update(sumState.value() + transaction.getVal());
                     }
                 })
-                .setParallelism(1)
-                .slotSharingGroup("barriers")
+                .slotSharingGroup("rules")
                 .map(new TimestampMapper())
-                .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(1);
+                .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 
         return env.execute("FraudDetection Experiment");
     }

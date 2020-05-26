@@ -1,12 +1,12 @@
 package edu.upenn.flumina.pageview;
 
 import edu.upenn.flumina.pageview.data.GetOrUpdate;
-import edu.upenn.flumina.pageview.data.Heartbeat;
+import edu.upenn.flumina.pageview.data.GetOrUpdateHeartbeat;
 import edu.upenn.flumina.source.GeneratorWithHeartbeatsBasedSource;
 
 import java.time.Instant;
 
-public class GetOrUpdateSource extends GeneratorWithHeartbeatsBasedSource<GetOrUpdate, Heartbeat> {
+public class GetOrUpdateSource extends GeneratorWithHeartbeatsBasedSource<GetOrUpdate, GetOrUpdateHeartbeat> {
 
     private static final long serialVersionUID = 7605642118760769809L;
 
