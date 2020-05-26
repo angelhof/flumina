@@ -82,6 +82,6 @@ suites = {
     ),
     'pageview-parallelism-ec2': ExperimentSuite(
         'pageview-parallelism-ec2',
-        [PageViewEC2(500_000, 2, p, 5) for p in range(2, 41, 2)]
+        [PageViewEC2(500_000, 2, p, 15) for p in range(2, 41, 2)]
     )
 }
