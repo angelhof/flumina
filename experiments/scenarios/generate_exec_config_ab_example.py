@@ -664,9 +664,47 @@ optimizers = ["optimizer_greedy"]
 ## 3 configs for the synchronization overhead evaluation section
 rate_multipliers = [10]
 ratios_ab = [1000]
-heartbeat_rates = [10]
-a_nodes_numbers = range(2,30,2)
+heartbeat_rates = [10] # number of heartbeats per b event
+a_nodes_numbers = range(2,40,2)
+a_nodes_numbers = range(30,42,2)
 # run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+## 3 configs for the synchronization overhead evaluation section
+ratios_ab = [10000]
+heartbeat_rates = [100] # number of heartbeats per b event
+a_nodes_numbers = range(2,40,2)
+# a_nodes_numbers = range(2,17,2)
+a_nodes_numbers = range(30,42,2)
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+## 3 configs for the synchronization overhead evaluation section
+ratios_ab = [100]
+heartbeat_rates = [1] # number of heartbeats per b event
+a_nodes_numbers = range(2,24,2)
+# a_nodes_numbers = range(2,17,2)
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+
+
+# 2 configs for the heartbeat overhead
+a_nodes_numbers = [5]
+ratios_ab = [10000]
+heartbeat_rates = [10, 20, 50, 100, 200, 500, 1000]
+heartbeat_rates = [1000]
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+ratios_ab = [1000]
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+
+# 1 config for the checkpoints
+rate_multipliers = [10]
+ratios_ab = [100, 1000]
+a_nodes_numbers = [5]
+heartbeat_rates = [10] # number of heartbeats per b event
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+
 
 
     #dirname = os.path.join('archive')
