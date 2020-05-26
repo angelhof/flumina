@@ -291,7 +291,7 @@ def plot_checkpointing_latencies(dirname, prefix):
 
     ## Plot results
     fig, ax = plt.subplots()
-    ax.set_xlabel('Latencies')
+    ax.set_xlabel('Latency')
     ax.set_ylabel('Fraction')
     plt.xscale("log")
     plt.ylim(top=1)
@@ -299,7 +299,7 @@ def plot_checkpointing_latencies(dirname, prefix):
     ax.plot(no_check_latencies, fractions, label = 'No Checkpointing')
     ax.plot(check_latencies, fractions, label = 'Checkpointing')
     ax.legend()
-    # fig.set_size_inches(6, 4)
+    fig.set_size_inches(10, 3)
     plt.tight_layout()
     plt.savefig(os.path.join('plots', "checkpointing_costs.pdf"))
 
@@ -325,16 +325,15 @@ if __name__ == '__main__':
     plt.rcParams['font.family'] = 'STIXGeneral'
 
 
-    # # The full range of rates is range(10, 35, 2)
-    # plot_scaleup_rate('archive/ab_example_rate_scaleup_20-64/archive', 'ab_exp_1', range(20, 62, 2), 1000, 10, 5, 'optimizer_greedy')
+    plot_scaleup_rate('archive/ab_example_rate_scaleup_20-64/archive', 'ab_exp_1', range(30, 62, 2), 1000, 10, 5, 'optimizer_greedy')
 
-    # plot_scaleup_node_rate('archive/ab_example_node_scaleup_2-40/archive', 'ab_exp_2', 20, 1000, 10, range(2, 28, 2), 'optimizer_greedy')
+    plot_scaleup_node_rate('archive/ab_example_node_scaleup_2-20/archive', 'ab_exp_2', 40, 1000, 10, range(2, 13, 2), 'optimizer_greedy')
 
     # # plot_stream_table_join_scaleup_rate('archive/rate_scaleup_10-100/archive', 'stream_table_join', 2, 5, range(10,105,5))
-    # plot_stream_table_join_scaleup_rate('archive/rate_scaleup_4-34_fat_main_prods_in_workers/archive', 'stream_table_join', 2, 2, 0, range(4,34,2))
+    plot_stream_table_join_scaleup_rate('archive/rate_scaleup_4-64_fat_main_prods_in_workers/archive', 'stream_table_join', 2, 1, 0, range(10,57,2))
 
 
-    # plot_stream_table_join_scaleup_nodes('archive/node_scaleup_2-20_fat_main_prods_in_workers/archive', 'stream_table_join', 2, range(2,21,2), 0, 5)
+    plot_stream_table_join_scaleup_nodes('archive/node_scaleup_2-20_fat_main_prods_in_workers/archive', 'stream_table_join', 2, range(2,17,2), 0, 15)
 
     # ## Full value barrier
     # plot_scaleup_full_value_barrier_rate('archive/full_ab_rate/archive', 'ab_exp_full_1', range(10, 30, 2), 1000, 10, 5, 'optimizer_greedy')
