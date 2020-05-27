@@ -41,7 +41,7 @@ def main():
         #print(f'Network data (MB): {network_data:0.1f}')
         exit(0)
 
-    if args.erlang_results is not None:
+    if args.flumina_results is not None:
         p10, p50, p90 = results.get_erlang_latencies(args.erlang_results)
         throughput = results.get_erlang_throughput(args.erlang_results)
         network_data = results.get_network_data(args.erlang_results) / 1024.0 / 1024.0
