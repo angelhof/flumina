@@ -82,7 +82,7 @@ suites = {
     ),
     'pageview-parallelism-ec2': ExperimentSuite(
         'pageview-parallelism-ec2',
-        [PageViewEC2(500_000, 2, p, 15) for p in range(2, 41, 2)]
+        [PageViewEC2(500_000, 2, p, 15) for p in range(2, 39, 2)]
     ),
     'fraud-detection-rates-ec2': ExperimentSuite(
         'fraud-detection-rates-ec2',
