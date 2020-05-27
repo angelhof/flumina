@@ -10,7 +10,7 @@ public class GetOrUpdateGeneratorTest {
 
     @Test
     public void testGetOrUpdateGenerator() {
-        final var getOrUpdateGenerator = new GetOrUpdateGenerator(1000, 2, 10.0);
+        final var getOrUpdateGenerator = new GetOrUpdateGenerator(20_000, 1, 100.0);
         getOrUpdateGenerator.getIterator()
                 .forEachRemaining(item -> LOG.debug(item.toString()));
     }

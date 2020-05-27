@@ -10,7 +10,7 @@ public class PageViewGeneratorTest {
 
     @Test
     public void testPageViewGenerator() {
-        final var pageViewGenerator = new PageViewGenerator(10, 2, 10.0);
+        final var pageViewGenerator = new PageViewGenerator(100, 2, 100.0);
         pageViewGenerator.getIterator()
                 .forEachRemaining(item -> LOG.debug(item.toString()));
     }
