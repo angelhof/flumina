@@ -145,8 +145,8 @@ def read_preprocess_latency_data(log_dir_name, experiment="value-barrier"):
     return timestamps, latencies
 
 
-def get_erlang_latencies(result_path):
-    ts, latencies = read_preprocess_latency_data(result_path)
+def get_erlang_latencies(result_path, experiment='value-barrier'):
+    ts, latencies = read_preprocess_latency_data(result_path, experiment)
     p10 = np.percentile(latencies, 10)
     p50 = np.percentile(latencies, 50)
     p90 = np.percentile(latencies, 90)

@@ -137,9 +137,9 @@ def plot_latency_throughput(fst_label, fst_latencies_throughputs,
     plt.show()
 
 
-def get_flumina_latencies_throughputs(flumina_dirs):
+def get_flumina_latencies_throughputs(flumina_dirs, experiment='value-barrier'):
     flumina_dirs = list(flumina_dirs)
-    flumina_latencies = [results.get_erlang_latencies(dir) for dir in flumina_dirs]
+    flumina_latencies = [results.get_erlang_latencies(dir, experiment) for dir in flumina_dirs]
     flumina_throughputs = [results.get_erlang_throughput(dir) for dir in flumina_dirs]
     return flumina_latencies, flumina_throughputs
 
@@ -165,7 +165,7 @@ def plot_latency_throughput_single(label, latencies_throughputs, output_file=Non
     ax.errorbar(throughputs,
                 latencies_mean, [latencies_diff_10, latencies_diff_90],
                 linestyle='-', marker='o', label=label,
-                linewidth=1, capthick=1, capsize=3, color='tab:blue')
+                linewidth=1, capthick=1, capsize=3, color='tab:red')
     ax.legend()
 
     plt.tight_layout()
@@ -190,7 +190,28 @@ def plot_flink_5(result_dir):
     plot_latency_throughput_single('Flink',
                                    get_flink_latencies_throughputs(
                                        path.join(result_dir, f'n5_r{r}_q1000_h10')
-                                       for r in range(20, 51, 2)
+                                       for r in range(20, 101, 2)
+                                   ))
+
+def plot_flink_node_scaleup(result_dir):
+    plot_latency_throughput_single('Flink',
+                                   get_flink_latencies_throughputs(
+                                       path.join(result_dir, f'n{n}_r40_q1000_h10')
+                                       for n in range(2, 39, 2)
+                                   ))
+
+def plot_flink_pageview_parallelism(result_dir):
+    plot_latency_throughput_single('Flink',
+                                   get_flink_latencies_throughputs(
+                                       path.join(result_dir, f'u2_p{p}_r15')
+                                       for p in range(2, 41, 2)
+                                   ))
+
+def plot_flink_pageview_rates(result_dir):
+    plot_latency_throughput_single('Flink',
+                                   get_flink_latencies_throughputs(
+                                       path.join(result_dir, f'u2_p1_r{r}')
+                                       for r in range(2, 101, 2)
                                    ))
 
 def plot_flumina_flumina(dir_before, dir_after):
@@ -202,6 +223,92 @@ def plot_flumina_flumina(dir_before, dir_after):
                             get_flumina_latencies_throughputs(
                                 path.join(dir_after, f'ab_exp1_{r}_1000_10_5_optimizer_greedy')
                                 for r in range(20, 67, 2)))
+
+### PageView
+
+def plot_flumina_flink_pageview_nodes(dir_flumina, dir_flink):
+    plot_latency_throughput('Flumina',
+                            get_flumina_latencies_throughputs(
+                                (path.join(dir_flumina, f'stream_table_join_2_{n}_0_15')
+                                for n in range(2, 21, 2)),
+                                experiment='stream-table-join'
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'u2_p{p}_r15')
+                                for p in range(2, 39, 2)))
+
+def plot_flumina_flink_pageview_rates(dir_flumina, dir_flink):
+    plot_latency_throughput('Flumina',
+                            get_flumina_latencies_throughputs(
+                                (path.join(dir_flumina, f'stream_table_join_2_1_0_{r}')
+                                 for r in range(10, 63, 2)),
+                                experiment='stream-table-join'
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'u2_p1_r{r}')
+                                for r in range(10, 101, 2)))
+
+### ValueBarrier
+
+def plot_flumina_flink_vb_nodes(dir_flumina, dir_flink):
+    plot_latency_throughput('Flumina',
+                            get_flumina_latencies_throughputs(
+                                (path.join(dir_flumina, f'ab_exp_2_40_1000_10_{n}_optimizer_greedy')
+                                for n in range(2, 17, 2)),
+                                experiment='value-barrier'
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'n{n}_r40_q1000_h10')
+                                for n in range(2, 39, 2)))
+
+def plot_flumina_flink_vb_rates(dir_flumina, dir_flink):
+    plot_latency_throughput('Flumina',
+                            get_flumina_latencies_throughputs(
+                                (path.join(dir_flumina, f'ab_exp_1_{r}_1000_10_5_optimizer_greedy')
+                                 for r in range(20, 71, 2)),
+                                experiment='value-barrier'
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'n5_r{r}_q1000_h10')
+                                for r in range(20, 101, 2)))
+
+# Fraud detection
+
+def plot_flumina_flink_fraud_nodes(dir_flumina, dir_flink):
+    plot_latency_throughput('Flumina',
+                            get_flumina_latencies_throughputs(
+                                (path.join(dir_flumina, f'ab_exp_full_1_20_10000_100_{n}_optimizer_greedy')
+                                for n in range(2, 17, 2)),
+                                experiment='full-value-barrier'
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'n{n}_r20_q10000_h100')
+                                for n in range(2, 39, 2)))
+
+
+def plot_flumina_flink_fraud_rates(dir_flumina, dir_flink):
+    plot_latency_throughput('Flumina',
+                            get_flumina_latencies_throughputs(
+                                (path.join(dir_flumina, f'ab_exp_full_1_{r}_10000_100_5_optimizer_greedy')
+                                 for r in range(20, 41, 2)),
+                                experiment='full-value-barrier'
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'n5_r{r}_q10000_h100')
+                                for r in range(20, 101, 2)))
+
+def plot_flink_fraud_nodes(result_dir):
+    plot_latency_throughput_single('Flink',
+                                   get_flink_latencies_throughputs(
+                                       path.join(result_dir, f'n{n}_r20_q10000_h100')
+                                       for n in range(2, 39, 2)
+                                   ))
 
 def plot_flink_network_data(dir, rates):
     dirs = [path.join(dir, f'n5_r{r}_q1000_h10') for r in rates]

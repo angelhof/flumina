@@ -207,7 +207,7 @@ class ValueBarrierEC2:
 
 class PageViewEC2:
     def __init__(self, total_pageviews, total_users, pageview_parallelism, pageview_rate,
-                 out_file='out.txt', stats_file='stats.txt',):
+                 out_file='out.txt', stats_file='stats.txt'):
         self.total_pageviews = total_pageviews
         self.total_users = total_users
         self.pageview_parallelism = pageview_parallelism
