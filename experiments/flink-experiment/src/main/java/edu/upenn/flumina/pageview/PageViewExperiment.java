@@ -46,7 +46,7 @@ public class PageViewExperiment implements Experiment {
 
         final var getOrUpdateSource = new GetOrUpdateSource(conf.getTotalPageViews(), conf.getTotalUsers(),
                 conf.getPageViewRate(), startTime);
-        final var getOrUpdateStream = env.addSource(getOrUpdateSource).slotSharingGroup("getOrUpdate");
+        final var getOrUpdateStream = env.addSource(getOrUpdateSource);
         final var pageViewSource =
                 new PageViewSource(conf.getTotalPageViews(), conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var pageViewStream = env.addSource(pageViewSource)
