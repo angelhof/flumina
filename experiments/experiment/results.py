@@ -180,11 +180,14 @@ def get_events_processed(log_dir):
         return number_events
 
 def get_erlang_throughput(log_dir):
-    runtime = get_flumina_net_runtime(log_dir)
-    events = get_events_processed(log_dir)
-    new_throughput = events / runtime
-    # print("New:", new_throughput)
-    return new_throughput
+    try:
+        runtime = get_flumina_net_runtime(log_dir)
+        events = get_events_processed(log_dir)
+        new_throughput = events / runtime
+        # print("New:", new_throughput)
+        return new_throughput
+    except:
+        return 0
 
 # NS3 log parsing
 
