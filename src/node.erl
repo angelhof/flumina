@@ -156,7 +156,7 @@ update_on_msg({Msg, _Node, _Ts} = _ImplMsg, State, Output, UFun) ->
     NewState = UFun(Msg, State, Output),
     NewState.
 
--spec respond_to_merge(pid(), State::any(), num_log_triple(), configuration())
+-spec respond_to_merge(mailbox(), State::any(), num_log_triple(), configuration())
 		      -> {num_log_state(), State::any()}.
 respond_to_merge(Father, State, LogTriple, ConfTree) ->
     %% We have to send our mailbox's pid to our parent

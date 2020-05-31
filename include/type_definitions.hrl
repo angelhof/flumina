@@ -55,7 +55,7 @@
 -type impl_message(Tag, Payload) :: {message(Tag, Payload), node(), timestamp()}.
 -type gen_impl_message() :: impl_message(tag(), any()).
 
--type merge_request() :: {'merge', {{tag(), Father::pid()}, node(), timestamp()}}.
+-type merge_request() :: {'merge', {{tag(), Father::mailbox()}, node(), timestamp()}}.
 
 -type message_or_merge(Tag, Payload) :: {'msg', impl_message(Tag, Payload)} | merge_request().
 -type gen_message_or_merge() :: message_or_merge(tag(), any()).

@@ -5,6 +5,19 @@
 -include("type_definitions.hrl").
 -include("config.hrl").
 
+
+%%
+%% Mailbox API
+%%
+
+%% Blocking call to send a message or merge request to a mailbox
+-spec send_to_mailbox(mailbox(), gen_message_or_merge() | gen_imessage_or_iheartbeat()) -> 'ok'.
+send_to_mailbox(SendTo, Message) ->
+    %% TODO: Change that to be blocking.
+    SendTo ! Message,
+    ok.
+
+
 %%
 %% Mailbox
 %%
@@ -162,7 +175,7 @@ mailbox(MboxState) ->
                     NewMboxState = handle_message({msg, Msg}, MboxState),
                     mailbox(NewMboxState)
 	    end;
-	{merge, {{Tag, Father}, Node, Ts}} ->
+	{merge, {{Tag, Father}, Node, Ts}} = MergeReq ->
 	    %% A merge requests acts as two different messages in our model.
 	    %% - A heartbeat message, because it shows that some ancestor has
 	    %%   received all messages with Tag until Ts. Because of that we
@@ -174,7 +187,7 @@ mailbox(MboxState) ->
             BuffersTimers = MboxState#mb_st.buffers,
             Attachee = MboxState#mb_st.attachee,
             Dependencies = MboxState#mb_st.deps,
-	    NewBuffersTimers = add_to_buffers_timers({merge, {{Tag, Father}, Node, Ts}}, BuffersTimers),
+	    NewBuffersTimers = add_to_buffers_timers(MergeReq, BuffersTimers),
 	    ClearedBuffersTimers =
 		update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
 	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedBuffersTimers]),
@@ -406,10 +419,18 @@ add_to_buffer(Msg, Buffer) ->
 -spec route_message_and_merge_requests(gen_impl_message(), configuration()) -> 'ok'.
 route_message_and_merge_requests(Msg, ConfTree) ->
     %% This finds the head node of the subtree
-    [{SendTo, undef}|Rest] = router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
-    SendTo ! {msg, Msg},
+
+    %% TODO: Optimize! This is called once for every message and it
+    %% searches in the tree. At the moment it has two issues:
+    %%
+    %% 1. find_responsible_subtree_child_father_pids is too slow
+    %%
+    %% 2. if the message is just for us, we shouldn't send it to us but rather
+    %%    instantly process it.
+    {{SendTo, root}, Rest} = router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
+    send_to_mailbox(SendTo, {msg, Msg}),
     {{Tag,  _Payload}, Node, Ts} = Msg,
-    [To ! {merge, {{Tag, ToFather}, Node, Ts}} || {To, ToFather} <- Rest],
+    [send_to_mailbox(To, {merge, {{Tag, ToFather}, Node, Ts}}) || {To, ToFather} <- Rest],
     ok.
 
 
