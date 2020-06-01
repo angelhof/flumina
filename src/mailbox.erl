@@ -136,9 +136,11 @@ handle_cast({imsg, Msg}, MboxState) ->
     %%   and a message must be handled by (one of) the lowest process
     %%   in the tree that can handle it.
     ConfTree = MboxState#mb_st.conf,
-    route_message_and_merge_requests(Msg, ConfTree),
-    {noreply, MboxState};
-handle_cast({msg, Msg}, MboxState) ->
+    send_merge_requests(Msg, ConfTree),
+
+    %% ASSUMPTION: With the current setup, producers only produce one
+    %% tag, and so they should already know where to send messages. So
+    %% we can straightforwardly process the imsg here.
     Pred = MboxState#mb_st.pred,
     case Pred(Msg) of
         false ->
@@ -444,21 +446,13 @@ buffers_length({Buffers, _Timers}) ->
 add_to_buffer(Msg, Buffer) ->
     queue:in(Msg, Buffer).
 
-%% This function sends the message to the head node of the subtree,
-%% and the merge request to all its children
--spec route_message_and_merge_requests(gen_impl_message(), configuration()) -> 'ok'.
-route_message_and_merge_requests(Msg, ConfTree) ->
-    %% This finds the head node of the subtree
-
-    %% TODO: Optimize! This is called once for every message and it
-    %% searches in the tree. At the moment it has two issues:
-    %%
-    %% 1. find_responsible_subtree_child_father_pids is too slow
-    %%
-    %% 2. if the message is just for us, we shouldn't send it to us but rather
-    %%    instantly process it.
+%% This function sends merge request to the whole subtree that is responsible for a message
+-spec send_merge_requests(gen_impl_message(), configuration()) -> 'ok'.
+send_merge_requests(Msg, ConfTree) ->
+    %% TODO: Optimize! This is called once for every message and
+    %% find_responsible_subtree_child_father_pids is too slow because
+    %% it searches the whole tree per message.
     {{SendTo, root}, Rest} = router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
-    send_to_mailbox(SendTo, {msg, Msg}),
     {{Tag,  _Payload}, Node, Ts} = Msg,
     [send_to_mailbox(To, {merge, {{Tag, ToFather}, Node, Ts}}) || {To, ToFather} <- Rest],
     ok.
