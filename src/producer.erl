@@ -685,7 +685,7 @@ send_message_or_heartbeat({heartbeat, Heartbeat}, SendTo, _MessageLoggerInitFun)
     mailbox:send_to_mailbox(SendTo, {iheartbeat, Heartbeat});
 send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
     ok = MessageLoggerInitFun(Msg),
-    mailbox:send_to_mailbox(SendTo, {imsg, Msg}).
+    mailbox:send_message_to_mailbox(SendTo, {imsg, Msg}).
 
 %% This function ignores the message timestamp and sends it with its own timestamp
 -spec timestamp_send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),

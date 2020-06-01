@@ -2,9 +2,10 @@
 -behaviour(gen_server).
 
 -export([start_link/6,
-         send_to_mailbox/2]).
+         send_to_mailbox/2,
+         send_message_to_mailbox/2]).
 
--export([init/1, handle_cast/2, handle_info/2]).
+-export([init/1, handle_cast/2, handle_call/3,handle_info/2]).
 
 -include("type_definitions.hrl").
 -include("config.hrl").
@@ -15,13 +16,13 @@
 %%
 
 %% Blocking call to send a message or merge request to a mailbox
--spec send_to_mailbox(mailbox(),
-                      gen_message_or_merge() |
-                      gen_imessage_or_iheartbeat() |
-                      gen_heartbeat()) -> 'ok'.
+-spec send_to_mailbox(mailbox(), merge_request() | gen_iheartbeat() | gen_heartbeat()) -> 'ok'.
 send_to_mailbox(SendTo, Message) ->
-    %% TODO: Change that to be blocking.
     gen_server:cast(SendTo, Message).
+
+-spec send_message_to_mailbox(mailbox(), gen_imessage()) -> 'ok'.
+send_message_to_mailbox(SendTo, Message) ->
+    gen_server:call(SendTo, Message, infinity).
 
 -spec start_link(atom(), dependencies(), impl_message_predicate(), pid(),
                  mailbox(), impl_tags()) -> 'ok'.
@@ -115,16 +116,11 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 %% their correct nodes and makes sure that
 %% dependent messages arrive in order
 
-%% TODO: Remember to have no timeouts
-%% handle_call(alloc, _From, Chs) ->
-%%     {Ch, Chs2} = alloc(Chs),
-%%     {reply, Ch, Chs2}.
-
 %% Explanation:
 %% The messages that first enter the system contain an
 %% imsg tag. Then they are sent to a node that can
 %% handle them, and they get a msg tag.
-handle_cast({imsg, Msg}, MboxState) ->
+handle_call({imsg, Msg}, _From, MboxState) ->
     %% Explanation:
     %% Whenever a message arrives to the mailbox of a process
     %% this process has to decide whether it will process it or
@@ -154,8 +150,10 @@ handle_cast({imsg, Msg}, MboxState) ->
             {stop, pred_not_satisfied, MboxState};
         true ->
             NewMboxState = handle_message({msg, Msg}, MboxState),
-            {noreply, NewMboxState}
-    end;
+            {reply, ok, NewMboxState}
+    end.
+
+
 handle_cast({merge, {{Tag, Father}, Node, Ts}} = MergeReq, MboxState) ->
     %% A merge requests acts as two different messages in our model.
     %% - A heartbeat message, because it shows that some ancestor has

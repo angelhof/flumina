@@ -63,11 +63,15 @@
 -type heartbeat(ImplTag) :: {'heartbeat', {ImplTag, timestamp()}}.
 -type iheartbeat(ImplTag) :: {'iheartbeat', {ImplTag, timestamp()}}.
 -type gen_heartbeat() :: heartbeat(impl_tag()).
+-type gen_iheartbeat() :: iheartbeat(impl_tag()).
 
 -type message_or_heartbeat(Tag, Payload) :: impl_message(Tag, Payload) | heartbeat(Tag).
 -type gen_message_or_heartbeat() :: message_or_heartbeat(tag(), any()).
 
--type imessage_or_iheartbeat(Tag, Payload) :: {'imsg', impl_message(Tag, Payload)}
+-type imessage(Tag, Payload) :: {'imsg', impl_message(Tag, Payload)}.
+-type gen_imessage() :: imessage(tag(), any()).
+
+-type imessage_or_iheartbeat(Tag, Payload) :: imessage(Tag, Payload)
 					    | iheartbeat(Tag).
 -type gen_imessage_or_iheartbeat() :: imessage_or_iheartbeat(tag(), any()).
 
