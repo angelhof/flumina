@@ -263,107 +263,12 @@ handle_info(What, MboxState) ->
                       [util:local_timestamp(),self(), node(), What]),
     {stop, {unknown_message_format, What}, MboxState}.
 
--spec mailbox(mailbox_state()) -> no_return().
-mailbox(MboxState) ->
-    receive
-	%% Explanation:
-	%% The messages that first enter the system contain an
-	%% imsg tag. Then they are sent to a node that can
-	%% handle them, and they get a msg tag.
-	{imsg, Msg} ->
-	    %% Explanation:
-	    %% Whenever a message arrives to the mailbox of a process
-	    %% this process has to decide whether it will process it or
-	    %% not. This depends on:
-	    %% - If the process can process it. If it doesn't satisfy its
-	    %%   predicate then, it cannot really process it.
-	    %% - If it has children processes in the tree, it should route
-	    %%   the message to a lower node, as only leaf processes process
-	    %%   and a message must be handled by (one of) the lowest process
-	    %%   in the tree that can handle it.
-            ConfTree = MboxState#mb_st.conf,
-	    route_message_and_merge_requests(Msg, ConfTree),
-	    mailbox(MboxState);
-	{msg, Msg} ->
-            Pred = MboxState#mb_st.pred,
-	    case Pred(Msg) of
-		false ->
-		    %% This should be unreachable because all the messages
-		    %% are routed to a node that can indeed handle them
-		    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was sent msg: ~p ~n"
-				      "  that doesn't satisfy its predicate.~n",
-				      [util:local_timestamp(),self(), node(), Msg]),
-                    Attachee = MboxState#mb_st.attachee,
-		    util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
-		    erlang:halt(1);
-		true ->
-                    NewMboxState = handle_message({msg, Msg}, MboxState),
-                    mailbox(NewMboxState)
-	    end;
-	{merge, {{Tag, Father}, Node, Ts}} = MergeReq ->
-	    %% A merge requests acts as two different messages in our model.
-	    %% - A heartbeat message, because it shows that some ancestor has
-	    %%   received all messages with Tag until Ts. Because of that we
-	    %%   need to clear the buffer with it as if it was a heartbeat.
-	    %% - A message that will be processed like every other message (after
-	    %%   its dependencies are dealt with), so we have to add it to the buffer
-	    %%   like we do with every other message
-	    ImplTag = {Tag, Node},
-            BuffersTimers = MboxState#mb_st.buffers,
-            Attachee = MboxState#mb_st.attachee,
-            Dependencies = MboxState#mb_st.deps,
-	    NewBuffersTimers = add_to_buffers_timers(MergeReq, BuffersTimers),
-	    ClearedBuffersTimers =
-		update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
-	    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedBuffersTimers]),
-	    %% io:format("~p -- ~p~n", [self(), erlang:process_info(self(), message_queue_len)]),
-            NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
-            mailbox(NewMboxState);
-	{iheartbeat, ImplTagTs} ->
-	    %% WARNING: I am not sure about that
-	    %% Whenever a heartbeat first arrives into the system we have to send it to all nodes
-	    %% that this heartbeat satisfies their predicate. Is this correct? Or should we just
-	    %% send it to all the lowest nodes that handle it? In this case how do parent nodes
-	    %% in the tree learn about this heartbeat? On the other hand is it bad if they learn
-	    %% about a heartbeat before the messages of that type are really processed by their
-	    %% children nodes?
-	    %%
-	    %% NOTE (Current Implementation):
-	    %% Broadcast the heartbeat to all nodes who process tags related to this
-	    %% heartbeat (so if it satisfies their predicates). In order for this to be
-	    %% efficient, it assumes that predicates are not too broad in the sense that
-	    %% a node processes a message x iff pred(x) = true.
-            ConfTree = MboxState#mb_st.conf,
-	    broadcast_heartbeat(ImplTagTs, ConfTree),
-	    mailbox(MboxState);
-	{heartbeat, ImplTagTs} ->
-	    %% A heartbeat clears the buffer and updates the timers
-            Attachee = MboxState#mb_st.attachee,
-            Dependencies = MboxState#mb_st.deps,
-            BuffersTimers = MboxState#mb_st.buffers,
-	    NewBuffersTimers =
-		update_timers_clear_buffers(ImplTagTs, BuffersTimers, Dependencies, Attachee),
-	    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewBuffersTimers]),
-            NewMboxState = MboxState#mb_st{buffers = NewBuffersTimers},
-            mailbox(NewMboxState);
-	{get_message_log, ReplyTo} ->
-            Attachee = MboxState#mb_st.attachee,
-            BuffersTimers = MboxState#mb_st.buffers,
-	    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was asked for throughput.~n"
-			      " -- Its erl_mailbox_size is: ~p~n"
-			      " -- Its buffer mailbox size is: ~p~n",
-			      [util:local_timestamp(),self(), node(),
-			       erlang:process_info(self(), message_queue_len),
-			       buffers_length(BuffersTimers)]),
-	    Attachee ! {get_message_log, ReplyTo},
-	    mailbox(MboxState);
-        What ->
-            %% Mailboxes should never receive anything else. If they
-            %% do they should report it and crash immediatelly.
-            log_mod:debug_log("Ts: ~s -- ERROR! Mailbox ~p in ~p received unknown message format: ~p~n",
-			      [util:local_timestamp(),self(), node(), What]),
-            error({unknown_message_format, What})
-    end.
+
+
+%%
+%% Internal Mailbox functions
+%%
+
 
 %% This function handles a message, by updating the relative buffers
 %% and timers, and by clearing buffers.
