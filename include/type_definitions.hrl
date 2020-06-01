@@ -102,11 +102,14 @@
 %%
 
 %% This is a record of the mailbox state
--record(mb_st, {buffers :: buffers_timers(),
-                deps :: impl_dependencies(),
+-record(mb_st, {buffers :: buffers_timers() | 'uninitialized',
+                deps :: impl_dependencies() | 'uninitialized',
                 pred :: impl_message_predicate(),
                 attachee :: pid(),
-                conf :: configuration()}).
+                conf :: configuration() | 'uninitialized',
+                %% Used for initialization
+                all_deps :: dependencies(),
+                impl_tags :: impl_tags()}).
 -type mailbox_state() :: #mb_st{}.
 
 %%

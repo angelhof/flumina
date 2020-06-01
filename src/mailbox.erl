@@ -1,7 +1,10 @@
 -module(mailbox).
+-behaviour(gen_server).
 
--export([init_mailbox/6,
+-export([start_link/6,
          send_to_mailbox/2]).
+
+-export([init/1, handle_cast/2, handle_info/2]).
 
 -include("type_definitions.hrl").
 -include("config.hrl").
@@ -12,10 +15,23 @@
 %%
 
 %% Blocking call to send a message or merge request to a mailbox
--spec send_to_mailbox(mailbox(), gen_message_or_merge() | gen_imessage_or_iheartbeat()) -> 'ok'.
+-spec send_to_mailbox(mailbox(),
+                      gen_message_or_merge() |
+                      gen_imessage_or_iheartbeat() |
+                      gen_heartbeat()) -> 'ok'.
 send_to_mailbox(SendTo, Message) ->
     %% TODO: Change that to be blocking.
-    SendTo ! Message,
+    gen_server:cast(SendTo, Message).
+
+-spec start_link(atom(), dependencies(), impl_message_predicate(), pid(),
+                 mailbox(), impl_tags()) -> 'ok'.
+start_link(Name, Dependencies, Pred, Attachee, Master, ImplTags) ->
+    %% TODO: Investigate start_link options. For example, we can debug, get statistics, etc...
+    {ok, Pid} =
+        gen_server:start_link({local, Name}, % register the mailbox to have a name
+                              ?MODULE,
+                              {Dependencies, Pred, Attachee, ImplTags}, []),
+    Master ! {registered, Name},
     ok.
 
 
@@ -23,63 +39,22 @@ send_to_mailbox(SendTo, Message) ->
 %% Mailbox
 %%
 
--spec init_mailbox(atom(), dependencies(), impl_message_predicate(), pid(),
-		   mailbox(), impl_tags()) -> no_return().
-init_mailbox(Name, Dependencies, Pred, Attachee, Master, ImplTags) ->
+-spec init({dependencies(), impl_message_predicate(), pid(), impl_tags()})
+          -> {'ok', mailbox_state()}.
+init({Dependencies, Pred, Attachee, ImplTags}) ->
     log_mod:init_debug_log(),
-    %% Register the mailbox to have a name
-    true = register(Name, self()),
-    Master ! {registered, Name},
-
     %% Set the priority of the mailboxes to high, so that it can handle tis messages.
     %% erlang:process_flag(priority, high),
 
-    %% Before executing the main loop receive the
-    %% Configuration tree, which can only be received
-    %% after all the nodes have already been spawned
-    receive
-	{configuration, ConfTree} ->
-	    Attachee ! {configuration, ConfTree},
+    MboxState = #mb_st{buffers = uninitialized,
+                       deps = uninitialized,
+                       pred = Pred,
+                       attachee = Attachee,
+                       conf = uninitialized,
+                       all_deps = Dependencies,
+                       impl_tags = ImplTags},
+    {'ok', MboxState}.
 
-	    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p received configuration~n",
-			      [util:local_timestamp(),self(), node()]),
-	    %% The dependencies are used to clear messages from the buffer,
-	    %% When we know that we have received all dependent messages to
-	    %% after a time t, then we can release all messages {m, t', v}
-	    %% where t' \leq t.
-	    %%
-	    %% Assumption:
-	    %% The parent nodes don't need to get heartbeats from the
-	    %% messages that are processed by their children nodes, because
-	    %% they will learn about them either way when they ask for a merge.
-	    %% Because of that, it is safe to remove the dependencies that have to
-	    %% do with messages that our children handle.
-	    %%
-	    %% Is the above assumption correct?
-	    %%
-	    %% WARNING: Each node's predicate shows which messages this specific
-	    %%          node handles, so in we have to remove from the dependencies
-	    %%          all the messages that our descendants handle, so the union
-	    %%          of all our descendants predicates.
-	    %%
-	    %% WARNING: At the moment dependencies are represented with tags,
-	    %%          but we also have predicates. We need to decide and
-	    %%          use one or the other.
-
-	    RelevantDependencies =
-		filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags),
-
-	    %% All the tags that we depend on
-	    AllDependingImplTags = lists:flatten(maps:values(RelevantDependencies)),
-	    Timers = maps:from_list([{T, 0} || T <-  AllDependingImplTags]),
-	    Buffers = maps:from_list([{T, queue:new()} || T <-  AllDependingImplTags]),
-            MboxState = #mb_st{buffers = {Buffers, Timers},
-                               deps = RelevantDependencies,
-                               pred = Pred,
-                               attachee = Attachee,
-                               conf = ConfTree},
-	    mailbox(MboxState)
-    end.
 
 %%
 %% The mailbox works by releasing messages (and merge requests) when
@@ -139,6 +114,155 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 %% This is the mailbox process that routes to
 %% their correct nodes and makes sure that
 %% dependent messages arrive in order
+
+%% TODO: Remember to have no timeouts
+%% handle_call(alloc, _From, Chs) ->
+%%     {Ch, Chs2} = alloc(Chs),
+%%     {reply, Ch, Chs2}.
+
+%% Explanation:
+%% The messages that first enter the system contain an
+%% imsg tag. Then they are sent to a node that can
+%% handle them, and they get a msg tag.
+handle_cast({imsg, Msg}, MboxState) ->
+    %% Explanation:
+    %% Whenever a message arrives to the mailbox of a process
+    %% this process has to decide whether it will process it or
+    %% not. This depends on:
+    %% - If the process can process it. If it doesn't satisfy its
+    %%   predicate then, it cannot really process it.
+    %% - If it has children processes in the tree, it should route
+    %%   the message to a lower node, as only leaf processes process
+    %%   and a message must be handled by (one of) the lowest process
+    %%   in the tree that can handle it.
+    ConfTree = MboxState#mb_st.conf,
+    route_message_and_merge_requests(Msg, ConfTree),
+    {noreply, MboxState};
+handle_cast({msg, Msg}, MboxState) ->
+    Pred = MboxState#mb_st.pred,
+    case Pred(Msg) of
+        false ->
+            %% This should be unreachable because all the messages
+            %% are routed to a node that can indeed handle them
+            log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was sent msg: ~p ~n"
+                              "  that doesn't satisfy its predicate.~n",
+                              [util:local_timestamp(),self(), node(), Msg]),
+            Attachee = MboxState#mb_st.attachee,
+            util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
+            {stop, pred_not_satisfied, MboxState};
+        true ->
+            NewMboxState = handle_message({msg, Msg}, MboxState),
+            {noreply, NewMboxState}
+    end;
+handle_cast({merge, {{Tag, Father}, Node, Ts}} = MergeReq, MboxState) ->
+    %% A merge requests acts as two different messages in our model.
+    %% - A heartbeat message, because it shows that some ancestor has
+    %%   received all messages with Tag until Ts. Because of that we
+    %%   need to clear the buffer with it as if it was a heartbeat.
+    %% - A message that will be processed like every other message (after
+    %%   its dependencies are dealt with), so we have to add it to the buffer
+    %%   like we do with every other message
+    ImplTag = {Tag, Node},
+    BuffersTimers = MboxState#mb_st.buffers,
+    Attachee = MboxState#mb_st.attachee,
+    Dependencies = MboxState#mb_st.deps,
+    NewBuffersTimers = add_to_buffers_timers(MergeReq, BuffersTimers),
+    ClearedBuffersTimers =
+        update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
+    %% io:format("~p -- After Merge: ~p~n", [self(), ClearedBuffersTimers]),
+    %% io:format("~p -- ~p~n", [self(), erlang:process_info(self(), message_queue_len)]),
+    NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
+    {noreply, NewMboxState};
+handle_cast({iheartbeat, ImplTagTs}, MboxState) ->
+    %% WARNING: I am not sure about that
+    %% Whenever a heartbeat first arrives into the system we have to send it to all nodes
+    %% that this heartbeat satisfies their predicate. Is this correct? Or should we just
+    %% send it to all the lowest nodes that handle it? In this case how do parent nodes
+    %% in the tree learn about this heartbeat? On the other hand is it bad if they learn
+    %% about a heartbeat before the messages of that type are really processed by their
+    %% children nodes?
+    %%
+    %% NOTE (Current Implementation):
+    %% Broadcast the heartbeat to all nodes who process tags related to this
+    %% heartbeat (so if it satisfies their predicates). In order for this to be
+    %% efficient, it assumes that predicates are not too broad in the sense that
+    %% a node processes a message x iff pred(x) = true.
+    ConfTree = MboxState#mb_st.conf,
+    broadcast_heartbeat(ImplTagTs, ConfTree),
+    {noreply, MboxState};
+handle_cast({heartbeat, ImplTagTs}, MboxState) ->
+    %% A heartbeat clears the buffer and updates the timers
+    Attachee = MboxState#mb_st.attachee,
+    Dependencies = MboxState#mb_st.deps,
+    BuffersTimers = MboxState#mb_st.buffers,
+    NewBuffersTimers =
+        update_timers_clear_buffers(ImplTagTs, BuffersTimers, Dependencies, Attachee),
+    %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewBuffersTimers]),
+    NewMboxState = MboxState#mb_st{buffers = NewBuffersTimers},
+    {noreply, NewMboxState}.
+
+handle_info({get_message_log, ReplyTo}, MboxState) ->
+    Attachee = MboxState#mb_st.attachee,
+    BuffersTimers = MboxState#mb_st.buffers,
+    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was asked for throughput.~n"
+                      " -- Its erl_mailbox_size is: ~p~n"
+                      " -- Its buffer mailbox size is: ~p~n",
+                      [util:local_timestamp(),self(), node(),
+                       erlang:process_info(self(), message_queue_len),
+                       buffers_length(BuffersTimers)]),
+    Attachee ! {get_message_log, ReplyTo},
+    {noreply, MboxState};
+handle_info({configuration, ConfTree}, UninitializedMboxState) ->
+    %% Before executing the main loop receive the
+    %% Configuration tree, which can only be received
+    %% after all the nodes have already been spawned
+    Attachee = UninitializedMboxState#mb_st.attachee,
+    Dependencies = UninitializedMboxState#mb_st.all_deps,
+    ImplTags = UninitializedMboxState#mb_st.impl_tags,
+    Attachee ! {configuration, ConfTree},
+    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p received configuration~n",
+                      [util:local_timestamp(),self(), node()]),
+    %% The dependencies are used to clear messages from the buffer,
+    %% When we know that we have received all dependent messages to
+    %% after a time t, then we can release all messages {m, t', v}
+    %% where t' \leq t.
+    %%
+    %% Assumption:
+    %% The parent nodes don't need to get heartbeats from the
+    %% messages that are processed by their children nodes, because
+    %% they will learn about them either way when they ask for a merge.
+    %% Because of that, it is safe to remove the dependencies that have to
+    %% do with messages that our children handle.
+    %%
+    %% Is the above assumption correct?
+    %%
+    %% WARNING: Each node's predicate shows which messages this specific
+    %%          node handles, so in we have to remove from the dependencies
+    %%          all the messages that our descendants handle, so the union
+    %%          of all our descendants predicates.
+    %%
+    %% WARNING: At the moment dependencies are represented with tags,
+    %%          but we also have predicates. We need to decide and
+    %%          use one or the other.
+
+    RelevantDependencies =
+        filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags),
+
+    %% All the tags that we depend on
+    AllDependingImplTags = lists:flatten(maps:values(RelevantDependencies)),
+    Timers = maps:from_list([{T, 0} || T <-  AllDependingImplTags]),
+    Buffers = maps:from_list([{T, queue:new()} || T <-  AllDependingImplTags]),
+    MboxState = UninitializedMboxState#mb_st{buffers = {Buffers, Timers},
+                                             deps = RelevantDependencies,
+                                             conf = ConfTree},
+    {noreply, MboxState};
+handle_info(What, MboxState) ->
+    %% Mailboxes should never receive anything else. If they
+    %% do they should report it and crash immediatelly.
+    log_mod:debug_log("Ts: ~s -- ERROR! Mailbox ~p in ~p received unknown message format: ~p~n",
+                      [util:local_timestamp(),self(), node(), What]),
+    {stop, {unknown_message_format, What}, MboxState}.
+
 -spec mailbox(mailbox_state()) -> no_return().
 mailbox(MboxState) ->
     receive
@@ -437,13 +561,13 @@ route_message_and_merge_requests(Msg, ConfTree) ->
 
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
--spec broadcast_heartbeat({impl_tag(), integer()}, configuration()) -> [gen_heartbeat()].
+-spec broadcast_heartbeat({impl_tag(), integer()}, configuration()) -> ['ok'].
 broadcast_heartbeat({ImplTag, Ts}, ConfTree) ->
     {Tag, Node} = ImplTag,
     %% WARNING: WE HAVE MADE THE ASSUMPTION THAT EACH ROOT NODE PROCESSES A DIFFERENT
     %%          SET OF TAGS. SO THE OR-SPLIT NEVER REALLY CHOOSES BETWEEN TWO AT THE MOMENT
     Pids = router:find_responsible_subtree_pids(ConfTree, {{Tag, heartbeat}, Node, Ts}),
-    [To ! {heartbeat, {ImplTag, Ts}} || To <- Pids].
+    [send_to_mailbox(To, {heartbeat, {ImplTag, Ts}}) || To <- Pids].
     %% Old implementation of broadcast heartbeat
     %% AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
     %% [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].
