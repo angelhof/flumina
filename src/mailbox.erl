@@ -28,7 +28,7 @@ send_message_to_mailbox(SendTo, Message) ->
                  mailbox(), impl_tags()) -> 'ok'.
 start_link(Name, Dependencies, Pred, Attachee, Master, ImplTags) ->
     %% TODO: Investigate start_link options. For example, we can debug, get statistics, etc...
-    {ok, Pid} =
+    {ok, _Pid} =
         gen_server:start_link({local, Name}, % register the mailbox to have a name
                               ?MODULE,
                               {Dependencies, Pred, Attachee, ImplTags}, []),
@@ -120,7 +120,7 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 %% The messages that first enter the system contain an
 %% imsg tag. Then they are sent to a node that can
 %% handle them, and they get a msg tag.
-handle_call({imsg, Msg}, _From, MboxState) ->
+handle_call({imsg, Msg}, From, MboxState) ->
     %% Explanation:
     %% Whenever a message arrives to the mailbox of a process
     %% this process has to decide whether it will process it or
@@ -154,7 +154,7 @@ handle_call({imsg, Msg}, _From, MboxState) ->
     end.
 
 
-handle_cast({merge, {{Tag, Father}, Node, Ts}} = MergeReq, MboxState) ->
+handle_cast({merge, {{Tag, _Father}, Node, Ts}} = MergeReq, MboxState) ->
     %% A merge requests acts as two different messages in our model.
     %% - A heartbeat message, because it shows that some ancestor has
     %%   received all messages with Tag until Ts. Because of that we
@@ -206,10 +206,11 @@ handle_info({get_message_log, ReplyTo}, MboxState) ->
     BuffersTimers = MboxState#mb_st.buffers,
     log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was asked for throughput.~n"
                       " -- Its erl_mailbox_size is: ~p~n"
-                      " -- Its buffer mailbox size is: ~p~n",
+                      " -- Its buffer mailbox size is: ~p~n"
+                      " -- The total buffer size is: ~p~n",
                       [util:local_timestamp(),self(), node(),
                        erlang:process_info(self(), message_queue_len),
-                       buffers_length(BuffersTimers)]),
+                       buffers_length(BuffersTimers), element(3, BuffersTimers)]),
     Attachee ! {get_message_log, ReplyTo},
     {noreply, MboxState};
 handle_info({configuration, ConfTree}, UninitializedMboxState) ->
@@ -252,7 +253,7 @@ handle_info({configuration, ConfTree}, UninitializedMboxState) ->
     AllDependingImplTags = lists:flatten(maps:values(RelevantDependencies)),
     Timers = maps:from_list([{T, 0} || T <-  AllDependingImplTags]),
     Buffers = maps:from_list([{T, queue:new()} || T <-  AllDependingImplTags]),
-    MboxState = UninitializedMboxState#mb_st{buffers = {Buffers, Timers},
+    MboxState = UninitializedMboxState#mb_st{buffers = {Buffers, Timers, 0},
                                              deps = RelevantDependencies,
                                              conf = ConfTree},
     {noreply, MboxState};
@@ -300,7 +301,7 @@ handle_message({msg, Msg}, MboxState) ->
 %% shouldn't have any associated buffer or timer, since those would
 %% have been cleared in the filter_relevant dependencies function.
 -spec is_completely_independent(gen_impl_message(), buffers_timers()) -> boolean().
-is_completely_independent({{Tag, _Pld}, Node, _Ts}, {Buffers, _Timers}) ->
+is_completely_independent({{Tag, _Pld}, Node, _Ts}, {Buffers, _Timers, _Size}) ->
     ImplTag = {Tag, Node},
     not maps:is_key(ImplTag, Buffers).
 
@@ -308,7 +309,7 @@ is_completely_independent({{Tag, _Pld}, Node, _Ts}, {Buffers, _Timers}) ->
 %% any buffer that depends on this tag
 -spec update_timers_clear_buffers({impl_tag(), integer()}, buffers_timers(), impl_dependencies(), pid())
 				 -> buffers_timers().
-update_timers_clear_buffers({ImplTag, Ts}, {Buffers, Timers}, ImplDeps, Attachee) ->
+update_timers_clear_buffers({ImplTag, Ts}, {Buffers, Timers, Size}, ImplDeps, Attachee) ->
     %% A new message always updates the timers (As we assume that
     %% messages of the same tag all arrive from the same channel,
     %% and that channels are FIFO)
@@ -321,7 +322,7 @@ update_timers_clear_buffers({ImplTag, Ts}, {Buffers, Timers}, ImplDeps, Attachee
     %%       this tag doesn't depend on itself, then it will stay
     %%       in the buffer and not be initiated
     ImplTagDeps = maps:get(ImplTag, ImplDeps),
-    clear_buffers([ImplTag|ImplTagDeps], {Buffers, NewTimers}, ImplDeps, Attachee).
+    clear_buffers([ImplTag|ImplTagDeps], {Buffers, NewTimers, Size}, ImplDeps, Attachee).
 
 
 %% This function tries to clear the buffer of every tag in
@@ -347,7 +348,7 @@ clear_buffers([WorkTag|WorkSet], BuffersTimers, Deps, Attachee) ->
 %% as the new worktags if any message is released.
 -spec clear_tag_buffer(impl_tag(), buffers_timers(), impl_dependencies(), pid())
 		      -> {[impl_tag()], buffers_timers()}.
-clear_tag_buffer(ImplWorkTag, {Buffers, Timers}, ImplDeps, Attachee) ->
+clear_tag_buffer(ImplWorkTag, {Buffers, Timers, Size}, ImplDeps, Attachee) ->
     Buffer = maps:get(ImplWorkTag, Buffers),
     %% We exclude the worktag from the dependencies, because
     %% each message that we will check will be the earliest of its tag
@@ -355,29 +356,29 @@ clear_tag_buffer(ImplWorkTag, {Buffers, Timers}, ImplDeps, Attachee) ->
     %% Also we don't want to return it as a new work tag
     %% because we just released all its messages
     ImplTagDeps = maps:get(ImplWorkTag, ImplDeps) -- [ImplWorkTag],
-    case clear_buffer(Buffer, {Buffers, Timers}, ImplTagDeps, Attachee) of
-	{released, NewBuffer} ->
+    case clear_buffer(Buffer, {Buffers, Timers, Size}, ImplTagDeps, Attachee) of
+        {0, _} ->
+	    {[], {Buffers, Timers, Size}};
+        {Released, NewBuffer} ->
 	    NewBuffers = maps:update(ImplWorkTag, NewBuffer, Buffers),
-	    {ImplTagDeps, {NewBuffers, Timers}};
-	{not_released, _} ->
-	    {[], {Buffers, Timers}}
+	    {ImplTagDeps, {NewBuffers, Timers, Size - Released}}
     end.
 
 -spec clear_buffer(buffer(), buffers_timers(), [impl_tag()], pid())
-		   -> {'released' | 'not_released', buffer()}.
-clear_buffer(Buffer, {Buffers, Timers}, ImplTagDeps, Attachee) ->
-    clear_buffer(Buffer, {Buffers, Timers}, ImplTagDeps, Attachee, not_released).
+		   -> {Released::integer(), buffer()}.
+clear_buffer(Buffer, BuffersTimers, ImplTagDeps, Attachee) ->
+    clear_buffer(Buffer, BuffersTimers, ImplTagDeps, Attachee, 0).
 
--spec clear_buffer(buffer(), buffers_timers(), [impl_tag()], pid(), 'released' | 'not_released')
-		   -> {'released' | 'not_released', buffer()}.
-clear_buffer(Buffer, {Buffers, Timers}, ImplTagDeps, Attachee, AnyReleased) ->
+-spec clear_buffer(buffer(), buffers_timers(), [impl_tag()], pid(), integer())
+		   -> {Released::integer(), buffer()}.
+clear_buffer(Buffer, {Buffers, Timers, Size}, ImplTagDeps, Attachee, AnyReleased) ->
     case queue:out(Buffer) of
 	{empty, Buffer} ->
 	    {AnyReleased, Buffer};
 	{{value, Msg}, Rest} ->
-	    case maybe_release_message(Msg, {Buffers, Timers}, ImplTagDeps, Attachee) of
+	    case maybe_release_message(Msg, {Buffers, Timers, Size}, ImplTagDeps, Attachee) of
 		released ->
-		    clear_buffer(Rest, {Buffers, Timers}, ImplTagDeps, Attachee, released);
+		    clear_buffer(Rest, {Buffers, Timers, Size}, ImplTagDeps, Attachee, AnyReleased + 1);
 		not_released ->
 		    {AnyReleased, Buffer}
 	    end
@@ -387,7 +388,7 @@ clear_buffer(Buffer, {Buffers, Timers}, ImplTagDeps, Attachee, AnyReleased) ->
 %% This function checks whether to release a message
 -spec maybe_release_message(gen_message_or_merge(), buffers_timers(), [impl_tag()], pid())
 			   -> 'released' | 'not_released'.
-maybe_release_message(Msg, {Buffers, Timers}, ImplTagDeps, Attachee) ->
+maybe_release_message(Msg, {Buffers, Timers, _Size}, ImplTagDeps, Attachee) ->
     {_MsgOrMerge, {{Tag, _Payload}, Node, Ts}} = Msg,
     ImplTag = {Tag, Node},
     %% 1. All its dependent timers must be higher than the
@@ -421,16 +422,16 @@ empty_or_later({ImplTag, Ts}, Buffer) ->
 
 %% This function inserts a newly arrived message to the buffers
 -spec add_to_buffers_timers(gen_message_or_merge(), buffers_timers()) -> buffers_timers().
-add_to_buffers_timers(Msg, {Buffers, Timers}) ->
+add_to_buffers_timers(Msg, {Buffers, Timers, N}) ->
     {_MsgOrMerge, {{Tag, _Payload}, Node, _Ts}} = Msg,
     ImplTag = {Tag, Node},
     Buffer = maps:get(ImplTag, Buffers),
     NewBuffer = add_to_buffer(Msg, Buffer),
     NewBuffers = maps:update(ImplTag, NewBuffer, Buffers),
-    {NewBuffers, Timers}.
+    {NewBuffers, Timers, N+1}.
 
 -spec buffers_length(buffers_timers()) -> #{impl_tag() := integer()}.
-buffers_length({Buffers, _Timers}) ->
+buffers_length({Buffers, _Timers, _Size}) ->
     maps:map(
       fun(_ImplTag, Buffer) ->
 	      queue:len(Buffer)
@@ -450,7 +451,7 @@ send_merge_requests(Msg, ConfTree) ->
     %% TODO: Optimize! This is called once for every message and
     %% find_responsible_subtree_child_father_pids is too slow because
     %% it searches the whole tree per message.
-    {{SendTo, root}, Rest} = router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
+    {{_Root, root}, Rest} = router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
     {{Tag,  _Payload}, Node, Ts} = Msg,
     [send_to_mailbox(To, {merge, {{Tag, ToFather}, Node, Ts}}) || {To, ToFather} <- Rest],
     ok.

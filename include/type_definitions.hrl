@@ -83,7 +83,7 @@
 -type timers() :: #{impl_tag() := [integer()]}.
 -type buffer() :: queue:queue(gen_message_or_merge()).
 -type buffers() :: #{impl_tag() := buffer()}.
--type buffers_timers() :: {buffers(), timers()}.
+-type buffers_timers() :: {buffers(), timers(), Size::integer()}.
 
 -type mailbox() :: {Name::atom(), node()}.
 -type node_and_mailbox() :: {NodeName::atom(), MailboxName::atom(), node()}.
