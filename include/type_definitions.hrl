@@ -88,6 +88,9 @@
 -type mailbox() :: {Name::atom(), node()}.
 -type node_and_mailbox() :: {NodeName::atom(), MailboxName::atom(), node()}.
 
+%% The 'From' when a client calls a gen server
+-type client_pid() :: {pid(), Tag::any()}.
+
 -type children_predicates() :: {[message_predicate()], [impl_message_predicate()]}.
 
 -type impl_dependencies() :: #{impl_tag() := [impl_tag()]}.
@@ -111,6 +114,7 @@
                 pred :: impl_message_predicate(),
                 attachee :: pid(),
                 conf :: configuration() | 'uninitialized',
+                blocked_prods :: [client_pid()],
                 %% Used for initialization
                 all_deps :: dependencies(),
                 impl_tags :: impl_tags()}).

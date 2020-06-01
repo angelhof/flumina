@@ -15,6 +15,16 @@
 -define(ASYNC_MESSAGE_LOGGER_BUFFER_SIZE, 100).
 -endif.
 
+-ifndef(MBOX_BUFFER_SIZE_LIMIT).
+-define(MBOX_BUFFER_SIZE_LIMIT, 10000).
+-endif.
+
+-ifndef(MBOX_BACKPRESSURE).
+-define(MBOX_BACKPRESSURE, true).
+-endif.
+
+
+
 %% This time is not monotonic, however it can be used to synchronize
 %% processes residing in different machines. Erlang monotonic time is
 %% unique to one erlang vm and does not have anything to do with the

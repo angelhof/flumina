@@ -52,6 +52,7 @@ init({Dependencies, Pred, Attachee, ImplTags}) ->
                        pred = Pred,
                        attachee = Attachee,
                        conf = uninitialized,
+                       blocked_prods = [],
                        all_deps = Dependencies,
                        impl_tags = ImplTags},
     {'ok', MboxState}.
@@ -150,7 +151,31 @@ handle_call({imsg, Msg}, From, MboxState) ->
             {stop, pred_not_satisfied, MboxState};
         true ->
             NewMboxState = handle_message({msg, Msg}, MboxState),
-            {reply, ok, NewMboxState}
+            case ?MBOX_BACKPRESSURE andalso is_mbox_buffer_full(NewMboxState) of
+                true ->
+                    %% If the buffer is full, then we should not
+                    %% respond to the producer so that it waits until
+                    %% it sends the next message
+                    FinalMboxState = add_blocked_producer(From, NewMboxState),
+                    %% WARNING: Could this ever deadlock? I think not
+                    %% because we block each producer separately, so a
+                    %% dependent producer will always be able to send
+                    %% a message to unblock things. Also heartbeats
+                    %% are still allowed.
+                    %%
+                    %% TODO: Figure if there can be any deadlock, and
+                    %% if so, make the backpressure system more
+                    %% elaborate, in the sense that it should never be
+                    %% the case that all producers are blocked.
+                    %%
+                    %% Solving this problem properly might be a
+                    %% significant contribution!
+                    {noreply, FinalMboxState};
+                false ->
+                    %% If the buffer is not full, we can let the
+                    %% producer know to keep sending messages
+                    {reply, ok, NewMboxState}
+            end
     end.
 
 
@@ -164,14 +189,12 @@ handle_cast({merge, {{Tag, _Father}, Node, Ts}} = MergeReq, MboxState) ->
     %%   like we do with every other message
     ImplTag = {Tag, Node},
     BuffersTimers = MboxState#mb_st.buffers,
-    Attachee = MboxState#mb_st.attachee,
-    Dependencies = MboxState#mb_st.deps,
     NewBuffersTimers = add_to_buffers_timers(MergeReq, BuffersTimers),
-    ClearedBuffersTimers =
-        update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
+    TempMboxState = MboxState#mb_st{buffers = NewBuffersTimers},
+    NewMboxState =
+        update_timers_clear_buffers({ImplTag, Ts}, TempMboxState),
     %% io:format("~p -- After Merge: ~p~n", [self(), ClearedBuffersTimers]),
     %% io:format("~p -- ~p~n", [self(), erlang:process_info(self(), message_queue_len)]),
-    NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
     {noreply, NewMboxState};
 handle_cast({iheartbeat, ImplTagTs}, MboxState) ->
     %% WARNING: I am not sure about that
@@ -192,13 +215,9 @@ handle_cast({iheartbeat, ImplTagTs}, MboxState) ->
     {noreply, MboxState};
 handle_cast({heartbeat, ImplTagTs}, MboxState) ->
     %% A heartbeat clears the buffer and updates the timers
-    Attachee = MboxState#mb_st.attachee,
-    Dependencies = MboxState#mb_st.deps,
-    BuffersTimers = MboxState#mb_st.buffers,
-    NewBuffersTimers =
-        update_timers_clear_buffers(ImplTagTs, BuffersTimers, Dependencies, Attachee),
+    NewMboxState =
+        update_timers_clear_buffers(ImplTagTs, MboxState),
     %% io:format("Hearbeat: ~p -- NewMessagebuffer: ~p~n", [TagTs, NewBuffersTimers]),
-    NewMboxState = MboxState#mb_st{buffers = NewBuffersTimers},
     {noreply, NewMboxState}.
 
 handle_info({get_message_log, ReplyTo}, MboxState) ->
@@ -288,13 +307,8 @@ handle_message({msg, Msg}, MboxState) ->
             {{Tag, _Payload}, Node, Ts} = Msg,
             ImplTag = {Tag, Node},
             %% And we then clear the buffer based on it, as messages also act as heartbeats
-            Attachee = MboxState#mb_st.attachee,
-            Dependencies = MboxState#mb_st.deps,
-            ClearedBuffersTimers =
-                update_timers_clear_buffers({ImplTag, Ts}, NewBuffersTimers, Dependencies, Attachee),
-            %% NewMessageBuffer = add_to_buffer_or_send(Msg, MessageBuffer, Dependencies, Attachee),
-            %% io:format("Message: ~p -- NewMessagebuffer: ~p~n", [Msg, NewMessageBuffer]),
-            MboxState#mb_st{buffers = ClearedBuffersTimers}
+            TempMboxState = MboxState#mb_st{buffers = NewBuffersTimers},
+            update_timers_clear_buffers({ImplTag, Ts}, TempMboxState)
     end.
 
 %% If this specific message is completely independent, then it
@@ -305,11 +319,19 @@ is_completely_independent({{Tag, _Pld}, Node, _Ts}, {Buffers, _Timers, _Size}) -
     ImplTag = {Tag, Node},
     not maps:is_key(ImplTag, Buffers).
 
+-spec add_blocked_producer(client_pid(), mailbox_state()) -> mailbox_state().
+add_blocked_producer(From, MboxState) ->
+    BlockedProds = MboxState#mb_st.blocked_prods,
+    MboxState#mb_st{blocked_prods = [From|BlockedProds]}.
+
 %% This function updates the timer for the newly received tag and clears
 %% any buffer that depends on this tag
--spec update_timers_clear_buffers({impl_tag(), integer()}, buffers_timers(), impl_dependencies(), pid())
-				 -> buffers_timers().
-update_timers_clear_buffers({ImplTag, Ts}, {Buffers, Timers, Size}, ImplDeps, Attachee) ->
+-spec update_timers_clear_buffers({impl_tag(), integer()}, mailbox_state())
+				 -> mailbox_state().
+update_timers_clear_buffers({ImplTag, Ts}, MboxState) ->
+    Attachee = MboxState#mb_st.attachee,
+    ImplDeps = MboxState#mb_st.deps,
+    {Buffers, Timers, Size} = MboxState#mb_st.buffers,
     %% A new message always updates the timers (As we assume that
     %% messages of the same tag all arrive from the same channel,
     %% and that channels are FIFO)
@@ -322,7 +344,11 @@ update_timers_clear_buffers({ImplTag, Ts}, {Buffers, Timers, Size}, ImplDeps, At
     %%       this tag doesn't depend on itself, then it will stay
     %%       in the buffer and not be initiated
     ImplTagDeps = maps:get(ImplTag, ImplDeps),
-    clear_buffers([ImplTag|ImplTagDeps], {Buffers, NewTimers, Size}, ImplDeps, Attachee).
+    ClearedBuffersTimers =
+        clear_buffers([ImplTag|ImplTagDeps], {Buffers, NewTimers, Size}, ImplDeps, Attachee),
+    NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
+    unblock_producers_if_possible(NewMboxState).
+
 
 
 %% This function tries to clear the buffer of every tag in
@@ -437,6 +463,29 @@ buffers_length({Buffers, _Timers, _Size}) ->
 	      queue:len(Buffer)
       end, Buffers).
 
+-spec is_mbox_buffer_full(mailbox_state()) -> boolean().
+is_mbox_buffer_full(MboxState) ->
+    {_Buffers, _Timers, Size} = MboxState#mb_st.buffers,
+    Size > ?MBOX_BUFFER_SIZE_LIMIT.
+
+-spec unblock_producers_if_possible(mailbox_state()) -> mailbox_state().
+unblock_producers_if_possible(MboxState) ->
+    case is_mbox_buffer_full(MboxState) of
+        true ->
+            MboxState;
+        false ->
+            %% If the buffer is not full we can unblock any blocked producers
+            unblock_producers(MboxState)
+    end.
+
+-spec unblock_producers(mailbox_state()) -> mailbox_state().
+unblock_producers(MboxState) ->
+    BlockedProds = MboxState#mb_st.blocked_prods,
+    lists:foreach(
+      fun(Prod) ->
+              gen_server:reply(Prod, ok)
+      end, BlockedProds),
+    MboxState#mb_st{blocked_prods = []}.
 
 %% This function adds a newly arrived message to its buffer.
 %% As messages arrive from the same channel, we can be certain that
