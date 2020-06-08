@@ -52,6 +52,7 @@ init({Dependencies, Pred, Attachee, ImplTags}) ->
                        pred = Pred,
                        attachee = Attachee,
                        conf = uninitialized,
+                       cached_recipients = uninitialized,
                        blocked_prods = [],
                        all_deps = Dependencies,
                        impl_tags = ImplTags},
@@ -112,6 +113,20 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
     %% %% io:format("Clean Deps:~p~n~p~n", [self(), Dependencies1]),
     %% Dependencies1.
 
+-spec find_impl_tag_recipients(impl_dependencies(), configuration()) -> impl_tag_subtree_mailbox_pairs().
+find_impl_tag_recipients(Dependencies, ConfTree) ->
+    ImplTags = maps:keys(Dependencies),
+    io:format("Implementation tags: ~p~n", [ImplTags]),
+    ImplTagsSubtreePairs =
+        [{ImplTag, find_subtree_for_impl_tag(ImplTag, ConfTree)}  || ImplTag <- ImplTags],
+    io:format("Implementation tags recipients: ~p~n", [ImplTagsSubtreePairs]),
+    maps:from_list(ImplTagsSubtreePairs).
+
+-spec find_subtree_for_impl_tag(impl_tag(), configuration()) -> subtree_mailbox_pairs().
+find_subtree_for_impl_tag(ImplTag, ConfTree) ->
+    {Tag, Node} = ImplTag,
+    FakeMsg = {{Tag, stub}, Node, 0},
+    router:find_responsible_subtree_child_father_pids(ConfTree, FakeMsg).
 
 %% This is the mailbox process that routes to
 %% their correct nodes and makes sure that
@@ -132,8 +147,7 @@ handle_call({imsg, Msg}, From, MboxState) ->
     %%   the message to a lower node, as only leaf processes process
     %%   and a message must be handled by (one of) the lowest process
     %%   in the tree that can handle it.
-    ConfTree = MboxState#mb_st.conf,
-    send_merge_requests(Msg, ConfTree),
+    send_merge_requests(Msg, MboxState),
 
     %% ASSUMPTION: With the current setup, producers only produce one
     %% tag, and so they should already know where to send messages. So
@@ -215,8 +229,7 @@ handle_cast({iheartbeat, ImplTagTs}, MboxState) ->
     %% heartbeat (so if it satisfies their predicates). In order for this to be
     %% efficient, it assumes that predicates are not too broad in the sense that
     %% a node processes a message x iff pred(x) = true.
-    ConfTree = MboxState#mb_st.conf,
-    broadcast_heartbeat(ImplTagTs, ConfTree),
+    broadcast_heartbeat(ImplTagTs, MboxState),
     {noreply, MboxState};
 handle_cast({heartbeat, ImplTagTs}, MboxState) ->
     %% A heartbeat clears the buffer and updates the timers
@@ -273,13 +286,17 @@ handle_info({configuration, ConfTree}, UninitializedMboxState) ->
     RelevantDependencies =
         filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags),
 
+    CachedRecipients =
+        find_impl_tag_recipients(RelevantDependencies, ConfTree),
+
     %% All the tags that we depend on
     AllDependingImplTags = lists:flatten(maps:values(RelevantDependencies)),
     Timers = maps:from_list([{T, 0} || T <-  AllDependingImplTags]),
     Buffers = maps:from_list([{T, queue:new()} || T <-  AllDependingImplTags]),
     MboxState = UninitializedMboxState#mb_st{buffers = {Buffers, Timers, 0},
                                              deps = RelevantDependencies,
-                                             conf = ConfTree},
+                                             conf = ConfTree,
+                                             cached_recipients = CachedRecipients},
     {noreply, MboxState};
 handle_info(What, MboxState) ->
     %% Mailboxes should never receive anything else. If they
@@ -500,26 +517,31 @@ add_to_buffer(Msg, Buffer) ->
     queue:in(Msg, Buffer).
 
 %% This function sends merge request to the whole subtree that is responsible for a message
--spec send_merge_requests(gen_impl_message(), configuration()) -> 'ok'.
-send_merge_requests(Msg, ConfTree) ->
-    %% TODO: Optimize! This is called once for every message and
-    %% find_responsible_subtree_child_father_pids is too slow because
-    %% it searches the whole tree per message.
-    {{_Root, root}, Rest} = router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
+-spec send_merge_requests(gen_impl_message(), mailbox_state()) -> 'ok'.
+send_merge_requests(Msg, MboxState) ->
+    {{_Root, root}, Rest} = find_merge_recipients(Msg, MboxState),
     {{Tag,  _Payload}, Node, Ts} = Msg,
     [send_to_mailbox(To, {merge, {{Tag, ToFather}, Node, Ts}}) || {To, ToFather} <- Rest],
     ok.
 
+-spec find_merge_recipients(gen_impl_message(), mailbox_state()) -> subtree_mailbox_pairs().
+find_merge_recipients(Msg, MboxState) ->
+    {{Tag,  _Payload}, Node, _Ts} = Msg,
+    ImplTag = {Tag, Node},
+    CachedRecipients = MboxState#mb_st.cached_recipients,
+    maps:get(ImplTag, CachedRecipients).
+    %% router:find_responsible_subtree_child_father_pids(ConfTree, Msg),
 
 %% Broadcasts the heartbeat to those who are responsible for it
 %% Responsible is the beta-mapping or the predicate (?) are those the same?
--spec broadcast_heartbeat({impl_tag(), integer()}, configuration()) -> ['ok'].
-broadcast_heartbeat({ImplTag, Ts}, ConfTree) ->
+-spec broadcast_heartbeat({impl_tag(), integer()}, mailbox_state()) -> ['ok'].
+broadcast_heartbeat({ImplTag, Ts}, MboxState) ->
     {Tag, Node} = ImplTag,
-    %% WARNING: WE HAVE MADE THE ASSUMPTION THAT EACH ROOT NODE PROCESSES A DIFFERENT
-    %%          SET OF TAGS. SO THE OR-SPLIT NEVER REALLY CHOOSES BETWEEN TWO AT THE MOMENT
-    Pids = router:find_responsible_subtree_pids(ConfTree, {{Tag, heartbeat}, Node, Ts}),
+    {Root, Rest} = find_merge_recipients({{Tag, heartbeat}, Node, Ts}, MboxState),
+    Pids = [Child || {Child, _Father} <- [Root|Rest]],
     [send_to_mailbox(To, {heartbeat, {ImplTag, Ts}}) || To <- Pids].
     %% Old implementation of broadcast heartbeat
+    %% WARNING: WE HAVE MADE THE ASSUMPTION THAT EACH ROOT NODE PROCESSES A DIFFERENT
+    %%          SET OF TAGS. SO THE OR-SPLIT NEVER REALLY CHOOSES BETWEEN TWO AT THE MOMENT
     %% AllPids = router:heartbeat_route({Tag, Ts, heartbeat}, ConfTree),
     %% [P ! {heartbeat, {Tag, Ts}} || P <- AllPids].

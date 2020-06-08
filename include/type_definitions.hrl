@@ -108,6 +108,11 @@
 %% Mailbox State
 %%
 
+-type subtree_mailbox_pairs() :: {{mailbox(), 'root'},
+                                  [{mailbox(), NodeFatherName::mailbox()}]}.
+
+-type impl_tag_subtree_mailbox_pairs() :: #{impl_tag() := subtree_mailbox_pairs()}.
+
 %% This is a record of the mailbox state
 -record(mb_st, {buffers :: buffers_timers() | 'uninitialized',
                 deps :: impl_dependencies() | 'uninitialized',
@@ -115,6 +120,7 @@
                 attachee :: pid(),
                 conf :: configuration() | 'uninitialized',
                 blocked_prods :: [client_pid()],
+                cached_recipients :: impl_tag_subtree_mailbox_pairs() | 'uninitialized',
                 %% Used for initialization
                 all_deps :: dependencies(),
                 impl_tags :: impl_tags()}).

@@ -92,6 +92,9 @@ find_responsible_subtree_root(Tree, Msg) ->
 %% subtrees for this message
 -spec find_responsible_subtree(configuration(), gen_impl_message()) -> configuration().
 find_responsible_subtree(Tree, Msg) ->
+    %% [ResponsibleSubtree] = find_lowest_responsible_subtrees(Tree, Msg),
+    %% ResponsibleSubtree.
+    %% TODO: Change that to only give one subtree.
     ResponsibleSubtrees = find_lowest_responsible_subtrees(Tree, Msg),
     %% WARNING: Extremely Inefficient
     Index = rand:uniform(length(ResponsibleSubtrees)),
