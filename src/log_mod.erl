@@ -41,7 +41,9 @@ initialize_message_logger_state(Prefix, Tags, Node) ->
 maybe_log_message({{Tag, _}, _, _} = Msg, Tags, Pid) ->
     case sets:is_element(Tag, Tags) of
 	true ->
-            Pid ! Msg,
+            CurrentTimestamp = ?GET_SYSTEM_TIME(),
+            PidNode = {self(), node()},
+            Pid ! {Msg, PidNode, CurrentTimestamp},
             ok;
 	false ->
 	    ok
@@ -93,10 +95,8 @@ message_logger_loop(IoDevice, Buffer, N) ->
         {'EXIT', _, _} ->
             %% If some linked process exits, then we have to empty buffer
             message_logger_loop(IoDevice, Buffer, ?ASYNC_MESSAGE_LOGGER_BUFFER_SIZE);
-        Msg ->
-            CurrentTimestamp = ?GET_SYSTEM_TIME(),
-            PidNode = {self(), node()},
-            Data = io_lib:format("~w~n", [{Msg, PidNode, CurrentTimestamp}]),
+        MsgToLog ->
+            Data = io_lib:format("~w~n", [MsgToLog]),
             message_logger_loop(IoDevice, [Data|Buffer], N+1)
     end.
 
