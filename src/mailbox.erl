@@ -168,6 +168,11 @@ handle_call({imsg, Msg}, From, MboxState) ->
                     %% elaborate, in the sense that it should never be
                     %% the case that all producers are blocked.
                     %%
+                    %% TODO: Solve this deadlock by keeping a
+                    %% different length size for each sender. Assuming
+                    %% that each sender sends messages in increasing
+                    %% order, this shouldn't deadlock.
+                    %%
                     %% Solving this problem properly might be a
                     %% significant contribution!
                     {noreply, FinalMboxState};
