@@ -25,11 +25,16 @@ init(State, {NodeName, MailboxName, Node}, Pred, {UpdateFun, SplitFun, MergeFun}
 	end,
     NodePid = spawn_link(Node, ?MODULE, init_worker,
 			 [State, Funs, LogTriple, NodeCheckpointFun, Output, NodeName, {master, node()}]),
-    _MailboxPid = spawn_link(Node, mailbox, init_mailbox,
+    _MailboxPid = spawn_link(Node, mailbox, start_link,
                              [MailboxName, Dependencies, Pred, NodePid, {master, node()}, ImplTags]),
     %% Make sure that the mailbox has registered its name
     receive
 	{registered, MailboxName} ->
+            %% Link the mailbox since now it is a gen_server
+            MailboxRemotePid = rpc:call(Node, erlang, whereis, [MailboxName]),
+            %% TODO: It might be better practice to monitor instead of
+            %% link a remote process. Investigate.
+            link(MailboxRemotePid),
             %% Make sure that the node is also registered
             receive
                 {registered, NodeName} ->
@@ -156,7 +161,7 @@ update_on_msg({Msg, _Node, _Ts} = _ImplMsg, State, Output, UFun) ->
     NewState = UFun(Msg, State, Output),
     NewState.
 
--spec respond_to_merge(pid(), State::any(), num_log_triple(), configuration())
+-spec respond_to_merge(mailbox(), State::any(), num_log_triple(), configuration())
 		      -> {num_log_state(), State::any()}.
 respond_to_merge(Father, State, LogTriple, ConfTree) ->
     %% We have to send our mailbox's pid to our parent

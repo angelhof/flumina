@@ -55,7 +55,7 @@
 -type impl_message(Tag, Payload) :: {message(Tag, Payload), node(), timestamp()}.
 -type gen_impl_message() :: impl_message(tag(), any()).
 
--type merge_request() :: {'merge', {{tag(), Father::pid()}, node(), timestamp()}}.
+-type merge_request() :: {'merge', {{tag(), Father::mailbox()}, node(), timestamp()}}.
 
 -type message_or_merge(Tag, Payload) :: {'msg', impl_message(Tag, Payload)} | merge_request().
 -type gen_message_or_merge() :: message_or_merge(tag(), any()).
@@ -63,11 +63,15 @@
 -type heartbeat(ImplTag) :: {'heartbeat', {ImplTag, timestamp()}}.
 -type iheartbeat(ImplTag) :: {'iheartbeat', {ImplTag, timestamp()}}.
 -type gen_heartbeat() :: heartbeat(impl_tag()).
+-type gen_iheartbeat() :: iheartbeat(impl_tag()).
 
 -type message_or_heartbeat(Tag, Payload) :: impl_message(Tag, Payload) | heartbeat(Tag).
 -type gen_message_or_heartbeat() :: message_or_heartbeat(tag(), any()).
 
--type imessage_or_iheartbeat(Tag, Payload) :: {'imsg', impl_message(Tag, Payload)}
+-type imessage(Tag, Payload) :: {'imsg', impl_message(Tag, Payload)}.
+-type gen_imessage() :: imessage(tag(), any()).
+
+-type imessage_or_iheartbeat(Tag, Payload) :: imessage(Tag, Payload)
 					    | iheartbeat(Tag).
 -type gen_imessage_or_iheartbeat() :: imessage_or_iheartbeat(tag(), any()).
 
@@ -79,10 +83,13 @@
 -type timers() :: #{impl_tag() := [integer()]}.
 -type buffer() :: queue:queue(gen_message_or_merge()).
 -type buffers() :: #{impl_tag() := buffer()}.
--type buffers_timers() :: {buffers(), timers()}.
+-type buffers_timers() :: {buffers(), timers(), Size::integer()}.
 
 -type mailbox() :: {Name::atom(), node()}.
 -type node_and_mailbox() :: {NodeName::atom(), MailboxName::atom(), node()}.
+
+%% The 'From' when a client calls a gen server
+-type client_pid() :: {pid(), Tag::any()}.
 
 -type children_predicates() :: {[message_predicate()], [impl_message_predicate()]}.
 
@@ -102,11 +109,15 @@
 %%
 
 %% This is a record of the mailbox state
--record(mb_st, {buffers :: buffers_timers(),
-                deps :: impl_dependencies(),
+-record(mb_st, {buffers :: buffers_timers() | 'uninitialized',
+                deps :: impl_dependencies() | 'uninitialized',
                 pred :: impl_message_predicate(),
                 attachee :: pid(),
-                conf :: configuration()}).
+                conf :: configuration() | 'uninitialized',
+                blocked_prods :: [client_pid()],
+                %% Used for initialization
+                all_deps :: dependencies(),
+                impl_tags :: impl_tags()}).
 -type mailbox_state() :: #mb_st{}.
 
 %%
