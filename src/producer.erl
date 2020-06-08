@@ -679,6 +679,7 @@ append_gens(MsgGen1, MsgGen2) ->
 -type producer_send_fun() :: fun((gen_message_or_heartbeat(), mailbox(), message_logger_log_fun())
                                  -> gen_imessage_or_iheartbeat()).
 
+%% TODO: Optimize this send to happen for a batch of messages and not just one
 -spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
 			        message_logger_log_fun()) -> 'ok'.
 send_message_or_heartbeat({heartbeat, Heartbeat}, SendTo, _MessageLoggerInitFun) ->
