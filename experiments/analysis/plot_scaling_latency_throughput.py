@@ -450,7 +450,9 @@ if __name__ == '__main__':
     plot_relative_max_throughputs_full_value_barrier_example('archive/full-ab-example-max-throughput-scaleup/archive')
 
     # ## Plot sequential throughput vs latency for ab-example
+    # ## Old ranges
     # plot_scaleup_rate('archive/sequential-ab-example/archive', 'ab_exp_1', range(40, 92, 2), 1000, 10, 1, 'optimizer_greedy')
+    plot_scaleup_rate('archive/sequential-ab-example-new/archive', 'ab_exp_1', range(100, 201, 10), 1000, 10, 1, 'optimizer_greedy')
 
     # plot_stream_table_join_scaleup_rate('archive/sequential-stream-table-join-example/archive', 'stream_table_join', 1, 1, 1, range(20,71,2))
 
