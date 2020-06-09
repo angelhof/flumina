@@ -246,6 +246,10 @@
                      | {'sink_wait_time', integer()}.
 -type sink_options() :: [sink_option()].
 
+-record(sink_metadata, {producer_pids :: [pid()],
+                        conf :: configuration()}).
+-type sink_metadata() :: #sink_metadata{}.
+
 -type input_file_parser() :: fun((string()) -> gen_message_or_heartbeat()).
 
 %%

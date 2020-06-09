@@ -117,26 +117,84 @@ sink0(Options) ->
 	finished ->
 	    io:format("Configuration done~n", []),
             log_sink_configuration_finish_time(),
-	    sink_loop(LoggerFun, WaitTime);
-        {finished, Pids} ->
+	    sink_loop(LoggerFun, WaitTime, undefined);
+        {finished, SinkMetadata} ->
             io:format("Configuration done~n", []),
             log_sink_configuration_finish_time(),
+            #sink_metadata{producer_pids=Pids, conf=ConfTree} = SinkMetadata,
             link_pids(Pids),
-	    sink_loop(LoggerFun, WaitTime)
+            maybe_setup_profiling(ConfTree),
+	    sink_loop(LoggerFun, WaitTime, ConfTree)
     end.
 
-sink_loop(LoggerFun, WaitTime) ->
+sink_loop(LoggerFun, WaitTime, ConfTree) ->
     receive
 	Msg ->
 	    LoggerFun({Msg, fake_node, 0}),
 	    io:format("~p~n", [Msg]),
-	    sink_loop(LoggerFun, WaitTime)
+	    sink_loop(LoggerFun, WaitTime, ConfTree)
     after
         WaitTime ->
             log_sink_finish_time(WaitTime),
+            maybe_stop_profiling(ConfTree),
             io:format("Didn't receive anything for ~p seconds~n", [WaitTime]),
 	    ok
     end.
+
+-spec maybe_setup_profiling(configuration()) -> 'ok'.
+maybe_setup_profiling(ConfTree) ->
+    %% TODO: Gather all nodes and names from the configuration tree
+    %% For each node, do an rpc
+
+    %% %% Profile if compiled with that option
+    %% maybe_profile(fun start_profiler/0, []),
+    %% maybe_profile(fun profile_node_mailbox/1, [ConfTree]),
+
+
+    ok.
+
+-spec maybe_stop_profiling(configuration() | 'undefined') -> 'ok'.
+maybe_stop_profiling(ConfTree) ->
+    %% TODO: Gather all nodes from the configuration tree
+    %% For each node, do an rpc and ask to dump profiling info
+    ok.
+
+
+-spec maybe_profile(fun(), [any()]) -> 'ok'.
+maybe_profile(Func, Args) ->
+    case ?PROFILE of
+        true ->
+            apply(Func, Args);
+        false ->
+            ok
+    end.
+
+-spec start_profiler() -> 'ok'.
+start_profiler() ->
+    eprof:start(),
+    Filename =
+        io_lib:format("~s/profiling_~s_~s.log",
+		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
+    eprof:log(Filename).
+
+-spec profile_node_mailbox(configuration()) -> 'ok'.
+profile_node_mailbox(ConfTree) ->
+    %% Find pid of mailbox
+    Self = self(),
+    Node = configuration:find_node(Self, ConfTree),
+    {MboxName, _MboxNode} = configuration:get_mailbox_name_node(Node),
+
+    profiling = eprof:start_profiling([Self, MboxName]),
+    ok.
+
+-spec output_profiling(configuration()) -> 'ok'.
+output_profiling(ConfTree) ->
+    profiling_stopped = eprof:stop_profiling(),
+    eprof:analyze(),
+    profile_node_mailbox(ConfTree).
+
+
+
 
 %% Interface function that runs an experiment with a sink
 -spec run_experiment(module(), Fun::atom(), experiment_opts()) -> 'ok'.

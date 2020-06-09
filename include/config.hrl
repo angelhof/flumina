@@ -23,7 +23,9 @@
 -define(MBOX_BACKPRESSURE, true).
 -endif.
 
-
+-ifndef(PROFILE).
+-define(PROFILE, true).
+-endif.
 
 %% This time is not monotonic, however it can be used to synchronize
 %% processes residing in different machines. Erlang monotonic time is
