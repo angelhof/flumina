@@ -6,6 +6,7 @@ from os import path
 
 import docker
 import ns3
+import results
 from ec2 import run_job
 
 
@@ -154,6 +155,7 @@ class ValueBarrierExperiment:
             ]
             for f in files:
                 shutil.move(f, exp_path)
+        print(f'Throughput: {results.get_flink_throughput(exp_path)}')
 
 
 class ValueBarrierEC2:
@@ -202,7 +204,9 @@ class ValueBarrierEC2:
                                 host.rstrip() + ':' + self.out_file,
                                 exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+                # shutil.move(self.out_file, exp_path)
         shutil.move(self.stats_file, exp_path)
+        print(f'Throughput: {results.get_flink_throughput(exp_path)}')
 
 
 class PageViewEC2:
@@ -248,7 +252,9 @@ class PageViewEC2:
                                 host.rstrip() + ':' + self.out_file,
                                 exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+                # shutil.move(self.out_file, exp_path)
         shutil.move(self.stats_file, exp_path)
+        print(f'Throughput: {results.get_flink_throughput(exp_path)}')
 
 
 class FraudDetectionEC2:
@@ -297,4 +303,6 @@ class FraudDetectionEC2:
                                 host.rstrip() + ':' + self.out_file,
                                 exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+                # shutil.move(self.out_file, exp_path)
         shutil.move(self.stats_file, exp_path)
+        print(f'Throughput: {results.get_flink_throughput(exp_path)}')
