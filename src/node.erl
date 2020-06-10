@@ -25,11 +25,16 @@ init(State, {NodeName, MailboxName, Node}, Pred, {UpdateFun, SplitFun, MergeFun}
 	end,
     NodePid = spawn_link(Node, ?MODULE, init_worker,
 			 [State, Funs, LogTriple, NodeCheckpointFun, Output, NodeName, {master, node()}]),
-    _MailboxPid = spawn_link(Node, mailbox, init_mailbox,
+    _MailboxPid = spawn_link(Node, mailbox, start_link,
                              [MailboxName, Dependencies, Pred, NodePid, {master, node()}, ImplTags]),
     %% Make sure that the mailbox has registered its name
     receive
 	{registered, MailboxName} ->
+            %% Link the mailbox since now it is a gen_server
+            MailboxRemotePid = rpc:call(Node, erlang, whereis, [MailboxName]),
+            %% TODO: It might be better practice to monitor instead of
+            %% link a remote process. Investigate.
+            link(MailboxRemotePid),
             %% Make sure that the node is also registered
             receive
                 {registered, NodeName} ->
@@ -56,9 +61,10 @@ init_worker(State, Funs, LogTriple, CheckPred, Output, Name, Master) ->
     %% after all the nodes have already been spawned
     receive
 	{configuration, ConfTree} ->
-	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p received configuration~n", 
+	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p received configuration~n",
 			      [util:local_timestamp(),self(), node()]),
-	    %% Setup the children predicates so that they don't have to be searched 
+
+	    %% Setup the children predicates so that they don't have to be searched
 	    %% on the configuration tree every time
 	    Preds = configuration:find_children_preds(self(), ConfTree),
 	    SpecPreds = configuration:find_children_spec_preds(self(), ConfTree),
@@ -93,10 +99,6 @@ worker(WorkerState = #wr_st{log={LogFun, ResetFun, LogState}}) ->
                                   cp_pred=NewCheckPred},
 	    worker(NewWorkerState);
 	{get_message_log, _ReplyTo} = GetLogMsg ->
-	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
-			      " -- Its erl_mailbox_size is: ~p~n", 
-			      [util:local_timestamp(),self(), node(), 
-			       erlang:process_info(self(), message_queue_len)]),            
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
             NewWorkerState =
                 WorkerState#wr_st{log={LogFun, ResetFun, NewLogState}},
@@ -156,7 +158,7 @@ update_on_msg({Msg, _Node, _Ts} = _ImplMsg, State, Output, UFun) ->
     NewState = UFun(Msg, State, Output),
     NewState.
 
--spec respond_to_merge(pid(), State::any(), num_log_triple(), configuration())
+-spec respond_to_merge(mailbox(), State::any(), num_log_triple(), configuration())
 		      -> {num_log_state(), State::any()}.
 respond_to_merge(Father, State, LogTriple, ConfTree) ->
     %% We have to send our mailbox's pid to our parent
@@ -194,12 +196,16 @@ receive_new_state_or_get_message_log({LogFun, ResetFun, LogState}) ->
 
 -spec handle_get_message_log({'get_message_log', mailbox()}, num_log_triple()) -> num_log_state().
 handle_get_message_log({get_message_log, ReplyTo}, {_LogFun, ResetFun, LogState}) ->
+    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
+                      " -- Its erl_mailbox_size is: ~p~n", 
+                      [util:local_timestamp(),self(), node(), 
+                       erlang:process_info(self(), message_queue_len)]),
     %% Reply to ReplyTo with the number of processed messages
     ReplyTo ! {message_log, {self(), node()}, LogState},
     %% Reset the num_state
     ResetFun(LogState).
 
--spec receive_state_or_get_message_log(mailbox(), {[State::any()], num_log_triple()}) 
+-spec receive_state_or_get_message_log(mailbox(), {[State::any()], num_log_triple()})
 				      -> {[State::any()], num_log_triple()}.
 receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, LogState}}) ->
     %% WARNING: There is an issue with that here.
@@ -212,15 +218,11 @@ receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, LogState}}) ->
 	{state, {C, State}} ->
 	    {[State|States], {LogFun, ResetFun, LogState}};
 	{get_message_log, _ReplyTo} = GetLogMsg ->
-	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
-			      " -- Its erl_mailbox_size is: ~p~n", 
-			      [util:local_timestamp(),self(), node(), 
-			       erlang:process_info(self(), message_queue_len)]),
 	    NewLogState = handle_get_message_log(GetLogMsg, {LogFun, ResetFun, LogState}),
 	    receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, NewLogState}})
     end.
 
--spec receive_states({impl_tag(), integer()}, [mailbox()], num_log_triple()) 
+-spec receive_states({impl_tag(), integer()}, [mailbox()], num_log_triple())
 		    -> {num_log_state(), [State::any()]}.
 receive_states({_ImplTag, _Ts}, Children, LogTriple) ->
     {States, {_, _, NewLogState}} =

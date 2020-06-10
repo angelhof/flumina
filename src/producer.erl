@@ -679,17 +679,18 @@ append_gens(MsgGen1, MsgGen2) ->
 -type producer_send_fun() :: fun((gen_message_or_heartbeat(), mailbox(), message_logger_log_fun())
                                  -> gen_imessage_or_iheartbeat()).
 
+%% TODO: Optimize this send to happen for a batch of messages and not just one
 -spec send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
-			        message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
+			        message_logger_log_fun()) -> 'ok'.
 send_message_or_heartbeat({heartbeat, Heartbeat}, SendTo, _MessageLoggerInitFun) ->
-    SendTo ! {iheartbeat, Heartbeat};
+    mailbox:send_to_mailbox(SendTo, {iheartbeat, Heartbeat});
 send_message_or_heartbeat(Msg, SendTo, MessageLoggerInitFun) ->
     ok = MessageLoggerInitFun(Msg),
-    SendTo ! {imsg, Msg}.
+    mailbox:send_message_to_mailbox(SendTo, {imsg, Msg}).
 
 %% This function ignores the message timestamp and sends it with its own timestamp
 -spec timestamp_send_message_or_heartbeat(gen_message_or_heartbeat(), mailbox(),
-					  message_logger_log_fun()) -> gen_imessage_or_iheartbeat().
+					  message_logger_log_fun()) -> 'ok'.
 timestamp_send_message_or_heartbeat({heartbeat, {ImplTag, _}}, SendTo, MessageLoggerInitFun) ->
     Ts = ?GET_SYSTEM_TIME(),
     send_message_or_heartbeat({heartbeat, {ImplTag, Ts}}, SendTo, MessageLoggerInitFun);

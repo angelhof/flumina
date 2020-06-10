@@ -67,7 +67,8 @@ loop(Tree) ->
 %% Node! pid. This is used for state exchange at forks-joins, when
 %% nodes talk directly without their mailboxes.
 -spec find_responsible_subtree_child_father_pids(configuration(), gen_impl_message())
-                                                -> [{mailbox(), NodeFatherName::mailbox() | 'undef'}].
+                                                -> {{mailbox(), 'root'},
+                                                    [{mailbox(), NodeFatherName::mailbox()}]}.
 find_responsible_subtree_child_father_pids(Tree, Msg) ->
     Subtree = find_responsible_subtree(Tree, Msg),
     configuration:find_node_mailbox_father_pid_pairs(Subtree).
@@ -76,8 +77,8 @@ find_responsible_subtree_child_father_pids(Tree, Msg) ->
 				   -> [mailbox()].
 find_responsible_subtree_pids(Tree, Msg) ->
     Subtree = find_responsible_subtree(Tree, Msg),
-    FatherChildPairs = configuration:find_node_mailbox_father_pid_pairs(Subtree),
-    [Child || {Child, _Father} <- FatherChildPairs].
+    {Root, Rest} = configuration:find_node_mailbox_father_pid_pairs(Subtree),
+    [Child || {Child, _Father} <- [Root|Rest]].
 
 
 -spec find_responsible_subtree_root(configuration(), gen_impl_message())
@@ -91,6 +92,9 @@ find_responsible_subtree_root(Tree, Msg) ->
 %% subtrees for this message
 -spec find_responsible_subtree(configuration(), gen_impl_message()) -> configuration().
 find_responsible_subtree(Tree, Msg) ->
+    %% [ResponsibleSubtree] = find_lowest_responsible_subtrees(Tree, Msg),
+    %% ResponsibleSubtree.
+    %% TODO: Change that to only give one subtree.
     ResponsibleSubtrees = find_lowest_responsible_subtrees(Tree, Msg),
     %% WARNING: Extremely Inefficient
     Index = rand:uniform(length(ResponsibleSubtrees)),

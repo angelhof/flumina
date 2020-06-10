@@ -232,13 +232,20 @@ get_relevant_predicates0(Attachee, {node, _NotAttachee, _NNN, _MNN, {_SpecPrec, 
     end.
 
 %% It returns the pairs of mailbox and father ids
--spec find_node_mailbox_father_pid_pairs(configuration()) -> [{mailbox(), mailbox() | 'undef'}].
+-spec find_node_mailbox_father_pid_pairs(configuration()) -> {{mailbox(), 'root'}, [{mailbox(), mailbox()}]}.
 find_node_mailbox_father_pid_pairs({node, _NPid, NodeNameNode, MboxNameNode, _Preds, Children}) ->
-    ChildrenPairs = lists:flatten([find_node_mailbox_father_pid_pairs(C) || C <- Children]),
-    [{MboxNameNode, undef}|[add_father_if_undef(ChildPair, NodeNameNode) || ChildPair <- ChildrenPairs]].
+    ChildrenPairs =
+        lists:map(
+          fun(C) ->
+                  {Root, Rest} = find_node_mailbox_father_pid_pairs(C),
+                  [Root|Rest]
+          end, Children),
+    FlatChildrenPairs = lists:flatten(ChildrenPairs),
+    {{MboxNameNode, root},
+     [add_father_if_undef(ChildPair, NodeNameNode) || ChildPair <- FlatChildrenPairs]}.
 
--spec add_father_if_undef({mailbox(), mailbox() | 'undef'}, mailbox()) -> {mailbox(), mailbox()}.
-add_father_if_undef({ChildMPid, undef}, Father) -> {ChildMPid, Father};
+-spec add_father_if_undef({mailbox(), mailbox() | 'root'}, mailbox()) -> {mailbox(), mailbox()}.
+add_father_if_undef({ChildMPid, root}, Father) -> {ChildMPid, Father};
 add_father_if_undef(ChildPair, _Father) -> ChildPair.
 
 

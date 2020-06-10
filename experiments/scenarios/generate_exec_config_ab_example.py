@@ -142,11 +142,11 @@ def start_ec2_erlang_nodes(snames, hostnames):
 
     etime = datetime.now()
     print("took:", etime - stime)
-    time.sleep(3)
+    time.sleep(1)
 
 def stop_ec2_erlang_nodes(node_names, main_stdout_log):
     ## Wait a little to ensure that final logging is done
-    time.sleep(3)
+    time.sleep(1)
     stime = datetime.now()
     print("|-- Stopping erlang nodes...", end=" ", flush=True)
     for node_name in node_names:
@@ -604,24 +604,71 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 ## NOTE: The number of a nodes should be reasonably high. Maybe 4 - 8 nodes?
 ## NOTE: I have to fine tune these numbers to fit the server
 # rate_multipliers = range(30, 32, 2)
-rate_multipliers = range(30, 62, 2)
+rate_multipliers = range(40, 102, 2)
+# rate_multipliers = range(80, 102, 2)
 # rate_multipliers = range(30, 50, 2)
 ratios_ab = [1000]
 heartbeat_rates = [10]
 # a_nodes_numbers = [10]
-a_nodes_numbers = [5]
+a_nodes_numbers = [1]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
 ## t2.micro instances reach peak for 5 nodes for rate 60
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
 
+
+
+## Maximum throughput scaleup
+ratios_ab = [10000]
+heartbeat_rates = [100]
+optimizers = ["optimizer_greedy"]
+
+nodes = [1] + list(range(2,21,2))
+nodes = list(range(10,41,2))
+nodes = [12, 14, 16, 18, 20]
+rate_multipliers = list(range(20, 51, 5))
+nodes_ideal_prev = { 1:82, 2:86, 4:72, 6:64, 8:53, 10:50, 12:45, 14:40, 16:35, 18:30, 20:25, 32:15}
+# for a_nodes_numbers_el in nodes:
+#     if a_nodes_numbers_el in nodes_ideal_prev:
+#         previous_ideal = nodes_ideal_prev[a_nodes_numbers_el]
+#         print("Found previous ideal:", previous_ideal, "for:", a_nodes_numbers_el)
+#         my_rate_multipliers = range(max(0,previous_ideal - 10), previous_ideal + 11, 2)
+#     else:
+#         my_rate_multipliers = rate_multipliers
+    # run_configurations(1, my_rate_multipliers, ratios_ab, heartbeat_rates, [a_nodes_numbers_el], optimizers, run_ec2=True)
+
+
+
+
+
+
 ## Full value barrier experiment one
 ratios_ab = [10000]
 heartbeat_rates = [100]
-rate_multipliers = range(20, 42, 2)
+rate_multipliers = range(20, 61, 2)
+# rate_multipliers = range(40, 82, 2)
+a_nodes_numbers = [1]
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers,
 #                    optimizers, run_ec2=True, full_value_barrier=True)
+
+
+## Full Value Barrier max-throughput scaleup
+ratios_ab = [10000]
+heartbeat_rates = [100]
+optimizers = ["optimizer_greedy"]
+
+nodes = [1] + list(range(2,21,2))
+rate_multipliers = list(range(20, 51, 5))
+nodes_ideal_prev = { 1:82, 2:86, 4:72, 6:64, 8:53, 10:50, 12:45, 14:40, 16:35, 18:30, 20:25, 32:15}
+# for a_nodes_numbers_el in nodes:
+#     if a_nodes_numbers_el in nodes_ideal_prev:
+#         previous_ideal = nodes_ideal_prev[a_nodes_numbers_el]
+#         print("Found previous ideal:", previous_ideal, "for:", a_nodes_numbers_el)
+#         my_rate_multipliers = range(max(0,previous_ideal - 10), previous_ideal + 11, 2)
+#     else:
+#         my_rate_multipliers = rate_multipliers
+#     run_configurations(1, my_rate_multipliers, ratios_ab, heartbeat_rates, [a_nodes_numbers_el], optimizers, run_ec2=True, full_value_barrier=True)
 
 
 
@@ -664,6 +711,18 @@ optimizers = ["optimizer_greedy"]
 #run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
 
 # run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ec2=True)
+
+
+## Full VB
+ratios_ab = [10000]
+heartbeat_rates = [100]
+rate_multipliers = [20]
+a_nodes_numbers = range(2, 22, 2)
+# run_configurations(2, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers,
+#                    optimizers, run_ec2=True, full_value_barrier=True)
+
+
+
 
 ## 3 configs for the synchronization overhead evaluation section
 rate_multipliers = [10]
@@ -788,6 +847,27 @@ rate_multipliers = range(10,64,2)
 #                                      num_light_ids, rate_multipliers, run_ns3=False)
 # run_stream_table_join_configurations(num_ids, num_page_view_parallel,
 #                                      num_light_ids, rate_multipliers, run_ec2=True)
+
+## Run many rates for many nodes
+nodes = [1] + list(range(2,21,2))
+nodes = range(18,21,2)
+rate_multipliers = list(range(20, 31, 2))
+nodes_ideal_prev = { 1:57, 2:53, 4:45, 6:51, 8:45, 10:30, 12:28, 14:26, 16:28}
+# for num_page_view_parallel_el in nodes:
+#     if num_page_view_parallel_el in nodes_ideal_prev:
+#         previous_ideal = nodes_ideal_prev[num_page_view_parallel_el]
+#         print("Found previous ideal:", previous_ideal, "for:", num_page_view_parallel_el)
+#         my_rate_multipliers = range(min(0,previous_ideal - 10), previous_ideal + 11, 2)
+#     else:
+#         my_rate_multipliers = rate_multipliers
+#     run_stream_table_join_configurations(num_ids, [num_page_view_parallel_el],
+#                                          num_light_ids, my_rate_multipliers, run_ec2=True)
+
+## Sequential
+rate_multipliers = list(range(40, 71, 2))
+rate_multipliers = list(range(20, 41, 2))
+run_stream_table_join_configurations([1], [1], [1], rate_multipliers, run_ec2=True)
+
 
 num_ids = [2]
 num_page_view_parallel = range(2,21,2)
