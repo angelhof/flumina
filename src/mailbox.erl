@@ -420,12 +420,13 @@ clear_buffer(Buffer, BuffersTimers, ImplTagDeps, Attachee) ->
 -spec clear_buffer(buffer(), buffers_timers(), [impl_tag()], pid(), integer())
 		   -> {Released::integer(), buffer()}.
 clear_buffer(Buffer, {Buffers, Timers, Size}, ImplTagDeps, Attachee, AnyReleased) ->
-    case queue:out(Buffer) of
-	{empty, Buffer} ->
+    case queue:peek(Buffer) of
+	empty ->
 	    {AnyReleased, Buffer};
-	{{value, Msg}, Rest} ->
+	{value, Msg} ->
 	    case maybe_release_message(Msg, {Buffers, Timers, Size}, ImplTagDeps, Attachee) of
 		released ->
+                    {{value, Msg}, Rest} = queue:out(Buffer),
 		    clear_buffer(Rest, {Buffers, Timers, Size}, ImplTagDeps, Attachee, AnyReleased + 1);
 		not_released ->
 		    {AnyReleased, Buffer}
