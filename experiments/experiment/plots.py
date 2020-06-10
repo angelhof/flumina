@@ -153,24 +153,23 @@ def get_flink_latencies_throughputs(flink_dirs):
 
 def plot_latency_throughput_single(label, latencies_throughputs, output_file=None):
     latencies, throughputs = latencies_throughputs
-    latencies_mean = [p50 for p10, p50, p90 in latencies]
-    latencies_diff_10 = [p50 - p10 for p10, p50, p90 in latencies]
-    latencies_diff_90 = [p90 - p50 for p10, p50, p90 in latencies]
+    latencies_median = [p50 for p10, p50, p90 in latencies]
+    latencies_10 = [p10 for p10, p50, p90 in latencies]
+    latencies_90 = [p90 for p10, p50, p90 in latencies]
 
     plt.rcParams.update({'font.size': 18})
     fig, ax = plt.subplots()
     ax.set_xlabel('Throughput (events/ms)')
     ax.set_ylabel('Latency (ms)')
-    plt.yscale('log')
-    ax.errorbar(throughputs,
-                latencies_mean, [latencies_diff_10, latencies_diff_90],
-                linestyle='-', marker='o', label=label,
-                linewidth=1, capthick=1, capsize=3, color='tab:red')
+    # plt.yscale('log')
+    ax.plot(throughputs, latencies_90, '-^', label=label + ' 90th percentile', color='tab:red', linewidth=1)
+    ax.plot(throughputs, latencies_median, '-o', label=label + ' median', linewidth=1)
+    ax.plot(throughputs, latencies_10, '-s', label=label + ' 10th percentile', color='tab:green', linewidth=1)
     ax.legend()
 
     plt.tight_layout()
-    plt.savefig(output_file)
-    #plt.show()
+    # plt.savefig(output_file)
+    plt.show()
 
 
 def plot_flumina_5(result_dir):
@@ -191,6 +190,13 @@ def plot_flink_5(result_dir):
                                    get_flink_latencies_throughputs(
                                        path.join(result_dir, f'n5_r{r}_q1000_h10')
                                        for r in range(20, 101, 2)
+                                   ))
+
+def plot_flink_1(result_dir):
+    plot_latency_throughput_single('Flink',
+                                   get_flink_latencies_throughputs(
+                                       path.join(result_dir, f'n1_r{r}_q1000_h10')
+                                       for r in range(40, 281, 2)
                                    ))
 
 def plot_flink_node_scaleup(result_dir):
