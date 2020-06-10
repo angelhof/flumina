@@ -5,7 +5,7 @@
 SUITE="${1}"
 
 # Create the logs directory
-mkdir ./archive/${SUITE}/logs
+mkdir -p ./archive/${SUITE}/logs
 
 # Make sure the Flink cluster is stopped
 ${FLINK_HOME}/bin/stop-cluster.sh
