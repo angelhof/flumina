@@ -113,7 +113,7 @@ greedy_big() ->
           [{producer_type, steady_retimestamp}]}],
     util:run_experiment(?MODULE, greedy_big_conf, Options).
 
--spec greedy_big_conf(experiment_opts()) -> 'finished'.
+-spec greedy_big_conf(experiment_opts()) -> 'ok'.
 greedy_big_conf(Options) ->
     %% Get arguments from options
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
@@ -153,9 +153,12 @@ greedy_big_conf(Options) ->
     %% Setup logging
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
     FinalProducerOptions = [{log_tags, [b]}|ProducerOptions],
-    producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
+    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
 
-    SinkPid ! finished.
+    SinkMetadata = #sink_metadata{producer_pids = ProducerPids,
+                                  conf = ConfTree},
+    SinkPid ! {finished, SinkMetadata},
+    ok.
 
 greedy_big_conf_test(SinkPid, ProducerType) ->
     %% Architecture

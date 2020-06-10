@@ -150,13 +150,21 @@ maybe_setup_profiling(ConfTree) ->
     %% maybe_profile(fun start_profiler/0, []),
     %% maybe_profile(fun profile_node_mailbox/1, [ConfTree]),
 
-
+    Filename =
+        io_lib:format("~s/profiling_~s_~s.log",
+		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
+    eep:start_file_tracing(Filename),
     ok.
 
 -spec maybe_stop_profiling(configuration() | 'undefined') -> 'ok'.
 maybe_stop_profiling(ConfTree) ->
     %% TODO: Gather all nodes from the configuration tree
     %% For each node, do an rpc and ask to dump profiling info
+    eep:stop_tracing(),
+    %% Filename =
+    %%     io_lib:format("~s/profiling_~s_~s.log",
+    %%     	      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
+    %% eep:convert_tracing(Filename),
     ok.
 
 

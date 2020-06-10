@@ -9,7 +9,7 @@ FLUMINA_SRC = $(FLUMINA_DIR)/src
 # ERL_COMPILE_FLAGS = +native '+{hipe, [o3]}'
 ERL_COMPILE_FLAGS = +debug_info
 EBIN_DIR   = ebin
-EBIN_DIRS  = ebin $(FLUMINA_EBIN)
+EBIN_DIRS  = ebin $(FLUMINA_EBIN) ${EEP_EBIN_DIR}
 # Was used by Dialyzer
 # I_DIR1 = include
 # I_DIRS = -I $(I_DIR1)
