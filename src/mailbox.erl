@@ -440,18 +440,22 @@ clear_buffer(Buffer, {Buffers, Timers, Size}, ImplTagDeps, Attachee, AnyReleased
 maybe_release_message(Msg, {Buffers, Timers, _Size}, ImplTagDeps, Attachee) ->
     {_MsgOrMerge, {{Tag, _Payload}, Node, Ts}} = Msg,
     ImplTag = {Tag, Node},
+    %% TODO: Check which of these two predicates is more likely to fail
     %% 1. All its dependent timers must be higher than the
     %%    the timestamp of the message
-    Cond1 = lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, ImplTagDeps),
-    %% 2. All the messages that are dependent to it in their buffers
-    %%    should have a later timestamp than it (if there are any at all).
-    Cond2 = lists:all(fun(TD) -> empty_or_later({ImplTag, Ts}, maps:get(TD, Buffers)) end, ImplTagDeps),
-    case Cond1 andalso Cond2 of
-	true ->
-	    Attachee ! Msg,
-	    released;
-	false ->
-	    not_released
+    case lists:all(fun(TD) -> Ts =< maps:get(TD, Timers) end, ImplTagDeps) of
+        true ->
+            %% 2. All the messages that are dependent to it in their buffers
+            %%    should have a later timestamp than it (if there are any at all).
+            case lists:all(fun(TD) -> empty_or_later({ImplTag, Ts}, maps:get(TD, Buffers)) end, ImplTagDeps) of
+                true ->
+                    Attachee ! Msg,
+                    released;
+                false ->
+                    not_released
+            end;
+        false ->
+            not_released
     end.
 
 
