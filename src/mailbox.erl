@@ -366,8 +366,11 @@ update_timers_clear_buffers({ImplTag, Ts}, MboxState) ->
     %%       this tag doesn't depend on itself, then it will stay
     %%       in the buffer and not be initiated
     ImplTagDeps = maps:get(ImplTag, ImplDeps),
+    %% Sort the Workset list
+    WorkSet = lists:usort([ImplTag|ImplTagDeps]),
+
     ClearedBuffersTimers =
-        clear_buffers([ImplTag|ImplTagDeps], {Buffers, NewTimers, Size}, ImplDeps, Attachee),
+        clear_buffers(WorkSet, {Buffers, NewTimers, Size}, ImplDeps, Attachee),
     NewMboxState = MboxState#mb_st{buffers = ClearedBuffersTimers},
     unblock_producers_if_possible(NewMboxState).
 
@@ -383,12 +386,9 @@ clear_buffers([], BuffersTimers, _Deps, _Attachee) ->
     BuffersTimers;
 clear_buffers([WorkTag|WorkSet], BuffersTimers, Deps, Attachee) ->
     {NewWorkTags, NewBuffersTimers} = clear_tag_buffer(WorkTag, BuffersTimers, Deps, Attachee),
-    %% WARNING: The following code is a very ugly way
-    %% to implement set union and there are probably
-    %% several other ways to do it (with sorted lists etc)
-    NewWorkSet = sets:to_list(sets:union(
-				sets:from_list(WorkSet),
-				sets:from_list(NewWorkTags))),
+    %% TODO: Maybe this sort is not necessary
+    USortedNewWorkTags = lists:usort(NewWorkTags),
+    NewWorkSet = lists:umerge(WorkSet,NewWorkTags),
     clear_buffers(NewWorkSet, NewBuffersTimers, Deps, Attachee).
 
 %% This function releases any message that is releasable
