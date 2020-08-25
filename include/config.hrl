@@ -20,11 +20,15 @@
 -endif.
 
 -ifndef(MBOX_BACKPRESSURE).
--define(MBOX_BACKPRESSURE, true).
+-define(MBOX_BACKPRESSURE, false).
 -endif.
 
 -ifndef(PROFILE).
--define(PROFILE, true).
+-define(PROFILE, false).
+-endif.
+
+-ifndef(DEBUG).
+-define(DEBUG, false).
 -endif.
 
 %% This time is not monotonic, however it can be used to synchronize

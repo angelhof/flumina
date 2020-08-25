@@ -190,6 +190,7 @@ append_log_in_file({Mbox, Log}, CurrentTimestamp, IoDevice) ->
 
 %% This function creates and truncates the debug log file
 -spec init_debug_log() -> ok.
+-if(?DEBUG =:= true).
 init_debug_log() ->
     Filename =
         io_lib:format("~s/debug_~s_~s.log",
@@ -198,8 +199,13 @@ init_debug_log() ->
     {ok, IoDevice} = file:open(Filename, [write]),
     ok = file:truncate(IoDevice),
     ok = file:close(IoDevice).
+-else.
+init_debug_log() ->
+    ok.
+-endif.
 
 -spec debug_log(string(), [any()]) -> ok.
+-if(?DEBUG =:= true).
 debug_log(Format, Args) ->
     Filename =
         io_lib:format("~s/debug_~s_~s.log",
@@ -207,3 +213,7 @@ debug_log(Format, Args) ->
     Data = io_lib:format(Format, Args),
     filelib:ensure_dir(Filename),
     ok = file:write_file(Filename, Data, [append]).
+-else.
+debug_log(_Format, _Args) ->
+    ok.
+-endif.
