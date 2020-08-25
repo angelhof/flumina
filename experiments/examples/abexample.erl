@@ -7,9 +7,8 @@
 	 real_distributed/1,
 	 real_distributed_conf/2,
 	 distributed_experiment/5,
-	 distributed_experiment_conf/6,
+	 distributed_experiment_conf/1,
 	 distributed_experiment_modulo/5,
-	 distributed_experiment_modulo_conf/1,
 	 seq_big/0,
 	 seq_big_conf/1,
 	 distr_big/0,
@@ -75,7 +74,7 @@ seq_big_conf(SinkPid) ->
 distr_big() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(?MODULE, distr_big_conf, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, distr_big_conf, [SinkName]),
     util:sink().
 
 distr_big_conf(SinkPid) ->
@@ -128,14 +127,8 @@ greedy_big_conf(Options) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3},
-	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
-    Dependencies = dependencies(),
-    InitState = {'state0', 0},
-    Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    ATags = [{a,1}, {a,2}],
+    Specification = standard_specification(Tags, ATags),
 
     LogTriple = log_mod:make_num_log_triple(),
     ConfTree = conf_gen:generate(Specification, Topology,
@@ -170,14 +163,17 @@ greedy_big_conf_test(SinkPid, ProducerType) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3},
-	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
-    Dependencies = dependencies(),
-    InitState = {'state0', 0},
-    Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    ATags = [{a,1}, {a,2}],
+    Specification = standard_specification(Tags, ATags),
+
+    %% StateTypesMap =
+    %%     #{'state0' => {sets:from_list(Tags), fun update/3},
+    %%       'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
+    %% SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+    %% Dependencies = dependencies(),
+    %% InitState = {'state0', 0},
+    %% Specification =
+    %%     conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
 
     ConfTree = conf_gen:generate(Specification, Topology,
 				 [{optimizer,optimizer_greedy}]),
@@ -211,15 +207,8 @@ greedy_complex_conf(SinkPid) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}, {a,3}, {a,4}],
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3},
-	  'state_a' => {sets:from_list([{a,1}, {a,2}, {a,3}, {a,4}]), fun update/3}},
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
-		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
-    Dependencies = complex_dependencies(),
-    InitState = {'state0', 0},
-    Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    ATags = [{a,1}, {a,2}, {a,3}, {a,4}],
+    Specification = standard_specification(Tags, ATags),
 
     ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_greedy}]),
 
@@ -239,7 +228,7 @@ greedy_complex_conf(SinkPid) ->
 greedy_local() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(?MODULE, greedy_local_conf, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, greedy_local_conf, [SinkName]),
     LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
@@ -315,7 +304,7 @@ greedy_local_conf(SinkPid) ->
 distributed() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(?MODULE, distributed_conf, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, distributed_conf, [SinkName]),
     util:sink().
 
 distributed_conf(SinkPid) ->
@@ -349,7 +338,7 @@ distributed_conf(SinkPid) ->
 distributed_1() ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(?MODULE, distributed_conf_1, [SinkName]),
+    _ExecPid = spawn_link(?MODULE, distributed_conf_1, [SinkName]),
     util:sink().
 
 distributed_conf_1(SinkPid) ->
@@ -385,7 +374,7 @@ distributed_conf_1(SinkPid) ->
 real_distributed(NodeNames) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(?MODULE, real_distributed_conf, [SinkName, NodeNames]),
+    _ExecPid = spawn_link(?MODULE, real_distributed_conf, [SinkName, NodeNames]),
     LoggerInitFun =
 	fun() ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
@@ -402,14 +391,8 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3},
-	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update/3}},
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
-    Dependencies = dependencies(),
-    InitState = {'state0', 0},
-    Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    ATags = [{a,1}, {a,2}],
+    Specification = standard_specification(Tags, ATags),
 
     LogTriple = log_mod:make_num_log_triple(),
     ConfTree = conf_gen:generate(Specification, Topology,
@@ -439,27 +422,43 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     SinkPid ! finished,
     ok.
 
-
-%% TODO: Maybe also parametrize the b heartbeat ratio
+-spec distributed_experiment([atom()], integer(), integer(), integer(), optimizer_type()) -> 'ok'.
 distributed_experiment(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer) ->
-    true = register('sink', self()),
-    SinkName = {sink, node()},
-    ExecPid = spawn_link(?MODULE, distributed_experiment_conf,
-			 [SinkName, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer]),
-    LoggerInitFun =
-	fun() ->
-	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
-	end,
-    util:sink(LoggerInitFun).
+    Options =
+        [{sink_options,
+          [{log_tags, [sum]},
+           {sink_wait_time, 5000}]},
+         {producer_options,
+          [{producer_type, steady_sync_timestamp},
+           {log_tags, [b]},
+           {log_node, {other, node()}}]},
+         {optimizer_type, Optimizer},
+         {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, standard}}],
+    util:run_experiment(?MODULE, distributed_experiment_conf, Options).
 
-distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer) ->
+-spec distributed_experiment_conf(experiment_opts()) -> 'ok'.
+distributed_experiment_conf(Options) ->
+    %% Get arguments from options
+    {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
+    {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
+    {optimizer_type, Optimizer} = lists:keyfind(optimizer_type, 1, Options),
+    {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, StandardOrModulo}} =
+        lists:keyfind(experiment_args, 1, Options),
+
     io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer]]),
 
     %% We assume that the first node name is the B node
-    [BNodeName|ANodeNames] = NodeNames,
+    [BNodeName|ANodeNames0] = NodeNames,
+
+    %% If there is no A node we want to run it sequentially (only on the B node)
+    ANodeNames =
+        case ANodeNames0 of
+            [] -> [BNodeName];
+            _ -> ANodeNames0
+        end,
 
     %% We assume that there is one node for each a and one for b
-    NumberAs = length(NodeNames) - 1,
+    NumberAs = length(ANodeNames),
     %% For the rates we only care about ratios
     ARate = 1000000,
     BRate = ARate div RatioAB,
@@ -478,16 +477,13 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 	conf_gen:make_topology(Rates, SinkPid),
 
     %% Computation
-
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3},
-	  'state_a' => {sets:from_list(ATags), fun update/3}},
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
-		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
-    Dependencies = parametrized_dependencies(ATags),
-    InitState = {'state0', 0},
     Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+        case StandardOrModulo of
+            standard ->
+                standard_specification(Tags, ATags);
+            modulo ->
+                modulo_specification(Tags, ATags)
+        end,
 
     %% LogTriple = log_mod:make_num_log_triple(),
     ConfTree = conf_gen:generate(Specification, Topology,
@@ -500,7 +496,7 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
 
     %% Input Streams
     {As, BsMsgInit, NumberOfMessages} =
-        parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
+        parametrized_input_distr_example(NumberAs, [BNodeName] ++ ANodeNames, RatioAB, HeartbeatBRatio),
     AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier}
 		     || {AIn, ATag, ANode} <- lists:zip3(As, ATags, ANodeNames)],
     BInputStream = {BsMsgInit, {b, BNodeName}, RateMultiplier},
@@ -510,18 +506,12 @@ distributed_experiment_conf(SinkPid, NodeNames, RateMultiplier, RatioAB, Heartbe
     util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment", NumberOfMessages),
 
     %% Log the input times of b messages
-    %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    LoggerInitFun =
-	fun() ->
-	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
-	end,
-    producer:make_producers(InputStreams, ConfTree, Topology, steady_sync_timestamp, LoggerInitFun),
+    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, ProducerOptions),
 
-    SinkPid ! finished,
+    SinkMetadata = #sink_metadata{producer_pids = ProducerPids,
+                                  conf = ConfTree},
+    SinkPid ! {finished, SinkMetadata},
     ok.
-
-
-
 
 -spec greedy_big_modulo() -> 'ok'.
 greedy_big_modulo() ->
@@ -547,14 +537,8 @@ greedy_big_modulo_conf(Options) ->
 
     %% Computation
     Tags = [b, {a,1}, {a,2}],
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update_modulo/3},
-	  'state_a' => {sets:from_list([{a,1}, {a,2}]), fun update_modulo/3}},
-    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun fork_modulo/2, fun join_modulo/2}}],
-    Dependencies = dependencies(),
-    InitState = {'state0', {0, 0}},
-    Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    ATags = [{a,1}, {a,2}],
+    Specification = modulo_specification(Tags, ATags),
 
     LogTriple = log_mod:make_num_log_triple(),
     ConfTree = conf_gen:generate(Specification, Topology,
@@ -581,7 +565,7 @@ greedy_big_modulo_conf(Options) ->
 -spec distributed_experiment_modulo([atom()], integer(), integer(), integer(), optimizer_type()) -> 'ok'.
 distributed_experiment_modulo(NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer) ->
     %% Find the a tags to log
-    NumberAs = length(NodeNames) - 1,
+    NumberAs = min(length(NodeNames) - 1, 1),
     ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
     Options =
         [{sink_options,
@@ -592,43 +576,23 @@ distributed_experiment_modulo(NodeNames, RateMultiplier, RatioAB, HeartbeatBRati
            {log_tags, [b|ATags]},
            {log_node, {other, node()}}]},
          {optimizer_type, Optimizer},
-         {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio}}],
-    util:run_experiment(?MODULE, distributed_experiment_modulo_conf, Options).
-
--spec distributed_experiment_modulo_conf(experiment_opts()) -> 'ok'.
-distributed_experiment_modulo_conf(Options) ->
-    %% Get arguments from options
-    {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
-    {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
-    {optimizer_type, Optimizer} = lists:keyfind(optimizer_type, 1, Options),
-    {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio}} =
-        lists:keyfind(experiment_args, 1, Options),
-
-    io:format("Args:~n~p~n", [[SinkPid, NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, Optimizer]]),
-
-    %% We assume that the first node name is the B node
-    [BNodeName|ANodeNames] = NodeNames,
-
-    %% We assume that there is one node for each a and one for b
-    NumberAs = length(NodeNames) - 1,
-    %% For the rates we only care about ratios
-    ARate = 1000000,
-    BRate = ARate div RatioAB,
-
-    %% Tags
-    ATags = [{a,Id} || Id <- lists:seq(1,NumberAs)],
-    Tags = [b] ++ ATags,
+         {experiment_args, {NodeNames, RateMultiplier, RatioAB, HeartbeatBRatio, modulo}}],
+    util:run_experiment(?MODULE, distributed_experiment_conf, Options).
 
 
-    %% Architecture
-    ARatesTopo = [{ANN, AT, ARate} || {ANN, AT} <- lists:zip(ANodeNames, ATags)],
-    BRateTopo = {BNodeName, b, BRate},
-    Rates = [BRateTopo|ARatesTopo],
-    Topology =
-	conf_gen:make_topology(Rates, SinkPid),
+standard_specification(Tags, ATags) ->
+    StateTypesMap =
+	#{'state0' => {sets:from_list(Tags), fun update/3},
+	  'state_a' => {sets:from_list(ATags), fun update/3}},
+    SplitsMerges = [{{'state0', 'state_a', 'state_a'}, {fun split/2, fun merge/2}},
+		    {{'state_a', 'state_a', 'state_a'}, {fun split/2, fun merge/2}}],
+    Dependencies = parametrized_dependencies(ATags),
+    InitState = {'state0', 0},
+    Specification =
+	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
+    Specification.
 
-    %% Computation
-
+modulo_specification(Tags, ATags) ->
     StateTypesMap =
 	#{'state0' => {sets:from_list(Tags), fun update_modulo/3},
 	  'state_a' => {sets:from_list(ATags), fun update_modulo/3}},
@@ -638,39 +602,13 @@ distributed_experiment_modulo_conf(Options) ->
     InitState = {'state0', {0,0}},
     Specification =
 	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-
-    ConfTree = conf_gen:generate(Specification, Topology,
-				 [{optimizer,Optimizer}]),
-
-    configuration:pretty_print_configuration(Tags, ConfTree),
-
-    %% Set up where will the input arrive
-
-    %% Input Streams
-    {As, BsMsgInit, NumberOfMessages} =
-        parametrized_input_distr_example(NumberAs, NodeNames, RatioAB, HeartbeatBRatio),
-    AInputStreams = [{AIn, {ATag, ANode}, RateMultiplier}
-		     || {AIn, ATag, ANode} <- lists:zip3(As, ATags, ANodeNames)],
-    BInputStream = {BsMsgInit, {b, BNodeName}, RateMultiplier},
-    InputStreams = [BInputStream|AInputStreams],
-
-    %% Log the current time and total number of events
-    util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment-modulo", NumberOfMessages),
-
-    %% Log the input times of b messages
-    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, ProducerOptions),
-
-    SinkMetadata = #sink_metadata{producer_pids = ProducerPids,
-                                  conf = ConfTree},
-    SinkPid ! {finished, SinkMetadata},
-    ok.
-
-
+    Specification.
 
 
 %%
-%% The specification for the full-value barrier example where 
+%% The specification for the full-value barrier example
 %%
+
 
 -type ab_tag() :: {'a', integer()} | 'b'.
 
@@ -725,14 +663,6 @@ dependencies() ->
     #{{a,1} => [b],
       {a,2} => [b],
       b => [{a,1}, {a,2}, b]
-     }.
-
-complex_dependencies() ->
-    #{{a,1} => [b],
-      {a,2} => [b],
-      {a,3} => [b],
-      {a,4} => [b],
-      b => [{a,1}, {a,2}, {a,3}, {a,4}, b]
      }.
 
 parametrized_dependencies(ATags) ->
