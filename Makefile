@@ -31,7 +31,7 @@ all: $(BEAM_FILES)
 	@(cd src && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
 		I_DIR1="../$(I_DIR1)" I_DIR2="../$(I_DIR2)" $@)
 
-%.beam: %.erl ${INCLUDES}
+%.beam: %.erl $(INCLUDES)
 	$(ERLC) $(ERL_COMPILE_FLAGS) $(I_DIRS) -o $(EBIN_DIR) $<
 
 open_erl:
