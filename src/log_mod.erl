@@ -16,7 +16,8 @@
 	 num_logger_process/2,
 
 	 init_debug_log/0,
-	 debug_log/2]).
+	 debug_log/2,
+         debug_log_time/2]).
 
 -include("type_definitions.hrl").
 -include("config.hrl").
@@ -215,5 +216,16 @@ debug_log(Format, Args) ->
     ok = file:write_file(Filename, Data, [append]).
 -else.
 debug_log(_Format, _Args) ->
+    ok.
+-endif.
+
+-spec debug_log_time(string(), [any()]) -> ok.
+-if(?DEBUG =:= true).
+debug_log_time(Format, Args) ->
+    NewFormat = "Ts: ~s -- " ++ Format,
+    NewArgs = [util:local_timestamp()|Args],
+    debug_log(NewFormat, NewArgs).
+-else.
+debug_log_time(_Format, _Args) ->
     ok.
 -endif.

@@ -157,9 +157,9 @@ handle_call({imsg, Msg}, From, MboxState) ->
         false ->
             %% This should be unreachable because all the messages
             %% are routed to a node that can indeed handle them
-            log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was sent msg: ~p ~n"
-                              "  that doesn't satisfy its predicate.~n",
-                              [util:local_timestamp(),self(), node(), Msg]),
+            log_mod:debug_log_time("Mailbox ~p in ~p was sent msg: ~p ~n"
+                                   "  that doesn't satisfy its predicate.~n",
+                                   [self(), node(), Msg]),
             Attachee = MboxState#mb_st.attachee,
             util:err("The message: ~p doesn't satisfy ~p's predicate~n", [Msg, Attachee]),
             {stop, pred_not_satisfied, MboxState};
@@ -241,13 +241,13 @@ handle_cast({heartbeat, ImplTagTs}, MboxState) ->
 handle_info({get_message_log, ReplyTo}, MboxState) ->
     Attachee = MboxState#mb_st.attachee,
     BuffersTimers = MboxState#mb_st.buffers,
-    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p was asked for throughput.~n"
-                      " -- Its erl_mailbox_size is: ~p~n"
-                      " -- Its buffer mailbox size is: ~p~n"
-                      " -- The total buffer size is: ~p~n",
-                      [util:local_timestamp(),self(), node(),
-                       erlang:process_info(self(), message_queue_len),
-                       buffers_length(BuffersTimers), element(3, BuffersTimers)]),
+    log_mod:debug_log_time("Mailbox ~p in ~p was asked for throughput.~n"
+                           " -- Its erl_mailbox_size is: ~p~n"
+                           " -- Its buffer mailbox size is: ~p~n"
+                           " -- The total buffer size is: ~p~n",
+                           [self(), node(),
+                            erlang:process_info(self(), message_queue_len),
+                            buffers_length(BuffersTimers), element(3, BuffersTimers)]),
     Attachee ! {get_message_log, ReplyTo},
     {noreply, MboxState};
 handle_info({configuration, ConfTree}, UninitializedMboxState) ->
@@ -258,8 +258,8 @@ handle_info({configuration, ConfTree}, UninitializedMboxState) ->
     Dependencies = UninitializedMboxState#mb_st.all_deps,
     ImplTags = UninitializedMboxState#mb_st.impl_tags,
     Attachee ! {configuration, ConfTree},
-    log_mod:debug_log("Ts: ~s -- Mailbox ~p in ~p received configuration~n",
-                      [util:local_timestamp(),self(), node()]),
+    log_mod:debug_log_time("Mailbox ~p in ~p received configuration~n",
+                           [self(), node()]),
     %% The dependencies are used to clear messages from the buffer,
     %% When we know that we have received all dependent messages to
     %% after a time t, then we can release all messages {m, t', v}
@@ -301,8 +301,8 @@ handle_info({configuration, ConfTree}, UninitializedMboxState) ->
 handle_info(What, MboxState) ->
     %% Mailboxes should never receive anything else. If they
     %% do they should report it and crash immediatelly.
-    log_mod:debug_log("Ts: ~s -- ERROR! Mailbox ~p in ~p received unknown message format: ~p~n",
-                      [util:local_timestamp(),self(), node(), What]),
+    log_mod:debug_log_time("ERROR! Mailbox ~p in ~p received unknown message format: ~p~n",
+                           [self(), node(), What]),
     {stop, {unknown_message_format, What}, MboxState}.
 
 

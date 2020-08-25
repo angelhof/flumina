@@ -208,15 +208,15 @@ default_option(global_start_sync_wait_ms) ->
                     configuration(), message_logger_init_fun(), mailbox()) -> ok.
 init_producer(ProducerType, ImplTag, MsgGenInit, Rate, Configuration, MsgLoggerInitFun, Creator) ->
     log_mod:init_debug_log(),
-    log_mod:debug_log("Ts: ~s -- Producer ~p of tag: ~p, started in ~p~n",
-		      [util:local_timestamp(),self(), ImplTag, node()]),
+    log_mod:debug_log_time("Producer ~p of tag: ~p, started in ~p~n",
+                           [self(), ImplTag, node()]),
     %% Initialize the generator
     MsgGen = init_generator(MsgGenInit),
     %% Find where to route the message in the configuration tree
     {Tag, Node} = ImplTag,
     SendTo = router:find_responsible_subtree_root(Configuration, {{Tag, undef}, Node, 0}),
-    log_mod:debug_log("Ts: ~s -- Producer ~p routes to: ~p~n",
-		      [util:local_timestamp(), self(), SendTo]),
+    log_mod:debug_log_time("Producer ~p routes to: ~p~n",
+                           [self(), SendTo]),
     %% Initialize the latency logger
     LoggerFun = MsgLoggerInitFun(),
 
@@ -234,10 +234,10 @@ sync_producer(ProducerType, MsgGen, Rate, SendTo, LoggerFun) ->
     receive
 	{start, FirstGeneratorTimestamp, GlobalStartTime} ->
             LocalStartTime = ?GET_SYSTEM_TIME(millisecond),
-	    log_mod:debug_log("Ts: ~s -- Producer ~p received a start message ~p"
-                              " with global start timestamp: ~p. Local start timestamp is: ~p~n",
-			      [util:local_timestamp(), self(), FirstGeneratorTimestamp,
-                               GlobalStartTime, LocalStartTime])
+	    log_mod:debug_log_time("Producer ~p received a start message ~p"
+                                   " with global start timestamp: ~p. Local start timestamp is: ~p~n",
+                                   [self(), FirstGeneratorTimestamp,
+                                    GlobalStartTime, LocalStartTime])
     end,
     case ProducerType of
         constant ->
@@ -291,8 +291,8 @@ steady_retimestamp_rate_source_old(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun
     %% to send the next message.
     case messages_to_send(MsgGen, Rate, PrevTs) of
 	done ->
-	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n",
-			      [util:local_timestamp(), self()]),
+	    log_mod:debug_log_time("Producer ~p finished sending its messages~n",
+                                   [self()]),
 	    ok;
 	{NewMsgGen, MsgsToSend, NewTs} ->
 	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),
@@ -337,8 +337,8 @@ steady_timestamp_rate_source_base(MsgGen, Rate, StartMonoTime, SendTo, MsgLogger
     %% Then compute all the messages that have to be sent, and send them
     case send_messages_until(MsgGen, SleepAtLeastUntil, SendTo, MsgLoggerLogFun, SendFun) of
 	done ->
-	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n",
-			      [util:local_timestamp(), self()]),
+	    log_mod:debug_log_time("Producer ~p finished sending its messages~n",
+                                   [self()]),
 	    ok;
 	{NewMsgGen, NewSleepUntil} ->
             %% Now that all messages are released, get the current
@@ -349,12 +349,12 @@ steady_timestamp_rate_source_base(MsgGen, Rate, StartMonoTime, SendTo, MsgLogger
             case SleepTime > 0 of
                 true ->
                     timer:sleep(round(SleepTime)),
-                    log_mod:debug_log("Ts: ~s -- Producer ~p went to sleep for ~p ms and slept for ~p ms ~n",
-                                      [util:local_timestamp(), self(), round(SleepTime),
-                                       ?GET_SYSTEM_TIME(millisecond) - (CurrentMonoTime + StartMonoTime)]);
+                    log_mod:debug_log_time("Producer ~p went to sleep for ~p ms and slept for ~p ms ~n",
+                                           [self(), round(SleepTime),
+                                            ?GET_SYSTEM_TIME(millisecond) - (CurrentMonoTime + StartMonoTime)]);
                 false ->
-                    log_mod:debug_log("Ts: ~s -- Warning! Producer ~p is lagging behind by ~p ms ~n",
-                                      [util:local_timestamp(), self(), -SleepTime])
+                    log_mod:debug_log_time("Warning! Producer ~p is lagging behind by ~p ms ~n",
+                                           [self(), -SleepTime])
             end,
 	    steady_timestamp_rate_source_base(NewMsgGen, Rate, StartMonoTime, SendTo, MsgLoggerLogFun, SendFun)
     end.
@@ -409,8 +409,8 @@ timestamp_rate_source(MsgGen, Rate, PrevTs, SendTo, MsgLoggerLogFun) ->
     %% to send the next message.
     case messages_to_send(MsgGen, Rate, PrevTs) of
 	done ->
-	    log_mod:debug_log("Ts: ~s -- Producer ~p finished sending its messages~n",
-			      [util:local_timestamp(), self()]),
+	    log_mod:debug_log_time("Producer ~p finished sending its messages~n",
+			      [self()]),
 	    ok;
 	{NewMsgGen, MsgsToSend, NewTs} ->
 	    %% io:format("Prev ts: ~p~nNewTs: ~p~nMessages: ~p~n", [PrevTs, NewTs, length(MsgsToSend)]),

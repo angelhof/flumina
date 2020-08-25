@@ -61,8 +61,8 @@ init_worker(State, Funs, LogTriple, CheckPred, Output, Name, Master) ->
     %% after all the nodes have already been spawned
     receive
 	{configuration, ConfTree} ->
-	    log_mod:debug_log("Ts: ~s -- Node ~p in ~p received configuration~n",
-			      [util:local_timestamp(),self(), node()]),
+	    log_mod:debug_log_time("Node ~p in ~p received configuration~n",
+                                   [self(), node()]),
 
 	    %% Setup the children predicates so that they don't have to be searched
 	    %% on the configuration tree every time
@@ -184,8 +184,8 @@ receive_new_state_or_get_message_log({LogFun, ResetFun, LogState}) ->
     %%          It searches through the whole mailbox for a state
     %%          message. If the load is unhandleable, then it might
     %%          create overheads.
-    log_mod:debug_log("Ts: ~s -- Node ~p in ~p has ~p unread messages~n",
-                      [util:local_timestamp(),self(), node(), process_info(self(), message_queue_len)]),
+    log_mod:debug_log_time("Node ~p in ~p has ~p unread messages~n",
+                           [self(), node(), process_info(self(), message_queue_len)]),
     receive
 	{state, NewState} ->
 	    {LogState, NewState};
@@ -196,10 +196,9 @@ receive_new_state_or_get_message_log({LogFun, ResetFun, LogState}) ->
 
 -spec handle_get_message_log({'get_message_log', mailbox()}, num_log_triple()) -> num_log_state().
 handle_get_message_log({get_message_log, ReplyTo}, {_LogFun, ResetFun, LogState}) ->
-    log_mod:debug_log("Ts: ~s -- Node ~p in ~p was asked for throughput.~n" 
-                      " -- Its erl_mailbox_size is: ~p~n", 
-                      [util:local_timestamp(),self(), node(), 
-                       erlang:process_info(self(), message_queue_len)]),
+    log_mod:debug_log_time("Node ~p in ~p was asked for throughput.~n"
+                           " -- Its erl_mailbox_size is: ~p~n",
+                           [self(), node(), erlang:process_info(self(), message_queue_len)]),
     %% Reply to ReplyTo with the number of processed messages
     ReplyTo ! {message_log, {self(), node()}, LogState},
     %% Reset the num_state
@@ -212,8 +211,8 @@ receive_state_or_get_message_log(C, {States, {LogFun, ResetFun, LogState}}) ->
     %%          It searches through the whole mailbox for a state
     %%          message. If the load is unhandleable, then it might
     %%          create overheads.
-    log_mod:debug_log("Ts: ~s -- Node ~p in ~p has ~p unread messages~n",
-                      [util:local_timestamp(),self(), node(), process_info(self(), message_queue_len)]),
+    log_mod:debug_log_time("Node ~p in ~p has ~p unread messages~n",
+                           [self(), node(), process_info(self(), message_queue_len)]),
     receive
 	{state, {C, State}} ->
 	    {[State|States], {LogFun, ResetFun, LogState}};
