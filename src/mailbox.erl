@@ -167,36 +167,7 @@ handle_call({imsg, Msg}, From, MboxState) ->
             {stop, pred_not_satisfied, MboxState};
         true ->
             NewMboxState = handle_message({msg, Msg}, MboxState),
-            case ?MBOX_BACKPRESSURE andalso is_mbox_buffer_full(NewMboxState) of
-                true ->
-                    %% If the buffer is full, then we should not
-                    %% respond to the producer so that it waits until
-                    %% it sends the next message
-                    FinalMboxState = add_blocked_producer(From, NewMboxState),
-                    %% WARNING: Could this ever deadlock? I think not
-                    %% because we block each producer separately, so a
-                    %% dependent producer will always be able to send
-                    %% a message to unblock things. Also heartbeats
-                    %% are still allowed.
-                    %%
-                    %% TODO: Figure if there can be any deadlock, and
-                    %% if so, make the backpressure system more
-                    %% elaborate, in the sense that it should never be
-                    %% the case that all producers are blocked.
-                    %%
-                    %% TODO: Solve this deadlock by keeping a
-                    %% different length size for each sender. Assuming
-                    %% that each sender sends messages in increasing
-                    %% order, this shouldn't deadlock.
-                    %%
-                    %% Solving this problem properly might be a
-                    %% significant contribution!
-                    {noreply, FinalMboxState};
-                false ->
-                    %% If the buffer is not full, we can let the
-                    %% producer know to keep sending messages
-                    {reply, ok, NewMboxState}
-            end
+            maybe_block_producer(From, NewMboxState)
     end.
 
 
@@ -343,11 +314,50 @@ is_completely_independent({{Tag, _Pld}, Node, _Ts}, {Buffers, _Timers, _Size}) -
     ImplTag = {Tag, Node},
     not maps:is_key(ImplTag, Buffers).
 
-%% TODO: Make this not do anything if MBOX_BACKPRESSURE is not defined
+-spec maybe_block_producer(client_pid(), mailbox_state()) ->
+          {'noreply', mailbox_state()} |
+          {'reply', 'ok', mailbox_state()}.
+-if(?MBOX_BACKPRESSURE =:= true).
+maybe_block_producer(From, MboxState) ->
+    case is_mbox_buffer_full(MboxState) of
+        true ->
+            %% If the buffer is full, then we should not
+            %% respond to the producer so that it waits until
+            %% it sends the next message
+            FinalMboxState = add_blocked_producer(From, MboxState),
+            %% WARNING: Could this ever deadlock? I think not
+            %% because we block each producer separately, so a
+            %% dependent producer will always be able to send
+            %% a message to unblock things. Also heartbeats
+            %% are still allowed.
+            %%
+            %% TODO: Figure if there can be any deadlock, and
+            %% if so, make the backpressure system more
+            %% elaborate, in the sense that it should never be
+            %% the case that all producers are blocked.
+            %%
+            %% TODO: Solve this deadlock by keeping a
+            %% different length size for each sender. Assuming
+            %% that each sender sends messages in increasing
+            %% order, this shouldn't deadlock.
+            %%
+            %% Solving this problem properly might be a
+            %% significant contribution!
+            {noreply, FinalMboxState};
+        false ->
+            %% If the buffer is not full, we can let the
+            %% producer know to keep sending messages
+            {reply, ok, MboxState}
+    end.
+
 -spec add_blocked_producer(client_pid(), mailbox_state()) -> mailbox_state().
 add_blocked_producer(From, MboxState) ->
     BlockedProds = MboxState#mb_st.blocked_prods,
     MboxState#mb_st{blocked_prods = [From|BlockedProds]}.
+-else.
+maybe_block_producer(From, MboxState) ->
+    {reply, ok, MboxState}.
+-endif.
 
 %% This function updates the timer for the newly received tag and clears
 %% any buffer that depends on this tag
@@ -492,13 +502,8 @@ buffers_length({Buffers, _Timers, _Size}) ->
 	      queue:len(Buffer)
       end, Buffers).
 
--spec is_mbox_buffer_full(mailbox_state()) -> boolean().
-is_mbox_buffer_full(MboxState) ->
-    {_Buffers, _Timers, Size} = MboxState#mb_st.buffers,
-    Size > ?MBOX_BUFFER_SIZE_LIMIT.
-
-%% TODO: Make this not do anything if MBOX_BACKPRESSURE is not defined
 -spec unblock_producers_if_possible(mailbox_state()) -> mailbox_state().
+-if(?MBOX_BACKPRESSURE =:= true).
 unblock_producers_if_possible(MboxState) ->
     case is_mbox_buffer_full(MboxState) of
         true ->
@@ -508,7 +513,11 @@ unblock_producers_if_possible(MboxState) ->
             unblock_producers(MboxState)
     end.
 
-%% TODO: Make this not do anything if MBOX_BACKPRESSURE is not defined
+-spec is_mbox_buffer_full(mailbox_state()) -> boolean().
+is_mbox_buffer_full(MboxState) ->
+    {_Buffers, _Timers, Size} = MboxState#mb_st.buffers,
+    Size > ?MBOX_BUFFER_SIZE_LIMIT.
+
 -spec unblock_producers(mailbox_state()) -> mailbox_state().
 unblock_producers(MboxState) ->
     BlockedProds = MboxState#mb_st.blocked_prods,
@@ -517,6 +526,10 @@ unblock_producers(MboxState) ->
               gen_server:reply(Prod, ok)
       end, BlockedProds),
     MboxState#mb_st{blocked_prods = []}.
+-else.
+unblock_producers_if_possible(MboxState) ->
+    MboxState.
+-endif.
 
 %% This function adds a newly arrived message to its buffer.
 %% As messages arrive from the same channel, we can be certain that
