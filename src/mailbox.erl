@@ -341,6 +341,7 @@ is_completely_independent({{Tag, _Pld}, Node, _Ts}, {Buffers, _Timers, _Size}) -
     ImplTag = {Tag, Node},
     not maps:is_key(ImplTag, Buffers).
 
+%% TODO: Make this not do anything if MBOX_BACKPRESSURE is not defined
 -spec add_blocked_producer(client_pid(), mailbox_state()) -> mailbox_state().
 add_blocked_producer(From, MboxState) ->
     BlockedProds = MboxState#mb_st.blocked_prods,
@@ -367,6 +368,8 @@ update_timers_clear_buffers({ImplTag, Ts}, MboxState) ->
     %%       in the buffer and not be initiated
     ImplTagDeps = maps:get(ImplTag, ImplDeps),
     %% Sort the Workset list
+    %%
+    %% TODO: If ImplTagDeps is already usorted, then we can just insert ImplTag
     WorkSet = lists:usort([ImplTag|ImplTagDeps]),
 
     ClearedBuffersTimers =
@@ -386,7 +389,8 @@ clear_buffers([], BuffersTimers, _Deps, _Attachee) ->
     BuffersTimers;
 clear_buffers([WorkTag|WorkSet], BuffersTimers, Deps, Attachee) ->
     {NewWorkTags, NewBuffersTimers} = clear_tag_buffer(WorkTag, BuffersTimers, Deps, Attachee),
-    %% TODO: Maybe this sort is not necessary
+    %% TODO: Maybe this usort is not necessary (since they are
+    %% returned from the map already sorted possibly
     USortedNewWorkTags = lists:usort(NewWorkTags),
     NewWorkSet = lists:umerge(WorkSet,NewWorkTags),
     clear_buffers(NewWorkSet, NewBuffersTimers, Deps, Attachee).
@@ -495,6 +499,7 @@ is_mbox_buffer_full(MboxState) ->
     {_Buffers, _Timers, Size} = MboxState#mb_st.buffers,
     Size > ?MBOX_BUFFER_SIZE_LIMIT.
 
+%% TODO: Make this not do anything if MBOX_BACKPRESSURE is not defined
 -spec unblock_producers_if_possible(mailbox_state()) -> mailbox_state().
 unblock_producers_if_possible(MboxState) ->
     case is_mbox_buffer_full(MboxState) of
@@ -505,6 +510,7 @@ unblock_producers_if_possible(MboxState) ->
             unblock_producers(MboxState)
     end.
 
+%% TODO: Make this not do anything if MBOX_BACKPRESSURE is not defined
 -spec unblock_producers(mailbox_state()) -> mailbox_state().
 unblock_producers(MboxState) ->
     BlockedProds = MboxState#mb_st.blocked_prods,
