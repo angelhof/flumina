@@ -92,11 +92,13 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 		      [{Tag1, Node1} || {Tag1, Node1} <- ImplTags,
 				  Predicate({{Tag1, undef}, Node1, 0})
 				      andalso sets:is_element(Tag1, DepTags)],
+                  %% Unique sort the dependent implementation tags
+                  USortedRelevantImplTags = lists:usort(RelevantImplTags),
 		  %% io:format("The implementation tag: ~p~n"
 		  %% 	    " has specification deps: ~p~n"
 		  %% 	    " and implementation deps: ~p~n",
 		  %% 	    [ImplTag, sets:to_list(DepTags), RelevantImplTags]),
-		  {ImplTag, RelevantImplTags}
+		  {ImplTag, USortedRelevantImplTags}
 	  end, ImplTags),
     io:format("Implementation Tag Dependencies for: ~p with attachee: ~p~n~p~n",
               [self(), Attachee, ImplDependencies]),
@@ -367,10 +369,8 @@ update_timers_clear_buffers({ImplTag, Ts}, MboxState) ->
     %%       this tag doesn't depend on itself, then it will stay
     %%       in the buffer and not be initiated
     ImplTagDeps = maps:get(ImplTag, ImplDeps),
-    %% Sort the Workset list
-    %%
-    %% TODO: If ImplTagDeps is already usorted, then we can just insert ImplTag
-    WorkSet = lists:usort([ImplTag|ImplTagDeps]),
+    %% Since ImplTagDeps is usorted we just merge
+    WorkSet = lists:umerge([ImplTag], ImplTagDeps),
 
     ClearedBuffersTimers =
         clear_buffers(WorkSet, {Buffers, NewTimers, Size}, ImplDeps, Attachee),
@@ -389,9 +389,7 @@ clear_buffers([], BuffersTimers, _Deps, _Attachee) ->
     BuffersTimers;
 clear_buffers([WorkTag|WorkSet], BuffersTimers, Deps, Attachee) ->
     {NewWorkTags, NewBuffersTimers} = clear_tag_buffer(WorkTag, BuffersTimers, Deps, Attachee),
-    %% TODO: Maybe this usort is not necessary (since they are
-    %% returned from the map already sorted possibly
-    USortedNewWorkTags = lists:usort(NewWorkTags),
+    %% NewWorkTags are already usorted so we can just umerge
     NewWorkSet = lists:umerge(WorkSet,NewWorkTags),
     clear_buffers(NewWorkSet, NewBuffersTimers, Deps, Attachee).
 

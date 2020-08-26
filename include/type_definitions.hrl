@@ -93,6 +93,7 @@
 
 -type children_predicates() :: {[message_predicate()], [impl_message_predicate()]}.
 
+%% Invariant: Tags should be unique-sorted
 -type impl_dependencies() :: #{impl_tag() := [impl_tag()]}.
 
 %% The configuration tree, contains the pid and the mailbox pid of each node
