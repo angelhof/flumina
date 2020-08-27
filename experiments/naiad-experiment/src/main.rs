@@ -1,12 +1,14 @@
 extern crate timely;
 
 use timely::dataflow::{InputHandle, ProbeHandle};
-use timely::dataflow::operators::{Input, Exchange, Inspect, Probe, Accumulate};
+use timely::dataflow::operators::{Input, Exchange, Filter, Inspect, Probe, Accumulate};
 
-// fn create_dataflow() {
-//     // Creates the dataflow (no input).
-//     // Returns a handle to the input for producers.
-// }
+/*
+    To model the value-barrier example, input values
+    are ordered pairs. Barriers are (0, 0) and
+    values are (1, x) for some integer x.
+*/
+
 
 fn main() {
     // initializes and runs a timely dataflow.
@@ -21,38 +23,42 @@ fn main() {
         // create a new input, and inspect its output
         worker.dataflow(|scope| {
             scope.input_from(&mut input)
-                 .exchange(|x| *x)
-                 // .inspect(move |x| println!("worker {}:\tvalue {}", index, x))
-                 .count()
-                 .inspect(move |x| println!("worker {}:\tcount {}", index, x))
-                 .probe_with(&mut probe);
+                // Shuffle events (assign workers based on value)
+                .exchange(|(_x, y)| *y)
+                // Filter barriers
+                .filter(|(x, _y)| *x == 1)
+                // Count (for each epoch)
+                .count()
+                // Print output; probe if desired
+                .inspect(move |x| println!("[worker {}]\tcount {}", index, x))
+                .probe_with(&mut probe);
         });
 
         println!("[worker {}] dataflow created", index);
 
         // introduce input data
-        if index == 0 {
-            println!("[worker 0] [input] initial epoch: {}", input.epoch());
-            let mut epoch = 0; // Initial input.epoch()
-            for round in 0..1000000 {
-                if round % 100000 == 0 {
-                    // input.send(round); // barrier event
-                    epoch += 1;
-                    input.advance_to(epoch);
-                    // println!("new epoch: {}", input.epoch());
-                } else {
-                    input.send(round); // value event
-                }
-                // Now step the computation as needed
-                // while probe.less_than(input.time()) {
-                //     worker.step();
-                // }
-                //  else {
-                //     input.send(round);              
-                // }
+        // Each worker has its own input values
+        println!("[worker {}] [input] initial epoch: {}", index, input.epoch());
+        let mut epoch = 0; // Initial input.epoch()
+        for round in 0..100000 {
+            if round % 10000 == 0 {
+                // send barrier event
+                input.send((0, 0));
+                epoch += 1;
+                input.advance_to(epoch);
+                println!("[worker {}] [input] new epoch: {}", index, input.epoch());
             }
-            println!("[worker 0] [input] Done sending input!");
+            input.send((1, round)); // value event
+
+            // Code to step the computation as needed
+            // while probe.less_than(input.time()) {
+            //     worker.step();
+            // }
+            //  else {
+            //     input.send(round);
+            // }
         }
+        println!("[worker {}] [input] Done sending input!", index);
 
         // while probe.less_than(input.time()) {
         //     worker.step();
