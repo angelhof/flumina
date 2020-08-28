@@ -38,12 +38,15 @@ fn main() {
 
         // introduce input data
         // Each worker has its own input values
+        // (but barriers are only at worker 0)
         println!("[worker {}] [input] initial epoch: {}", index, input.epoch());
         let mut epoch = 0; // Initial input.epoch()
         for round in 0..100000 {
-            if round % 10000 == 0 {
-                // send barrier event
-                input.send((0, 0));
+            if round % 1000 == 0 {
+                // worker 0: sends barrier event
+                if index == 0 {
+                    input.send((0, 0));
+                }
                 epoch += 1;
                 input.advance_to(epoch);
                 println!("[worker {}] [input] new epoch: {}", index, input.epoch());
@@ -51,12 +54,9 @@ fn main() {
             input.send((1, round)); // value event
 
             // Code to step the computation as needed
-            // while probe.less_than(input.time()) {
-            //     worker.step();
-            // }
-            //  else {
-            //     input.send(round);
-            // }
+            while probe.less_than(input.time()) {
+                worker.step();
+            }
         }
         println!("[worker {}] [input] Done sending input!", index);
 
