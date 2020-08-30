@@ -11,44 +11,64 @@ how they define epochs for the computation.
   having to manually implement our own mailbox.
 
 Notes:
-- Input values are ordered pairs. Barriers are (0, 0, i) where i is the
-  worker it should be sent to.
-  Values are (1, x, i) where x is the value and i is the worker it was
-  generated at.
+- Input values are ordered pairs. Barriers are (0, x, i) and values are
+  (1, x, i), where x is the value (timestamp) and i is the worker where the
+  event should be processed.
 */
 
 extern crate timely;
 
 use timely::dataflow::{InputHandle, ProbeHandle};
-use timely::dataflow::operators::{Input, Exchange, Filter, Inspect, Probe, Accumulate};
+use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange,
+                                  Partition, Probe};
+use std::collections::VecDeque;
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
-
-        /***** 1. Initialization *****/
 
         // Index of this worker and the total number in existence
         let w_index = worker.index();
         let w_total = worker.peers();
 
-        let mut input = InputHandle::new();
-        let mut probe = ProbeHandle::new();
+        /***** 1. Initialization *****/
 
         println!("[worker {}] initializing", w_index);
+
+        let mut input = InputHandle::new();
+        let mut probe1 = ProbeHandle::new();
+        let mut probe2 = ProbeHandle::new();
+
+        let mut barriers = VecDeque::new();
+        let mut num_barriers = 0;
+        let mut max_barrier = -1;
 
         /***** 2. Create the dataflow *****/
 
         worker.dataflow(|scope| {
-            scope.input_from(&mut input)
-                // Shuffle events (forward barriers to appropriate worker)
-                .exchange(|(_x, _y, z)| (*z as u64))
-                // Filter out barriers
-                .filter(|(x, _y, _z)| *x == 1)
+            // Shuffle events (forward barriers to appropriate worker),
+            // then separate into values and barriers
+            let streams = scope.input_from(&mut input)
+                .exchange(|(_x, _y, z): &(u64, i64, usize)| (*z as u64))
+                .partition(2, |(x, y, _z)| (x, y));
+            let v_stream = &streams[0];
+            let b_stream = &streams[1];
+            // Barrier stream: capture barriers, update max/count
+            b_stream
+                .inspect(|x| {
+                    barriers.push_back(*x);
+                    num_barriers += 1;
+                    assert!(*x > max_barrier); // should be in inc order
+                    max_barrier = *x;
+                    println!("[worker {}]\tmax barrier {}", w_index, max_barrier)
+                })
+                .probe_with(&mut probe1);
+            // Value stream: count and then probe
+            v_stream
                 // Count (for each epoch)
                 .count()
                 // Print output; probe for progress
                 .inspect(move |x| println!("[worker {}]\tcount {}", w_index, x))
-                .probe_with(&mut probe);
+                .probe_with(&mut probe2);
         });
 
         println!("[worker {}] dataflow created", w_index);
@@ -60,27 +80,35 @@ fn main() {
         println!("[worker {}] [input] initial epoch: {}", w_index, input.epoch());
         let mut epoch = 0; // Initial input.epoch()
         for round in 0..100000 {
-            if round % 1000 == 0 {
-                // worker 0: sends barrier event
-                if w_index == 0 {
-                    for w_other in 0..w_total {
-                        input.send((0, 0, w_other));
-                    }
-                    epoch += 1;
-                    input.advance_to(epoch);
-                    println!("[worker {}] [input] new epoch: {}", w_index, input.epoch());
+            if w_index == 0 && round % 1000 == 0 {
+                // worker 0: send barrier event, update epoch
+                for w_other in 0..w_total {
+                    input.send((0, round, w_other));
                 }
+                // epoch += 1;
+                // input.advance_to(epoch);
+                // println!("[worker {}] [input] new epoch: {}", w_index, input.epoch());
             }
-            input.send((1, round, w_index)); // value event
-
-            // Code to step the computation as needed
-            while probe.less_than(input.time()) {
+            // MAILBOX LOGIC
+            // - If max_barrier is behind the current round, step the computation
+            // - Otherwise, update the input epoch if needed
+            // - Only after the above is done, release the value event
+            while max_barrier < round {
                 worker.step();
             }
+            while round >= barriers[0] {
+                // New Epoch
+                barriers.pop_front();
+                epoch += 1;
+                input.advance_to(epoch);
+                println!("[worker {}] [input] new epoch: {}", w_index, input.epoch());
+            }
+            input.send((1, round, w_index));
         }
         println!("[worker {}] [input] Done sending input!", w_index);
 
-        // while probe.less_than(input.time()) {
+        // Not currently used: some methods of stepping the computation
+        // while probe1.less_than(input.time()) {
         //     worker.step();
         // }
         // for _wait_time in 0..1000000 {
