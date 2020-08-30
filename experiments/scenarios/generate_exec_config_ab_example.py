@@ -385,7 +385,7 @@ def run_outlier_detection_configuration(rate_multiplier, num_houses, optimizer,
 ## Given the arguments of the stream-table join experiment this
 ## constructs the argument string and the necessary node names that
 ## have to be spawned as docker containers.
-def collect_fat_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, hostnames, uua_producer_in_main, run_ec2):
+def collect_fat_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, hostnames, uua_producer_in_main, run_ec2, sequential=False):
     ## Given the number of unique identifiers and the number of
     ## parallel page view streams, we can create a list that contains
     ## for each uid, and for each tag, the arriving node(s).
@@ -398,14 +398,24 @@ def collect_fat_stream_table_join_experiment_nodes(num_ids, num_page_view_parall
         page_view_nodes = []
         for i in range(num_page_view_parallel):
             # print("Uid:", uid, "i:", i)
-            node_sname = "flumina{}".format(counter)
-            if(not(run_ec2)):
-                node_name = format_node(node_sname)
+            ## If sequential == True then we want everything in main
+            if(sequential):
+                node_sname = MAIN_SNAME
+                if(not(run_ec2)):
+                    node_name = format_node(node_sname)
+                else:
+                    hostname = get_ec2_main_hostname()
+                    used_hostnames.append(hostname)
+                    node_name = format_ec2_node(node_sname, hostname)
             else:
-                hostname = hostnames[counter-1]
-                used_hostnames.append(hostname)
-                node_name = format_ec2_node(node_sname, hostname)
-            counter += 1
+                node_sname = "flumina{}".format(counter)
+                if(not(run_ec2)):
+                    node_name = format_node(node_sname)
+                else:
+                    hostname = hostnames[counter-1]
+                    used_hostnames.append(hostname)
+                    node_name = format_ec2_node(node_sname, hostname)
+                counter += 1
             page_view_nodes.append(node_name)
 
         ## Randomly allocate the get user address node so that we
@@ -441,16 +451,17 @@ def collect_fat_stream_table_join_experiment_nodes(num_ids, num_page_view_parall
     return uid_tag_node_list, snames, used_hostnames
 
 def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, num_light_ids, rate_multiplier,
-                                               uua_producer_in_main, run_ec2=False):
+                                               uua_producer_in_main, run_ec2=False, sequential=False):
 
     ## For EC2 we have to get the host names from a hostnames file
     hostnames = get_ec2_hostnames()
 
     ## Generate the producers for the fat nodes
-    uid_tag_node_list, snames, used_hostnames = collect_fat_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, hostnames, uua_producer_in_main, run_ec2)
+    uid_tag_node_list, snames, used_hostnames = collect_fat_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, hostnames, uua_producer_in_main, run_ec2, sequential=sequential)
 
     used_node_names = [format_ec2_node(sname, hostname)
                        for sname, hostname in zip(snames, used_hostnames)]
+
     ## Generate the producers in the same hostnames for the light keys
     ## (without making new hostnames)
     for uid in range(num_ids, num_light_ids + num_ids):
@@ -485,14 +496,14 @@ def collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, 
     return (final_args_string, snames, used_hostnames)
 
 
-def run_stream_table_join_configuration(num_ids, num_page_view_parallel, num_light_ids, rate_multiplier, run_ns3=False, run_ec2=False):
+def run_stream_table_join_configuration(num_ids, num_page_view_parallel, num_light_ids, rate_multiplier, run_ns3=False, run_ec2=False, sequential=False):
     assert(not (run_ns3 and run_ec2))
 
     print("Stream-Table Join Experiment:", num_ids, num_page_view_parallel, num_light_ids, rate_multiplier)
 
     ## Prepate the node names and the experiment argument string
     update_user_address_producers_in_main = False
-    uid_tag_node_arg_string, snames, used_hostnames = collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, num_light_ids, rate_multiplier, update_user_address_producers_in_main, run_ec2=run_ec2)
+    uid_tag_node_arg_string, snames, used_hostnames = collect_stream_table_join_experiment_nodes(num_ids, num_page_view_parallel, num_light_ids, rate_multiplier, update_user_address_producers_in_main, run_ec2=run_ec2, sequential=sequential)
 
     if(not run_ec2):
         ## This should never be executed with NS3
@@ -509,7 +520,7 @@ def run_stream_table_join_configuration(num_ids, num_page_view_parallel, num_lig
         simulator_args = ["ns3/simulate.sh", "-m", "main", "-e", exec_string]
         simulator_args.extend(snames)
         print(simulator_args)
-        subprocess.check_call(simulator_args)
+        # subprocess.check_call(simulator_args)
     else:
         main_stdout_log = "/tmp/flumina_main_stdout"
         print("|-- The stdout is logged in:", main_stdout_log)
@@ -574,13 +585,13 @@ def run_outlier_detection_configurations(rate_multiplier, num_houses,
                 run_outlier_detection_configuration(rate_m, house_node, optimizer, run_ns3, ns3_conf)
 
 ## ANOTHER SAD COPY PASTE...
-def run_stream_table_join_configurations(num_ids, num_page_view_parallel, num_light_ids, rate_multipliers, run_ns3=False, run_ec2=False):
+def run_stream_table_join_configurations(num_ids, num_page_view_parallel, num_light_ids, rate_multipliers, run_ns3=False, run_ec2=False, sequential=False):
     for num_id in num_ids:
         for num_page_view_p in num_page_view_parallel:
             for num_light_id in num_light_ids:
                 for rate_multiplier in rate_multipliers:
                     run_stream_table_join_configuration(num_id, num_page_view_p, num_light_id,
-                                                        rate_multiplier, run_ns3=run_ns3, run_ec2=run_ec2)
+                                                        rate_multiplier, run_ns3=run_ns3, run_ec2=run_ec2, sequential=sequential)
 
 
 def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=False, ns3_conf=NS3Conf(), run_ec2=False, full_value_barrier=False):
@@ -866,7 +877,10 @@ nodes_ideal_prev = { 1:57, 2:53, 4:45, 6:51, 8:45, 10:30, 12:28, 14:26, 16:28}
 ## Sequential
 rate_multipliers = list(range(40, 71, 2))
 rate_multipliers = list(range(20, 41, 2))
-run_stream_table_join_configurations([1], [1], [1], rate_multipliers, run_ec2=True)
+rate_multipliers = [20]
+# run_stream_table_join_configurations([1], [1], [1], rate_multipliers, run_ec2=True)
+
+# run_stream_table_join_configurations([1], [1], [0], rate_multipliers, run_ec2=True, sequential=True)
 
 
 num_ids = [2]
