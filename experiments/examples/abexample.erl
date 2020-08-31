@@ -10,11 +10,10 @@
 	 distributed_experiment_conf/1,
 	 distributed_experiment_modulo/5,
 	 seq_big/0,
-	 seq_big_conf/1,
 	 distr_big/0,
 	 distr_big_conf/1,
 	 greedy_big/0,
-	 greedy_big_conf/1,
+	 big_conf/1,
 	 greedy_big_conf_test/2,
 	 greedy_complex/0,
 	 greedy_complex_conf/1,
@@ -37,39 +36,13 @@
 %% the computation but for now we can assume that it is correct.
 
 seq_big() ->
-    true = register('sink', self()),
-    SinkName = {sink, node()},
-    _ExecPid = spawn_link(?MODULE, seq_big_conf, [SinkName]),
-    util:sink().
-
-seq_big_conf(SinkPid) ->
-    %% Architecture
-    Rates = [{node(), b, 10},
-	     {node(), {a,1}, 1000},
-	     {node(), {a,2}, 1000}],
-    Topology =
-	conf_gen:make_topology(Rates, SinkPid),
-
-    %% Computation
-    Tags = [b, {a,1}, {a,2}],
-    StateTypesMap =
-	#{'state0' => {sets:from_list(Tags), fun update/3}},
-    SplitsMerges = [],
-    Dependencies = dependencies(),
-    InitState = {'state0', 0},
-    Specification =
-	conf_gen:make_specification(StateTypesMap, SplitsMerges, Dependencies, InitState),
-
-    ConfTree = conf_gen:generate(Specification, Topology, [{optimizer,optimizer_sequential}]),
-
-    %% Set up where will the input arrive
-    {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
-    InputStreams = [{A1, {{a,1},node()}, 10},
-		    {A2, {{a,2},node()}, 10},
-		    {Bs, {b, node()}, 10}],
-    producer:make_producers(InputStreams, ConfTree, Topology),
-
-    SinkPid ! finished.
+    Options =
+        [{sink_options, [{log_tags, [sum]}]},
+         {producer_options,
+          [{producer_type, steady_retimestamp},
+           {log_tags, [b]}]},
+         {optimizer_type, optimizer_sequential}],
+    util:run_experiment(?MODULE, big_conf, Options).
 
 distr_big() ->
     true = register('sink', self()),
@@ -109,13 +82,16 @@ greedy_big() ->
     Options =
         [{sink_options, [{log_tags, [sum]}]},
          {producer_options,
-          [{producer_type, steady_retimestamp}]}],
-    util:run_experiment(?MODULE, greedy_big_conf, Options).
+          [{producer_type, steady_retimestamp},
+           {log_tags, [b]}]},
+         {optimizer_type, optimizer_greedy}],
+    util:run_experiment(?MODULE, big_conf, Options).
 
--spec greedy_big_conf(experiment_opts()) -> 'ok'.
-greedy_big_conf(Options) ->
+-spec big_conf(experiment_opts()) -> 'ok'.
+big_conf(Options) ->
     %% Get arguments from options
     {sink_name, SinkPid} = lists:keyfind(sink_name, 1, Options),
+    {optimizer_type, Optimizer} = lists:keyfind(optimizer_type, 1, Options),
     {producer_options, ProducerOptions} = lists:keyfind(producer_options, 1, Options),
 
     %% Architecture
@@ -130,23 +106,25 @@ greedy_big_conf(Options) ->
     ATags = [{a,1}, {a,2}],
     Specification = standard_specification(Tags, ATags),
 
-    LogTriple = log_mod:make_num_log_triple(),
+    %% LogTriple = log_mod:make_num_log_triple(),
     ConfTree = conf_gen:generate(Specification, Topology,
-				 [{optimizer,optimizer_greedy}, {log_triple,LogTriple}]),
+				 [ {optimizer,Optimizer}
+                                 %% , {log_triple,LogTriple}
+                                 ]),
 
     %% Set up where will the input arrive
     {A1, A2, Bs} = big_input_distr_example(node(), node(), node()),
     %% InputStreams = [{A1, {a,1}, 50}, {A2, {a,2}, 50}, {Bs, b, 500}],
-    InputStreams = [{A1, {{a,1}, node()}, 100},
-		    {A2, {{a,2}, node()}, 100},
-		    {Bs, {b, node()}, 100}],
+    InputStreams = [{A1, {{a,1}, node()}, 100000},
+		    {A2, {{a,2}, node()}, 100000},
+		    {Bs, {b, node()}, 100000}],
 
     util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment", 1001000),
 
     %% Setup logging
-    _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    FinalProducerOptions = [{log_tags, [b]}|ProducerOptions],
-    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, FinalProducerOptions),
+    %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
+    %% FinalProducerOptions = [{log_tags, [b]}|ProducerOptions],
+    ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, ProducerOptions),
 
     SinkMetadata = #sink_metadata{producer_pids = ProducerPids,
                                   conf = ConfTree},
@@ -748,7 +726,7 @@ parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, Hear
 -spec big_input_distr_example(node(), node(), node())
 			     -> {msg_generator_init(), msg_generator_init(), msg_generator_init()}.
 big_input_distr_example(NodeA1, NodeA2, NodeB) ->
-    LengthA = 1000000,
+    LengthA = 10000000,
     A1 = {fun abexample:make_as/4, [1, NodeA1, LengthA, 2]},
     %% A1 = lists:flatten(
     %% 	   [[{{{a,1}, T + (1000 * BT)}, NodeA1, T + (1000 * BT)}
