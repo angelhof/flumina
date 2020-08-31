@@ -122,8 +122,6 @@ big_conf(Options) ->
     util:log_time_and_number_of_messages_before_producers_spawn("ab-experiment", 1001000),
 
     %% Setup logging
-    %% _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-    %% FinalProducerOptions = [{log_tags, [b]}|ProducerOptions],
     ProducerPids = producer:make_producers(InputStreams, ConfTree, Topology, ProducerOptions),
 
     SinkMetadata = #sink_metadata{producer_pids = ProducerPids,
@@ -728,23 +726,8 @@ parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, Hear
 big_input_distr_example(NodeA1, NodeA2, NodeB) ->
     LengthA = 10000000,
     A1 = {fun abexample:make_as/4, [1, NodeA1, LengthA, 2]},
-    %% A1 = lists:flatten(
-    %% 	   [[{{{a,1}, T + (1000 * BT)}, NodeA1, T + (1000 * BT)}
-    %% 	     || T <- lists:seq(1, 999, 2)]
-    %% 	    || BT <- lists:seq(0,1000)])
-    %% 	++ [{heartbeat, {{{a,1},NodeA1},1000000}}],
-
     A2 = {fun abexample:make_as/4, [2, NodeA2, LengthA, 2]},
-    %% A2 = lists:flatten(
-    %% 	   [[{{{a,2}, T + (1000 * BT)}, NodeA2, T + (1000 * BT)}
-    %% 	     || T <- lists:seq(2, 998, 2)]
-    %% 	    || BT <- lists:seq(0,1000)])
-    %% 	++ [{heartbeat, {{{a,2},NodeA2},1000000}}],
-
     Bs = {fun abexample:make_bs_heartbeats/4, [NodeB, LengthA, 1000, 1]},
-    %% Bs = [{{b, 1000 + (1000 * BT)},NodeB, 1000 + (1000 * BT)}
-    %% 	  || BT <- lists:seq(0,1000)]
-    %% 	++ [{heartbeat, {{b,NodeB},1000000}}],
     {A1, A2, Bs}.
 
 -spec complex_input_distr_example(node(), node(), node(), node(), node())
@@ -754,17 +737,7 @@ complex_input_distr_example(NodeA1, NodeA2, NodeA3, NodeA4, NodeB) ->
     LengthA = 1000000,
     {A1, A2, Bs} = big_input_distr_example(NodeA1, NodeA2, NodeB),
     A3 = {fun abexample:make_as/4, [3, NodeA3, LengthA, 2]},
-    %% A3 = lists:flatten(
-    %% 	   [[{{{a,3}, T + (1000 * BT)}, NodeA3, T + (1000 * BT)}
-    %% 	     || T <- lists:seq(1, 999, 2)]
-    %% 	    || BT <- lists:seq(1,1000)])
-    %% 	++ [{heartbeat, {{{a,3},NodeA3}, 10000000}}],
     A4 = {fun abexample:make_as/4, [4, NodeA4, LengthA, 2]},
-    %% A4 = lists:flatten(
-    %% 	   [[{{{a,4}, T + (1000 * BT)}, NodeA4, T + (1000 * BT)}
-    %% 	     || T <- lists:seq(2, 998, 2)]
-    %% 	    || BT <- lists:seq(1,1000)])
-    %% 	++ [{heartbeat, {{{a,4},NodeA4}, 10000000}}],
     {A1, A2, A3, A4, Bs}.
 
 %% bs_input_example() ->
