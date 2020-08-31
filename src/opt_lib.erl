@@ -13,20 +13,28 @@
 -include("config.hrl").
 
 %%
-%% This is a library with code that is common to 
+%% This is a library with code that is common to
 %% several optimizers
 %%
 
-%% TODO: This will eventually disappear when predicates 
+%% TODO: This will eventually disappear when predicates
 %%       become sets of tags
 -spec impl_tags_to_predicate(impl_tags()) -> impl_message_predicate().
 impl_tags_to_predicate(Tags) ->
     fun({{MTag, _}, MNode, _}) ->
 	    lists:any(
-	      fun({Tag, Node}) -> 
-		      MTag =:= Tag andalso MNode =:= Node
+	      fun({Tag, Node}) ->
+	              MTag =:= Tag andalso MNode =:= Node
 	      end,Tags)
     end.
+%% %% The following implementation is actually slower (because the number
+%% %% of Tags that a node handles is usually small).
+%% impl_tags_to_predicate(Tags) ->
+%%     SetTags = sets:from_list(Tags),
+%%     fun({{MTag, _}, MNode, _}) ->
+%%             sets:is_element({MTag, MNode}, SetTags)
+%%     end.
+
 
 -spec impl_tags_to_spec_predicate(impl_tags()) -> tag_predicate().
 impl_tags_to_spec_predicate(Tags) ->
