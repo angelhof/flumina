@@ -24,10 +24,12 @@
 	 intfloor/1,
 	 intmod/2,
 	 intdiv/2,
+         intpow/2,
 	 split_map/2,
          is_subset/2,
          is_sublist/2,
-         cartesian/1]).
+         cartesian/1,
+         biggest_power_of_two_less_than_number/1]).
 
 -include("type_definitions.hrl").
 -include("config.hrl").
@@ -400,6 +402,9 @@ intmod(X,Y) when X > 0 -> X rem Y;
 intmod(X,Y) when X < 0 -> Y + (X rem Y);
 intmod(0,_Y) -> 0.
 
+intpow(X, Y) when Y >= 0 ->
+    do_n_times(Y, 1, fun(Acc) -> Acc * X end).
+
 %%% Map util
 
 -spec split_map(#{KeyType := ValType}, fun((KeyType) -> boolean())) -> {#{KeyType := ValType}, #{KeyType := ValType}}.
@@ -450,3 +455,12 @@ is_sublist([H1|T1], [H2|T2]) ->
 -spec cartesian([[X]]) -> [[X]].
 cartesian([H])   -> [[A] || A <- H];
 cartesian([H|T]) -> [[A|B] || A <- H, B <- cartesian(T)].
+
+-spec biggest_power_of_two_less_than_number(integer()) -> integer().
+biggest_power_of_two_less_than_number(N) when N >= 1 ->
+    biggest_power_of_two_less_than_number(N, 0).
+
+-spec biggest_power_of_two_less_than_number(integer(), integer()) -> integer().
+biggest_power_of_two_less_than_number(1, Acc) -> Acc;
+biggest_power_of_two_less_than_number(N, Acc) when N > 1 ->
+    biggest_power_of_two_less_than_number(N div 2, Acc + 1).
