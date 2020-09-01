@@ -100,8 +100,8 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 		  %% 	    [ImplTag, sets:to_list(DepTags), RelevantImplTags]),
 		  {ImplTag, USortedRelevantImplTags}
 	  end, ImplTags),
-    io:format("Implementation Tag Dependencies for: ~p with attachee: ~p~n~p~n",
-              [self(), Attachee, ImplDependencies]),
+    %% io:format("Implementation Tag Dependencies for: ~p with attachee: ~p~n~p~n",
+    %%           [self(), Attachee, ImplDependencies]),
     maps:from_list(ImplDependencies).
     %% Dependencies1 =
     %% 	maps:map(
@@ -118,10 +118,10 @@ filter_relevant_dependencies(Dependencies, Attachee, ConfTree, ImplTags) ->
 -spec find_impl_tag_recipients(impl_dependencies(), configuration()) -> impl_tag_subtree_mailbox_pairs().
 find_impl_tag_recipients(Dependencies, ConfTree) ->
     ImplTags = maps:keys(Dependencies),
-    io:format("Implementation tags: ~p~n", [ImplTags]),
+    %% io:format("Implementation tags: ~p~n", [ImplTags]),
     ImplTagsSubtreePairs =
         [{ImplTag, find_subtree_for_impl_tag(ImplTag, ConfTree)}  || ImplTag <- ImplTags],
-    io:format("Implementation tags recipients: ~p~n", [ImplTagsSubtreePairs]),
+    %% io:format("Implementation tags recipients: ~p~n", [ImplTagsSubtreePairs]),
     maps:from_list(ImplTagsSubtreePairs).
 
 -spec find_subtree_for_impl_tag(impl_tag(), configuration()) -> subtree_mailbox_pairs().
