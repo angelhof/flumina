@@ -1,7 +1,10 @@
 -module(optimizer_greedy).
 
 -export([generate_setup_tree/2,
-         generate_setup_tree/3]).
+         generate_setup_tree/3,
+
+         generate_root_tree/2,
+         generate_root_tree/3]).
 
 -include("type_definitions.hrl").
 -include("config.hrl").
@@ -41,6 +44,34 @@ generate_setup_tree(Specification, Topology) ->
 %% one central node, or in edge nodes close to the sources.
 -spec generate_setup_tree(specification(), topology(), 'edge' | 'centralized') -> temp_setup_tree().
 generate_setup_tree(Specification, Topology, IsCentralized) ->
+    RootTree = generate_root_tree(Specification, Topology, IsCentralized),
+    io:format("Root tree: ~n~p~n", [RootTree]),
+
+    %% Now that we have the root tree we only need to
+    %% find a sequence of splits to reach this root tree
+
+    %% Map over the tree, having (a set of options at each stage)
+    %% 1. How to find one option for each time.
+    %%    - Choose one child tag, and see if it fits in the left (or right)
+    %%      child state of some split pair.
+    %%    - Map the father and the chosen child and iterate on the other child.
+    %%    - This way we make a binary tree with a hole, and we iterate on the hole.
+    %%      The hole is also tagged, with a state type, and all the remaining tags.
+    %%
+    %% Is this easily generalizable to hold a set of binary trees with a hole?
+    %% We would certainly want this procedure to not be greedy, so that it
+    %% always finds a possible split sequence if it does exist.
+    SetupTree = root_tree_to_setup_tree(RootTree, Specification),
+    %% io:format("Setup tree: ~n~p~n", [SetupTree]),
+
+    SetupTree.
+
+-spec generate_root_tree(specification(), topology()) -> root_tree().
+generate_root_tree(Specification, Topology) ->
+    generate_root_tree(Specification, Topology, edge).
+
+-spec generate_root_tree(specification(), topology(), 'edge' | 'centralized') -> root_tree().
+generate_root_tree(Specification, Topology, IsCentralized) ->
     Dependencies = conf_gen:get_dependencies(Specification),
     RawImplTags = conf_gen:get_implementation_tags(Topology),
     %% io:format("Impl Tags:~p~n", [RawImplTags]),
@@ -69,26 +100,7 @@ generate_setup_tree(Specification, Topology, IsCentralized) ->
     %% returns its optimal mapping to physical nodes. (By optimal
     %% it means less messages exchanged.)
     RootTree = root_tree_physical_mapping(TagsRootTree, Topology, IsCentralized),
-    io:format("Root tree: ~n~p~n", [RootTree]),
-
-    %% Now that we have the root tree we only need to
-    %% find a sequence of splits to reach this root tree
-
-    %% Map over the tree, having (a set of options at each stage)
-    %% 1. How to find one option for each time.
-    %%    - Choose one child tag, and see if it fits in the left (or right)
-    %%      child state of some split pair.
-    %%    - Map the father and the chosen child and iterate on the other child.
-    %%    - This way we make a binary tree with a hole, and we iterate on the hole.
-    %%      The hole is also tagged, with a state type, and all the remaining tags.
-    %%
-    %% Is this easily generalizable to hold a set of binary trees with a hole?
-    %% We would certainly want this procedure to not be greedy, so that it
-    %% always finds a possible split sequence if it does exist.
-    SetupTree = root_tree_to_setup_tree(RootTree, Specification),
-    %% io:format("Setup tree: ~n~p~n", [SetupTree]),
-
-    SetupTree.
+    RootTree.
 
 %% This algorithm, given a root tree returns its optimal mapping
 %% to physical nodes (based on the message metric).
