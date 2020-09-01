@@ -206,7 +206,7 @@ greedy_local() ->
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, greedy_local_conf, [SinkName]),
     LoggerInitFun =
-	fun() ->
+	fun(_MaybeImplTag) ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
     util:sink(LoggerInitFun).
@@ -268,7 +268,7 @@ greedy_local_conf(SinkPid) ->
     %% Log the input times of b messages
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
     LoggerInitFun =
-	fun() ->
+	fun(_MaybeImplTag) ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
     producer:make_producers(InputStreams, ConfTree, Topology, steady_timestamp, LoggerInitFun),
@@ -352,7 +352,7 @@ real_distributed(NodeNames) ->
     SinkName = {sink, node()},
     _ExecPid = spawn_link(?MODULE, real_distributed_conf, [SinkName, NodeNames]),
     LoggerInitFun =
-	fun() ->
+	fun(_MaybeImplTag) ->
 	        log_mod:initialize_message_logger_state("sink", sets:from_list([sum]))
 	end,
     util:sink(LoggerInitFun).
@@ -390,7 +390,7 @@ real_distributed_conf(SinkPid, [A1NodeName, A2NodeName, BNodeName]) ->
     %% Log the input times of b messages
     _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
     LoggerInitFun =
-	fun() ->
+	fun(_MaybeImplTag) ->
 	        log_mod:initialize_message_logger_state("producer", sets:from_list([b]))
 	end,
     producer:make_producers(InputStreams, ConfTree, Topology, steady_timestamp, LoggerInitFun),
@@ -724,7 +724,7 @@ parametrized_input_distr_example(NumberAs, [BNodeName|ANodeNames], RatioAB, Hear
 -spec big_input_distr_example(node(), node(), node())
 			     -> {msg_generator_init(), msg_generator_init(), msg_generator_init()}.
 big_input_distr_example(NodeA1, NodeA2, NodeB) ->
-    LengthA = 10000000,
+    LengthA = 1000000,
     A1 = {fun abexample:make_as/4, [1, NodeA1, LengthA, 2]},
     A2 = {fun abexample:make_as/4, [2, NodeA2, LengthA, 2]},
     Bs = {fun abexample:make_bs_heartbeats/4, [NodeB, LengthA, 1000, 1]},

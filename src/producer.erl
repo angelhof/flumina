@@ -163,15 +163,22 @@ get_option(message_logger_init_fun, ProducerOptions) ->
             {message_logger_init_fun,
              case get_option0(log_node, ProducerOptions) of
                  {log_node, same} ->
-                     fun() ->
-                             %% Possible optimization to not check for logging unnecessary tags
-                             %% LogTags =
-                             %%     sets:interesection(sets:from_list(ProdTags), sets:from_list(Tags)),
-                             log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
+                     fun(MaybeImplTag) ->
+                             case MaybeImplTag of
+                                 {impl_tag, ImplTag} ->
+                                     log_mod:initialize_specialized_message_logger("producer", sets:from_list(Tags), ImplTag);
+                                 nothing ->
+                                     log_mod:initialize_message_logger_state("producer", sets:from_list(Tags))
+                             end
                      end;
                  {log_node, {other, Node}} ->
-                     fun() ->
-                             log_mod:initialize_message_logger_state("producer", sets:from_list(Tags), Node)
+                     fun(MaybeImplTag) ->
+                             case MaybeImplTag of
+                                 {impl_tag, ImplTag} ->
+                                     log_mod:initialize_specialized_message_logger("producer", sets:from_list(Tags), ImplTag, Node);
+                                 nothing ->
+                                     log_mod:initialize_message_logger_state("producer", sets:from_list(Tags), Node)
+                             end
                      end
              end}
     end;
@@ -197,7 +204,7 @@ default_option(log_node) ->
 default_option(producers_begin_time) ->
     0;
 default_option(message_logger_init_fun) ->
-    fun log_mod:no_message_logger/0;
+    fun log_mod:no_message_logger/1;
 default_option(global_start_sync_wait_ms) ->
     ?GLOBAL_START_TIME_DELAY_MS.
 
@@ -218,7 +225,11 @@ init_producer(ProducerType, ImplTag, MsgGenInit, Rate, Configuration, MsgLoggerI
     log_mod:debug_log_time("Producer ~p routes to: ~p~n",
                            [self(), SendTo]),
     %% Initialize the latency logger
-    LoggerFun = MsgLoggerInitFun(),
+    %%
+    %% Assumption: The ImplTag given to the producer
+    %% corresponds to all the messages that are produced
+    %% by it
+    LoggerFun = MsgLoggerInitFun({impl_tag, ImplTag}),
 
     %% Let the producer creator know that this producer is done initializing
     Creator ! {'init_done', ImplTag},

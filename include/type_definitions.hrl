@@ -208,7 +208,11 @@
 				  file:io_device() %% The file at which the event will be logged
 				}.
 
--type message_logger_init_fun() :: fun(() -> message_logger_log_fun()).
+%% The message logger init may (or may not) use the impl_tag
+%% information for the specific producer to specialize and optimize
+%% logging.
+-type maybe_impl_tag() :: {'impl_tag', impl_tag()} | 'nothing'.
+-type message_logger_init_fun() :: fun((maybe_impl_tag()) -> message_logger_log_fun()).
 -type message_logger_log_fun() :: fun((gen_impl_message()) -> 'ok').
 
 -type num_log_state() :: integer().

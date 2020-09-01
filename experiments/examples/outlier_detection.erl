@@ -846,7 +846,7 @@ setup_experiment(Optimizer, NodeNames, CheckOutliersPeriod,
     case DoLog of
         log_latency_throughput ->
             LoggerInitFun =
-                fun() ->
+                fun(_MaybeImplTag) ->
                         log_mod:initialize_message_logger_state("sink", sets:from_list([check_local_outliers]))
                 end,
             util:sink(LoggerInitFun, 30000);
@@ -912,12 +912,12 @@ run_experiment(SinkPid, Optimizer, NodeNames, CheckOutliersPeriod,
         case DoLog of
             log_latency_throughput ->
                 _ThroughputLoggerPid = spawn_link(log_mod, num_logger_process, ["throughput", ConfTree]),
-                fun() ->
+                fun(_MaybeImplTag) ->
                         log_mod:initialize_message_logger_state("producer",
                                                                 sets:from_list([check_local_outliers]))
                 end;
             no_log ->
-                fun log_mod:no_message_logger/0
+                fun log_mod:no_message_logger/1
         end,
 
     producer:make_producers(ProducerInit, ConfTree, Topology, steady_retimestamp_old,

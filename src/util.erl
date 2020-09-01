@@ -61,7 +61,11 @@ sink_get_option(message_logger_init_fun, Options) ->
             %% message logger init fun have been given.
             false = lists:keyfind(message_logger_init_fun, 1, Options),
             {message_logger_init_fun,
-             fun() ->
+             fun(_MaybeImplTag) ->
+                     %% Sinks can't know what they receive (or can they?)
+                     %%
+                     %% TODO: Optimize sinks to be able to know what
+                     %% they will receive to specialize the logger.
                      log_mod:initialize_message_logger_state("sink", sets:from_list(Tags))
              end}
     end;
@@ -83,7 +87,7 @@ sink_default_option(log_tags) ->
 sink_default_option(sink_wait_time) ->
     ?SINK_WAITING_TIME_MS;
 sink_default_option(message_logger_init_fun) ->
-    fun log_mod:no_message_logger/0.
+    fun log_mod:no_message_logger/1.
 
 
 -spec sink() -> 'ok'.
@@ -112,7 +116,11 @@ sink0(Options) ->
         sink_get_option(message_logger_init_fun, Options),
     {sink_wait_time, WaitTime} =
         sink_get_option(sink_wait_time, Options),
-    LoggerFun = MsgLoggerInitFun(),
+    %% Sinks can't know what they receive (or can they?)
+    %%
+    %% TODO: Optimize sinks to be able to know what
+    %% they will receive to specialize the logger.
+    LoggerFun = MsgLoggerInitFun(nothing),
     receive
 	finished ->
 	    io:format("Configuration done~n", []),

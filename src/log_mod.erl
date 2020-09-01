@@ -2,8 +2,12 @@
 
 -export([initialize_message_logger_state/2,
          initialize_message_logger_state/3,
+
+         initialize_specialized_message_logger/3,
+         initialize_specialized_message_logger/4,
+
 	 maybe_log_message/3,
-	 no_message_logger/0,
+	 no_message_logger/1,
 
          message_logger/1,
 
@@ -22,6 +26,8 @@
 -include("type_definitions.hrl").
 -include("config.hrl").
 
+%% TODO: If the API grows more, refactor these to have options like the rest (producer, sink)
+
 -spec initialize_message_logger_state(string(), sets:set(tag())) -> message_logger_log_fun().
 initialize_message_logger_state(Prefix, Tags) ->
     initialize_message_logger_state(Prefix, Tags, node()).
@@ -36,21 +42,48 @@ initialize_message_logger_state(Prefix, Tags, Node) ->
 	    maybe_log_message(Msg, Tags, Pid)
     end.
 
+-spec initialize_specialized_message_logger(string(), sets:set(tag()), impl_tag())
+                                           -> message_logger_log_fun().
+initialize_specialized_message_logger(Prefix, Tags, ImplTag) ->
+    initialize_specialized_message_logger(Prefix, Tags, ImplTag, node()).
+
+-spec initialize_specialized_message_logger(string(), sets:set(tag()), impl_tag(), node())
+                                           -> message_logger_log_fun().
+initialize_specialized_message_logger(Prefix, Tags, ImplTag, Node) ->
+    Filename =
+        io_lib:format("~s/~s_~s_~s_messages.log",
+		      [?LOG_DIR, Prefix, pid_to_list(self()), atom_to_list(node())]),
+    Pid = spawn_link(Node, ?MODULE, message_logger, [Filename]),
+    {Tag, _TagNode} = ImplTag,
+    case sets:is_element(Tag, Tags) of
+        true ->
+            fun(Msg) ->
+                    log_message(Msg, Pid)
+            end;
+        false ->
+            fun(_Msg) -> ok end
+    end.
+
 %% Generalize the predicate to be anything instead of just a tag set
 %% WARNING: At the moment this only logs messages, not heartbeats
 -spec maybe_log_message(gen_impl_message(), sets:set(tag()), pid()) -> 'ok'.
 maybe_log_message({{Tag, _}, _, _} = Msg, Tags, Pid) ->
     case sets:is_element(Tag, Tags) of
 	true ->
-            CurrentTimestamp = ?GET_SYSTEM_TIME(),
-            PidNode = {self(), node()},
-            Pid ! {Msg, PidNode, CurrentTimestamp},
-            ok;
+            log_message(Msg, Pid);
 	false ->
 	    ok
     end;
 maybe_log_message(_Msg, _Tags, _Pid) ->
     ok.
+
+-spec log_message(gen_impl_message(), pid()) -> 'ok'.
+log_message(Msg, Pid) ->
+    CurrentTimestamp = ?GET_SYSTEM_TIME(),
+    PidNode = {self(), node()},
+    Pid ! {Msg, PidNode, CurrentTimestamp},
+    ok.
+
 
 %% Obsolete synchronous logging code
 %% %% Generalize the predicate to be anything instead of just a tag set
@@ -101,8 +134,8 @@ message_logger_loop(IoDevice, Buffer, N) ->
             message_logger_loop(IoDevice, [Data|Buffer], N+1)
     end.
 
--spec no_message_logger() -> message_logger_log_fun().
-no_message_logger() ->
+-spec no_message_logger(maybe_impl_tag()) -> message_logger_log_fun().
+no_message_logger(_MaybeImplTag) ->
     fun(_Msg) -> ok end.
 
 %%
