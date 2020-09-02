@@ -88,7 +88,8 @@ def gather_logs(dir_prefix, nodes, conf_string, run_ns3=False, run_ec2=False, lo
     if(not run_ec2):
         all_log_folders = [os.path.join('var', 'log', node) for node in nodes]
     else:
-        shutil.rmtree('temp_logs')
+        if os.path.exists('temp_logs') and os.path.isdir('temp_logs'):
+            shutil.rmtree('temp_logs')
         os.makedirs('temp_logs')
         log_folders = [os.path.join('temp_logs', node.split('@')[0]) for node in nodes]
         hostnames = get_ec2_hostnames()
@@ -617,11 +618,11 @@ def run_configurations(experiment, rate_multipliers, ratios_ab, heartbeat_rates,
 # rate_multipliers = range(30, 32, 2)
 rate_multipliers = range(40, 102, 2)
 # rate_multipliers = range(80, 102, 2)
-# rate_multipliers = range(30, 50, 2)
-ratios_ab = [1000]
-heartbeat_rates = [10]
+# rate_multipliers = range(50, 61, 10)
+ratios_ab = [10000]
+heartbeat_rates = [100]
 # a_nodes_numbers = [10]
-a_nodes_numbers = [1]
+a_nodes_numbers = [0]
 optimizers = ["optimizer_greedy"]
 
 # run_configurations(1, rate_multipliers, ratios_ab, heartbeat_rates, a_nodes_numbers, optimizers, run_ns3=True)
