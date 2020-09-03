@@ -22,6 +22,7 @@ use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange,
                                   Partition, Probe};
 use std::collections::VecDeque;
+use std::cell::RefCell; // for shared references to fix lifetime errors
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
@@ -38,7 +39,8 @@ fn main() {
         let mut probe1 = ProbeHandle::new();
         let mut probe2 = ProbeHandle::new();
 
-        let mut barriers = VecDeque::new();
+        let barriers = VecDeque::new();
+        let barriers_ref = RefCell::new(barriers);
         let mut num_barriers = 0;
         let mut max_barrier = -1;
 
@@ -53,9 +55,11 @@ fn main() {
             let v_stream = &streams[0];
             let b_stream = &streams[1];
             // Barrier stream: capture barriers, update max/count
+            // let barriers_ref = barriers.clone();
             b_stream
-                .inspect(|x| {
-                    barriers.push_back(*x);
+                .inspect(move |x| {
+                    // almost working -- except following line
+                    // barriers_ref.borrow_mut().push_back(*x);
                     num_barriers += 1;
                     assert!(*x > max_barrier); // should be in inc order
                     max_barrier = *x;
@@ -96,9 +100,9 @@ fn main() {
             while max_barrier < round {
                 worker.step();
             }
-            while round >= barriers[0] {
+            while round >= barriers_ref.borrow()[0] {
                 // New Epoch
-                barriers.pop_front();
+                barriers_ref.borrow_mut().pop_front();
                 epoch += 1;
                 input.advance_to(epoch);
                 println!("[worker {}] [input] new epoch: {}", w_index, input.epoch());
