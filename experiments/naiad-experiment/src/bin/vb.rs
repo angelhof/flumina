@@ -63,26 +63,29 @@ fn main() {
             // then separate into values and barriers
             let streams = scope.input_from(&mut input)
                 .exchange(|(_x, _y, z): &(u64, i64, usize)| (*z as u64))
-                .inspect(move |x| {
-                    println!("[worker {}] received: {:?}", w_index, x)
-                })
+                // .inspect(move |x| {
+                //     println!("[worker {}] received: {:?}", w_index, x)
+                // })
                 .partition(2, |(x, y, _z)| (x, y));
-            let v_stream = &streams[0];
-            let b_stream = &streams[1];
+
             // Barrier stream: capture barriers, update max/count
-            b_stream
+            streams[0]
+                .inspect(move |x| println!("[worker {}]\treceived barrier: {:?}",
+                                           w_index, x))
                 .inspect(move |x| {
                     barriers_copy.borrow_mut().push_back(*x);
                     *num_barriers_copy.borrow_mut() += 1;
                     // should be in inc order
                     assert!(*x > *max_barrier_copy.borrow());
                     *max_barrier_copy.borrow_mut() = *x;
-                    println!("[worker {}]\tmax barrier {}",
+                    println!("[worker {}]\tmax barrier: {}",
                              w_index, *max_barrier_copy.borrow())
                 })
                 .probe_with(&mut probe1);
+        
             // Value stream: count and then probe
-            v_stream
+            streams[1]
+                // .inspect(move |x| println!("[worker {}]\tvalue: {:?}", w_index, x))
                 // Count (for each epoch)
                 .count()
                 // Print output; probe for progress
@@ -98,16 +101,21 @@ fn main() {
         // (but barriers are only at worker 0)
         println!("[worker {}] [input] initial epoch: {}", w_index, input.epoch());
         let mut epoch = 0; // Initial input.epoch()
-        for round in 0..100000 {
-            if w_index == 0 && round % 1000 == 0 {
-                // worker 0: send barrier event, update epoch
-                for w_other in 0..w_total {
-                    input.send((0, round, w_other));
+        for round in 0..100001 {
+            if w_index == 0 {
+                if round % 1000 == 0 {
+                    // worker 0: send barrier event, update epoch
+                    for w_other in 1..w_total {
+                        input.send((0, round, w_other));
+                        println!("[worker {}] sent barrier: {:?}",
+                                 w_index, (0, round, w_other));
+                    }
+                    epoch += 1;
+                    input.advance_to(epoch);
+                    println!("[worker {}] [input] new epoch: {}",
+                             w_index, input.epoch());
                 }
-                epoch += 1;
-                input.advance_to(epoch);
-                println!("[worker {}] [input] new epoch: {}",
-                         w_index, input.epoch());
+                *max_barrier.borrow_mut() = round
             }
             // MAILBOX LOGIC
             // - If max_barrier is behind the current round, step the computation
@@ -118,22 +126,30 @@ fn main() {
                 //          w_index, *max_barrier.borrow(), round);
                 worker.step();
             }
-            while round >= barriers.borrow()[0] {
+            while !barriers.borrow().is_empty()
+                  && round >= barriers.borrow()[0] {
                 // New Epoch
                 barriers.borrow_mut().pop_front();
-                epoch += 1;
-                input.advance_to(epoch);
-                println!("[worker {}] [input] new epoch: {}",
-                         w_index, input.epoch());
+                if w_index != 0 {
+                    epoch += 1;
+                    input.advance_to(epoch);
+                    println!("[worker {}] [input] new epoch: {}",
+                             w_index, input.epoch());
+                }
             }
-            input.send((1, round, w_index));
+
+            // Send value (except on last round)
+            if round != 100000 {
+                input.send((1, round, w_index));
+            }
         }
         println!("[worker {}] [input] Done sending input!", w_index);
 
         // Not currently used: some methods of stepping the computation
-        // while probe1.less_than(input.time()) {
-        //     worker.step();
-        // }
+        // Step any remaining computation
+        while probe1.less_than(input.time()) {
+            worker.step();
+        }
         // for _wait_time in 0..1000000 {
         //     worker.step();
         // }
