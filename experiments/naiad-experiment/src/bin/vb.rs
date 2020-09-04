@@ -22,7 +22,16 @@ use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange,
                                   Partition, Probe};
 use std::collections::VecDeque;
-use std::cell::RefCell; // for shared references to fix lifetime errors
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+// Possibly better design: use struct
+// struct worker_data {
+//     index: u64,
+//     total: u64,
+//     barriers: ...
+// }
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
@@ -39,13 +48,16 @@ fn main() {
         let mut probe1 = ProbeHandle::new();
         let mut probe2 = ProbeHandle::new();
 
-        let barriers = VecDeque::new();
-        let barriers_ref = RefCell::new(barriers);
-        let mut num_barriers = 0;
-        let mut max_barrier = -1;
+        let barriers = Rc::new(RefCell::new(VecDeque::new()));
+        let num_barriers = Rc::new(RefCell::new(0));
+        let max_barrier = Rc::new(RefCell::new(-1));
 
         /***** 2. Create the dataflow *****/
 
+        // copy of barriers_ref to pass ownership to closure
+        let barriers_copy = barriers.clone();
+        let num_barriers_copy = num_barriers.clone();
+        let max_barrier_copy = max_barrier.clone();
         worker.dataflow(|scope| {
             // Shuffle events (forward barriers to appropriate worker),
             // then separate into values and barriers
@@ -55,15 +67,14 @@ fn main() {
             let v_stream = &streams[0];
             let b_stream = &streams[1];
             // Barrier stream: capture barriers, update max/count
-            // let barriers_ref = barriers.clone();
             b_stream
                 .inspect(move |x| {
-                    // almost working -- except following line
-                    // barriers_ref.borrow_mut().push_back(*x);
-                    num_barriers += 1;
-                    assert!(*x > max_barrier); // should be in inc order
-                    max_barrier = *x;
-                    println!("[worker {}]\tmax barrier {}", w_index, max_barrier)
+                    barriers_copy.borrow_mut().push_back(*x);
+                    *num_barriers_copy.borrow_mut() += 1;
+                    // should be in inc order
+                    assert!(*x > *max_barrier_copy.borrow());
+                    *max_barrier_copy.borrow_mut() = *x;
+                    println!("[worker {}]\tmax barrier {}", w_index, *max_barrier_copy.borrow())
                 })
                 .probe_with(&mut probe1);
             // Value stream: count and then probe
@@ -97,12 +108,12 @@ fn main() {
             // - If max_barrier is behind the current round, step the computation
             // - Otherwise, update the input epoch if needed
             // - Only after the above is done, release the value event
-            while max_barrier < round {
+            while *max_barrier.borrow() < round {
                 worker.step();
             }
-            while round >= barriers_ref.borrow()[0] {
+            while round >= barriers.borrow()[0] {
                 // New Epoch
-                barriers_ref.borrow_mut().pop_front();
+                barriers.borrow_mut().pop_front();
                 epoch += 1;
                 input.advance_to(epoch);
                 println!("[worker {}] [input] new epoch: {}", w_index, input.epoch());
