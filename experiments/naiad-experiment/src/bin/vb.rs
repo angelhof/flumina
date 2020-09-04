@@ -63,6 +63,9 @@ fn main() {
             // then separate into values and barriers
             let streams = scope.input_from(&mut input)
                 .exchange(|(_x, _y, z): &(u64, i64, usize)| (*z as u64))
+                .inspect(move |x| {
+                    println!("[worker {}] received: {:?}", w_index, x)
+                })
                 .partition(2, |(x, y, _z)| (x, y));
             let v_stream = &streams[0];
             let b_stream = &streams[1];
@@ -74,7 +77,8 @@ fn main() {
                     // should be in inc order
                     assert!(*x > *max_barrier_copy.borrow());
                     *max_barrier_copy.borrow_mut() = *x;
-                    println!("[worker {}]\tmax barrier {}", w_index, *max_barrier_copy.borrow())
+                    println!("[worker {}]\tmax barrier {}",
+                             w_index, *max_barrier_copy.borrow())
                 })
                 .probe_with(&mut probe1);
             // Value stream: count and then probe
@@ -100,15 +104,18 @@ fn main() {
                 for w_other in 0..w_total {
                     input.send((0, round, w_other));
                 }
-                // epoch += 1;
-                // input.advance_to(epoch);
-                // println!("[worker {}] [input] new epoch: {}", w_index, input.epoch());
+                epoch += 1;
+                input.advance_to(epoch);
+                println!("[worker {}] [input] new epoch: {}",
+                         w_index, input.epoch());
             }
             // MAILBOX LOGIC
             // - If max_barrier is behind the current round, step the computation
             // - Otherwise, update the input epoch if needed
             // - Only after the above is done, release the value event
             while *max_barrier.borrow() < round {
+                // println!("[worker {}] [input] stepping: {} < {}",
+                //          w_index, *max_barrier.borrow(), round);
                 worker.step();
             }
             while round >= barriers.borrow()[0] {
@@ -116,7 +123,8 @@ fn main() {
                 barriers.borrow_mut().pop_front();
                 epoch += 1;
                 input.advance_to(epoch);
-                println!("[worker {}] [input] new epoch: {}", w_index, input.epoch());
+                println!("[worker {}] [input] new epoch: {}",
+                         w_index, input.epoch());
             }
             input.send((1, round, w_index));
         }
