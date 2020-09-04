@@ -1,14 +1,8 @@
 /*
-Timely code for the Value Barrier example.
+Timely code for the Value Barrier example, Version 1.
 
-There will eventually be two examples of this code, differing in
-how they define epochs for the computation.
-- Option 1 is to define a new epoch whenever a barrier event occurs.
-  This is more efficient as it allows batching value events.
-- Option 2 is to define a new epoch for every timestamp.
-  This should allow us to naturally use timely's progress tracking mechanism
-  to enforce that values and barriers are processed in order, rather than
-  having to manually implement our own mailbox.
+For this version, we define a new epoch whenever a barrier event occurs.
+This is more efficient as it allows batching value events.
 
 Notes:
 - Input values are ordered triples. Barriers are (0, x, i) and values are
@@ -54,7 +48,7 @@ fn main() {
 
         /***** 2. Create the dataflow *****/
 
-        // copyies to pass ownership to closure
+        // copies to pass ownership to closure
         let barriers_copy = barriers.clone();
         let num_barriers_copy = num_barriers.clone();
         let max_barrier_copy = max_barrier.clone();
@@ -104,7 +98,7 @@ fn main() {
         for round in 0..100001 {
             if w_index == 0 {
                 if round % 1000 == 0 {
-                    // worker 0: send barrier event, update epoch
+                    // worker 0: send barrier events, update epoch
                     for w_other in 1..w_total {
                         input.send((0, round, w_other));
                         println!("[worker {}] sent barrier: {:?}",
@@ -143,7 +137,7 @@ fn main() {
                 input.send((1, round, w_index));
             }
         }
-        println!("[worker {}] [input] Done sending input!", w_index);
+        println!("[worker {}] [input] done sending input!", w_index);
 
         // Step any remaining computation
         while v_probe.less_than(input.time()) ||
