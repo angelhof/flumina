@@ -11,7 +11,7 @@ how they define epochs for the computation.
   having to manually implement our own mailbox.
 
 Notes:
-- Input values are ordered pairs. Barriers are (0, x, i) and values are
+- Input values are ordered triples. Barriers are (0, x, i) and values are
   (1, x, i), where x is the value (timestamp) and i is the worker where the
   event should be processed.
 */
@@ -45,8 +45,8 @@ fn main() {
         println!("[worker {}] initializing", w_index);
 
         let mut input = InputHandle::new();
-        let mut probe1 = ProbeHandle::new();
-        let mut probe2 = ProbeHandle::new();
+        let mut b_probe = ProbeHandle::new();
+        let mut v_probe = ProbeHandle::new();
 
         let barriers = Rc::new(RefCell::new(VecDeque::new()));
         let num_barriers = Rc::new(RefCell::new(0));
@@ -54,7 +54,7 @@ fn main() {
 
         /***** 2. Create the dataflow *****/
 
-        // copy of barriers_ref to pass ownership to closure
+        // copyies to pass ownership to closure
         let barriers_copy = barriers.clone();
         let num_barriers_copy = num_barriers.clone();
         let max_barrier_copy = max_barrier.clone();
@@ -81,7 +81,7 @@ fn main() {
                     println!("[worker {}]\tmax barrier: {}",
                              w_index, *max_barrier_copy.borrow())
                 })
-                .probe_with(&mut probe1);
+                .probe_with(&mut b_probe);
         
             // Value stream: count and then probe
             streams[1]
@@ -90,7 +90,7 @@ fn main() {
                 .count()
                 // Print output; probe for progress
                 .inspect(move |x| println!("[worker {}]\tcount {}", w_index, x))
-                .probe_with(&mut probe2);
+                .probe_with(&mut v_probe);
         });
 
         println!("[worker {}] dataflow created", w_index);
@@ -126,8 +126,8 @@ fn main() {
                 //          w_index, *max_barrier.borrow(), round);
                 worker.step();
             }
-            while !barriers.borrow().is_empty()
-                  && round >= barriers.borrow()[0] {
+            while !barriers.borrow().is_empty() &&
+                  round >= barriers.borrow()[0] {
                 // New Epoch
                 barriers.borrow_mut().pop_front();
                 if w_index != 0 {
@@ -145,14 +145,11 @@ fn main() {
         }
         println!("[worker {}] [input] Done sending input!", w_index);
 
-        // Not currently used: some methods of stepping the computation
         // Step any remaining computation
-        while probe1.less_than(input.time()) {
+        while v_probe.less_than(input.time()) ||
+              b_probe.less_than(input.time()) {
             worker.step();
         }
-        // for _wait_time in 0..1000000 {
-        //     worker.step();
-        // }
 
         println!("[worker {}] end of code", w_index);
     }).unwrap();
