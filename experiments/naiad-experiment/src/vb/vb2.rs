@@ -13,6 +13,7 @@ Notes:
 */
 
 extern crate timely;
+#[macro_use] extern crate abomonation_derive;
 
 use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::operators::{Input, Inspect, Exchange, Probe};
@@ -20,6 +21,9 @@ use timely::dataflow::operators::generic::operator::Operator;
 use timely::dataflow::channels::pact::Pipeline;
 
 use std::vec::Vec;
+
+mod vb_data;
+use vb_data::{VBData, VBItem};
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
@@ -40,7 +44,7 @@ fn main() {
         worker.dataflow(|scope| {
             scope.input_from(&mut input)
                 // Shuffle events (forward barriers to appropriate worker)
-                .exchange(|(_x, _y, z): &(u64, i64, usize)| (*z as u64))
+                .exchange(|x: &VBItem| (x.loc as u64))
                 // .inspect(move |x| {
                 //     println!("[worker {}] received: {:?}", w_index, x)
                 // })
@@ -52,16 +56,15 @@ fn main() {
                         while let Some((time, data)) = input.next() {
                             data.swap(&mut inputs);
                             for datum in inputs.drain(..) {
-                                if datum.0 == 0 {
-                                    // Process barrier
-                                    let mut session = output.session(&time);
-                                    session.give(count);
-                                    count = 0;
-                                }
-                                else {
-                                    assert!(datum.0 == 1);
-                                    // Process value
-                                    count += 1;
+                                match datum.data {
+                                    VBData::Barrier => {
+                                        let mut session = output.session(&time);
+                                        session.give(count);
+                                        count = 0;
+                                    }
+                                    VBData::Value => {
+                                        count += 1;
+                                    }
                                 }
                             }
                         }
@@ -84,7 +87,11 @@ fn main() {
             if w_index == 0 {
                 if round % 1000 == 0 {
                     for w_other in 0..w_total {
-                        input.send((0, round, w_other));
+                        input.send(VBItem {
+                            data: VBData::Barrier,
+                            time: round,
+                            loc: w_other,
+                        });
                         println!("[worker {}] sent barrier: {:?}",
                                  w_index, (0, round, w_other));
                     }
@@ -92,7 +99,11 @@ fn main() {
             }
             // Send value (except on last round)
             if round != 100000 {
-                input.send((1, round, w_index));
+                input.send(VBItem {
+                    data: VBData::Value,
+                    time: round,
+                    loc: w_index
+                });
             }
             epoch += 1;
             input.advance_to(epoch);

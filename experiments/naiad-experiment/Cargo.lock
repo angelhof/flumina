@@ -30,6 +30,8 @@ dependencies = [
 name = "naiad-experiment"
 version = "0.1.0"
 dependencies = [
+ "abomonation",
+ "abomonation_derive",
  "timely",
 ]
 

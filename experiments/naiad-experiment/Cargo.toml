@@ -8,6 +8,8 @@ edition = "2018"
 
 [dependencies]
 timely="*"
+abomonation="*"
+abomonation_derive = "0.5.0"
 
 [[bin]]
 name = "vb1"
