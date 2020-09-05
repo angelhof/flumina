@@ -82,7 +82,7 @@ fn main() {
         // (but barriers are only at worker 0)
         println!("[worker {}] [input] initial epoch: {}", w_index, input.epoch());
         let mut epoch = 0; // Initial input.epoch()
-        for round in 0..100001 {
+        for round in 0..10001 {
             // Send barrier
             if w_index == 0 {
                 if round % 1000 == 0 {
@@ -98,11 +98,11 @@ fn main() {
                 }
             }
             // Send value (except on last round)
-            if round != 100000 {
+            if round != 10000 {
                 input.send(VBItem {
                     data: VBData::Value,
                     time: round,
-                    loc: w_index
+                    loc: w_index,
                 });
             }
             epoch += 1;
