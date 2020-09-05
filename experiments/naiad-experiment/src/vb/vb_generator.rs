@@ -16,26 +16,29 @@ where
 {
     source(scope, "Source", |capability: Capability<<G as timely::dataflow::scopes::ScopeParent>::Timestamp>, info: OperatorInfo| {
 
-        // Acquire a re-activator for this operator.
+        // Internal details of timely dataflow
+        // 1. Acquire a re-activator for this operator.
+        // 2. Wrap capability in an option so that we can release it when
+        //    done by setting it to None
         let activator = scope.activator_for(&info.address[..]);
-
-        // Wrap capability for when we are done with it
-        let mut cap = Some(capability);
+        let mut maybe_cap = Some(capability);
 
         // Return closure
         move |output: &mut OutputHandle<i64, i64, Tee<i64, i64>>| {
-            let mut done = false;
-            if let Some(cap) = cap.as_mut() {
+            if let Some(cap) = maybe_cap.as_mut() {
                 // get some data and send it.
                 let time = cap.time().clone();
                 output.session(&cap)
                       .give(*cap.time());
                 // downgrade capability.
                 cap.downgrade(&(time + 1));
-                done = time > 20;
+                if time > 20 {
+                    maybe_cap = None;
+                }
+                else {
+                    activator.activate();
+                }
             }
-            if done { cap = None; }
-            else    { activator.activate(); }
         }
 
     })
