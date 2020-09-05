@@ -8,14 +8,9 @@ pub enum VBData {
     Barrier,
 }
 
-// unsafe_abomonate!(VBData);
-
 #[derive(Debug, PartialEq, Copy, Clone, Abomonation)]
 pub struct VBItem {
     pub data: VBData,
     pub time: i64,  // timestamp
     pub loc: usize, // node number
 }
-
-// #[allow(deprecated)]
-// unsafe_abomonate!(VBItem : data, time, loc);
