@@ -18,3 +18,7 @@ path = "src/vb/vb1.rs"
 [[bin]]
 name = "vb2"
 path = "src/vb/vb2.rs"
+
+[[bin]]
+name = "vbgen"
+path = "src/vb/vb_generator.rs"
