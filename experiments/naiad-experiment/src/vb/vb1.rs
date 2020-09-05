@@ -11,6 +11,7 @@ Notes:
 */
 
 extern crate timely;
+#[macro_use] extern crate abomonation_derive;
 
 use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange,
@@ -20,12 +21,8 @@ use std::collections::VecDeque;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-// Possibly better design: use struct
-// struct worker_data {
-//     index: u64,
-//     total: u64,
-//     barriers: ...
-// }
+mod vb_data;
+use vb_data::{VBData, VBItem};
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
@@ -56,22 +53,25 @@ fn main() {
             // Shuffle events (forward barriers to appropriate worker),
             // then separate into values and barriers
             let streams = scope.input_from(&mut input)
-                .exchange(|(_x, _y, z): &(u64, i64, usize)| (*z as u64))
+                .exchange(|x: &VBItem| (x.loc as u64))
                 // .inspect(move |x| {
                 //     println!("[worker {}] received: {:?}", w_index, x)
                 // })
-                .partition(2, |(x, y, _z)| (x, y));
+                .partition(2, |x| match x.data {
+                    VBData::Barrier => (0, x),
+                    VBData::Value => (1, x),
+                });
 
             // Barrier stream: capture barriers, update max/count
             streams[0]
                 .inspect(move |x| println!("[worker {}]\treceived barrier: {:?}",
                                            w_index, x))
                 .inspect(move |x| {
-                    barriers_copy.borrow_mut().push_back(*x);
+                    barriers_copy.borrow_mut().push_back(x.time);
                     *num_barriers_copy.borrow_mut() += 1;
                     // should be in inc order
-                    assert!(*x > *max_barrier_copy.borrow());
-                    *max_barrier_copy.borrow_mut() = *x;
+                    assert!(x.time > *max_barrier_copy.borrow());
+                    *max_barrier_copy.borrow_mut() = x.time;
                     println!("[worker {}]\tmax barrier: {}",
                              w_index, *max_barrier_copy.borrow())
                 })
@@ -100,7 +100,11 @@ fn main() {
                 if round % 1000 == 0 {
                     // worker 0: send barrier events, update epoch
                     for w_other in 1..w_total {
-                        input.send((0, round, w_other));
+                        input.send(VBItem {
+                            data: VBData::Barrier,
+                            time: round,
+                            loc: w_other,
+                        });
                         println!("[worker {}] sent barrier: {:?}",
                                  w_index, (0, round, w_other));
                     }
@@ -134,7 +138,11 @@ fn main() {
 
             // Send value (except on last round)
             if round != 100000 {
-                input.send((1, round, w_index));
+                input.send(VBItem {
+                    data: VBData::Value,
+                    time: round,
+                    loc: w_index,
+                });
             }
         }
         println!("[worker {}] [input] done sending input!", w_index);

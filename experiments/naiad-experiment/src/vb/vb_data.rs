@@ -13,7 +13,7 @@ pub enum VBData {
 #[derive(Debug, PartialEq, Copy, Clone, Abomonation)]
 pub struct VBItem {
     pub data: VBData,
-    pub time: u64,  // timestamp
+    pub time: i64,  // timestamp
     pub loc: usize, // node number
 }
 
