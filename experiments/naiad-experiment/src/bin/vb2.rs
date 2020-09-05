@@ -80,10 +80,10 @@ fn main() {
         println!("[worker {}] [input] initial epoch: {}", w_index, input.epoch());
         let mut epoch = 0; // Initial input.epoch()
         for round in 0..100001 {
+            // Send barrier
             if w_index == 0 {
                 if round % 1000 == 0 {
-                    // worker 0: send barrier events
-                    for w_other in 1..w_total {
+                    for w_other in 0..w_total {
                         input.send((0, round, w_other));
                         println!("[worker {}] sent barrier: {:?}",
                                  w_index, (0, round, w_other));
@@ -96,16 +96,15 @@ fn main() {
             }
             epoch += 1;
             input.advance_to(epoch);
-            println!("[worker {}] [input] new epoch: {}",
-                     w_index, input.epoch());
-        }
-        println!("[worker {}] [input] done sending input!", w_index);
-
-        // Step any remaining computation
-        while probe.less_than(input.time()) {
-            worker.step();
+            // println!("[worker {}] [input] new epoch: {}",
+            //          w_index, input.epoch());
+            // Step computation
+            while probe.less_than(input.time()) {
+                worker.step();
+            }
         }
 
         println!("[worker {}] end of code", w_index);
+
     }).unwrap();
 }
