@@ -9,8 +9,8 @@ pub enum VBData {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone, Abomonation)]
-pub struct VBItem {
+pub struct VBItem<T> {
     pub data: VBData,
-    pub time: i64,  // timestamp
+    pub time: T,  // timestamp
     pub loc: usize, // node number
 }

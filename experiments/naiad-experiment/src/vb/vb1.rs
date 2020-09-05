@@ -53,7 +53,7 @@ fn main() {
             // Shuffle events (forward barriers to appropriate worker),
             // then separate into values and barriers
             let streams = scope.input_from(&mut input)
-                .exchange(|x: &VBItem| (x.loc as u64))
+                .exchange(|x: &VBItem<i64>| (x.loc as u64))
                 // .inspect(move |x| {
                 //     println!("[worker {}] received: {:?}", w_index, x)
                 // })
