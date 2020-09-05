@@ -8,3 +8,11 @@ edition = "2018"
 
 [dependencies]
 timely="*"
+
+[[bin]]
+name = "vb1"
+path = "src/vb/vb1.rs"
+
+[[bin]]
+name = "vb2"
+path = "src/vb/vb2.rs"
