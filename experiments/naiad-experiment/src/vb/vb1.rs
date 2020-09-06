@@ -10,16 +10,16 @@ Notes:
   event should be processed.
 */
 
+mod vb_data;
+use vb_data::{VBData, VBItem};
+
 use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange,
                                   Partition, Probe};
-use std::collections::VecDeque;
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
-
-mod vb_data;
-use vb_data::{VBData, VBItem};
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {

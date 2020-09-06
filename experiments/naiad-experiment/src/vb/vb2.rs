@@ -12,15 +12,15 @@ Notes:
   event should be processed.
 */
 
-use timely::dataflow::{InputHandle, ProbeHandle};
-use timely::dataflow::operators::{Input, Inspect, Exchange, Probe};
-use timely::dataflow::operators::generic::operator::Operator;
-use timely::dataflow::channels::pact::Pipeline;
-
-use std::vec::Vec;
-
 mod vb_data;
 use vb_data::{VBData, VBItem};
+
+use timely::dataflow::{InputHandle, ProbeHandle};
+use timely::dataflow::channels::pact::Pipeline;
+use timely::dataflow::operators::{Input, Inspect, Exchange, Probe};
+use timely::dataflow::operators::generic::operator::Operator;
+
+use std::vec::Vec;
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {

@@ -3,6 +3,9 @@
     in the Value Barrier example.
 */
 
+mod vb_data;
+use vb_data::{VBData, VBItem};
+
 use timely::dataflow::channels::pushers::tee::Tee;
 use timely::dataflow::operators::{Inspect,Capability};
 use timely::dataflow::operators::generic::{OperatorInfo,OutputHandle};
@@ -10,13 +13,10 @@ use timely::dataflow::operators::generic::operator::source;
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 
-use std::io;
 use std::fmt::Debug;
+use std::io;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
-
-mod vb_data;
-use vb_data::{VBData, VBItem};
 
 /*
     Utility functions
