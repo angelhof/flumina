@@ -12,9 +12,6 @@ Notes:
   event should be processed.
 */
 
-extern crate timely;
-#[macro_use] extern crate abomonation_derive;
-
 use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::operators::{Input, Inspect, Exchange, Probe};
 use timely::dataflow::operators::generic::operator::Operator;

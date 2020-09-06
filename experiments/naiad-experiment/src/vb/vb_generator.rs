@@ -3,9 +3,6 @@
     in the Value Barrier example.
 */
 
-extern crate timely;
-#[macro_use] extern crate abomonation_derive;
-
 use timely::dataflow::channels::pushers::tee::Tee;
 use timely::dataflow::operators::{Inspect,Capability};
 use timely::dataflow::operators::generic::{OperatorInfo,OutputHandle};

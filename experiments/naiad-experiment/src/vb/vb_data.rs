@@ -2,6 +2,8 @@
 Timely code for the data used in the Value Barrier example.
 */
 
+use abomonation_derive::Abomonation;
+
 #[derive(Debug, PartialEq, Copy, Clone, Abomonation)]
 pub enum VBData {
     Value, // alternative: Value(u64)
