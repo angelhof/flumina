@@ -9,6 +9,7 @@ than low-level state management per worker.
 use naiad_experiment::vb_generator::{barrier_source, value_source};
 
 use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
+use timely::dataflow::operators::aggregation::Aggregate;
 
 use std::time::Duration;
 
@@ -52,7 +53,15 @@ fn main() {
                 // .inspect(move |x| println!("[worker {}] reclocked: {:?}",
                 //                            w_index, x))
                 .count()
-                .inspect(move |x| println!("[worker {}] count: {:?}",
+                // .inspect(move |x| println!("[worker {}] count: {:?}",
+                //                            w_index, x))
+                .map(|x| (0, x))
+                .aggregate(
+                    |_key, val, agg| {*agg += val; },
+                    |_key, agg: usize| agg,
+                    |_key| 0,
+                )
+                .inspect(move |x| println!("[worker {}] total: {:?}",
                                            w_index, x));
         });
 
