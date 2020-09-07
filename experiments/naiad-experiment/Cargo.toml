@@ -10,15 +10,3 @@ edition = "2018"
 timely="*"
 abomonation="*"
 abomonation_derive = "0.5.0"
-
-[[bin]]
-name = "vb1"
-path = "src/vb/vb1.rs"
-
-[[bin]]
-name = "vb2"
-path = "src/vb/vb2.rs"
-
-[[bin]]
-name = "vbgen"
-path = "src/vb/vb_generator.rs"

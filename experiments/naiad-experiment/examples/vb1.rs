@@ -10,8 +10,7 @@ Notes:
   event should be processed.
 */
 
-mod vb_data;
-use vb_data::{VBData, VBItem};
+use naiad_experiment::vb_data::{VBData, VBItem};
 
 use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange,

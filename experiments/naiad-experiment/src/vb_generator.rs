@@ -3,47 +3,17 @@
     in the Value Barrier example.
 */
 
-mod vb_data;
-use vb_data::{VBData, VBItem};
+use super::util::{div_durations,time_since};
+use super::vb_data::{VBData, VBItem};
 
 use timely::dataflow::channels::pushers::tee::Tee;
-use timely::dataflow::operators::{Inspect,Capability};
+use timely::dataflow::operators::Capability;
 use timely::dataflow::operators::generic::{OperatorInfo,OutputHandle};
 use timely::dataflow::operators::generic::operator::source;
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 
-use std::fmt::Debug;
-use std::io;
-use std::str::FromStr;
 use std::time::{Duration, SystemTime};
-
-/*
-    Utility functions
-*/
-
-// Related to time
-fn time_since(t: SystemTime) -> Duration {
-    // Note: this function may panic in case of clock drift
-    return t.elapsed().unwrap();
-}
-fn div_durations(d1: Duration, d2: Duration) -> u64 {
-    ((d1.as_nanos() as f64) / (d2.as_nanos() as f64)) as u64
-}
-
-// For stdin input
-fn get_input<T>(msg: &str) -> T
-where
-    T: FromStr,
-    <T as FromStr>::Err: Debug,
-{
-    println!("{}", msg);
-    let mut input_text = String::new();
-    io::stdin()
-        .read_line(&mut input_text)
-        .expect("failed to read from stdin");
-    input_text.trim().parse::<T>().expect("not an integer")
-}
 
 /*
     The main value source
@@ -51,7 +21,7 @@ where
 
 type Item = VBItem<u128>;
 
-fn value_source<G>(
+pub fn value_source<G>(
     scope: &G,
     loc: usize,
     frequency: Duration,
@@ -105,23 +75,4 @@ where
         }
 
     })
-}
-
-/*
-    Main function so that the generator can be run as a standalone
-    binary without computation if desired
-*/
-
-fn main() {
-
-    let frequency = Duration::from_micros(get_input("Frequency in microseconds:"));
-    let total = Duration::from_secs(get_input("Total time to run in seconds:"));
-
-    timely::execute_from_args(std::env::args(), move |worker| {
-        let w_index = worker.index();
-        worker.dataflow(|scope| {
-            value_source(scope, w_index, frequency, total)
-            .inspect(|x| println!("item generated: {:?}", x));
-        });
-    }).unwrap();
 }
