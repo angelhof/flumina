@@ -7,10 +7,9 @@ than low-level state management per worker.
 */
 
 use naiad_experiment::vb_generator::{barrier_source, value_source};
-use naiad_experiment::vb_data::{VBData, VBItem};
+// use naiad_experiment::vb_data::{VBData, VBItem};
 
-use timely::dataflow::{InputHandle, ProbeHandle};
-use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange, Probe};
+use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
 
 use std::time::Duration;
 
@@ -18,9 +17,9 @@ fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
 
         // Parameters for the experiment
-        let value_frequency = Duration::from_micros(1000);
+        let value_frequency = Duration::from_micros(40000);
         let value_total = Duration::from_secs(1);
-        let barrier_frequency = Duration::from_micros(100000);
+        let barrier_frequency = Duration::from_micros(200000);
         let mut barrier_total = Duration::from_secs(1);
 
         // Index of this worker and the total number in existence
@@ -34,22 +33,29 @@ fn main() {
             barrier_total = Duration::from_secs(0);
         }
 
-        let mut b_probe = ProbeHandle::new();
-        let mut v_probe = ProbeHandle::new();
-
         println!("[worker {}] initialized", w_index);
 
         /***** 2. Create the dataflow *****/
 
-        worker.dataflow(|scope| {
-            value_source(scope, w_index, value_frequency, value_total)
-            .inspect(|x| println!("value seen: {:?}", x))
-            .probe_with(&mut v_probe);
+        worker.dataflow(move |scope| {
 
-            barrier_source(scope, w_index, barrier_frequency, barrier_total)
-            .exchange(|x: &VBItem<u128>| (x.loc as u64))
-            .inspect(|x| println!("barrier seen: {:?}", x))
-            .probe_with(&mut b_probe);
+            let barrier_stream =
+                barrier_source(scope, w_index, barrier_frequency, barrier_total)
+                .broadcast()
+                .inspect(move |x| println!("[worker {}] barrier seen: {:?}",
+                                           w_index, x))
+                .map(|_| ()); // drop data to use barrier stream as clock
+
+            let _value_stream =
+                value_source(scope, w_index, value_frequency, value_total)
+                .inspect(move |x| println!("[worker {}] value seen: {:?}",
+                                           w_index, x))
+                .reclock(&barrier_stream)
+                .inspect(move |x| println!("[worker {}] reclocked: {:?}",
+                                           w_index, x))
+                .count()
+                .inspect(move |x| println!("[worker {}] count: {:?}",
+                                           w_index, x));
         });
 
         println!("[worker {}] dataflow created", w_index);
