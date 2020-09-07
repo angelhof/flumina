@@ -25,9 +25,9 @@ pub fn fixed_rate_source<G>(
     total: Duration,
 ) -> Stream<G, Item>
 where
-    G: Scope<Timestamp = u64>,
+    G: Scope<Timestamp = u128>,
 {
-    source(scope, "Source", |capability: Capability<u64>, info: OperatorInfo| {
+    source(scope, "Source", |capability: Capability<u128>, info: OperatorInfo| {
 
         // Internal details of timely dataflow
         // 1. Acquire a re-activator for this operator.
@@ -42,7 +42,7 @@ where
         let vals_max = div_durations(total, frequency);
 
         // Return closure
-        move |output: &mut OutputHandle<u64, Item, Tee<u64, Item>>| {
+        move |output: &mut OutputHandle<u128, Item, Tee<u128, Item>>| {
             if let Some(cap) = maybe_cap.as_mut() {
 
                 // Decide how behind we are on outputting values
@@ -52,15 +52,16 @@ where
                 // Output values to catch up
                 while vals_sent < vals_to_send &&
                       vals_sent < vals_max {
-                    let elapsed = time_since(start_time);
+                    let elapsed_nanos = time_since(start_time).as_nanos();
                     let item = VBItem {
                         data: v_or_b,
-                        time: elapsed.as_nanos(),
+                        time: elapsed_nanos,
                         loc: loc,
                     };
+                    cap.downgrade(&elapsed_nanos);
                     output.session(&cap).give(item);
                     vals_sent += 1;
-                    cap.downgrade(&vals_sent);
+                    // cap.downgrade(&vals_sent);
                 }
                 if vals_sent == vals_max {
                     maybe_cap = None;
@@ -81,7 +82,7 @@ pub fn value_source<G>(
     total: Duration,
 ) -> Stream<G, Item>
 where
-    G: Scope<Timestamp = u64>,
+    G: Scope<Timestamp = u128>,
 {
     fixed_rate_source(VBData::Value, scope, loc, frequency, total)
 }
@@ -93,7 +94,7 @@ pub fn barrier_source<G>(
     total: Duration,
 ) -> Stream<G, Item>
 where
-    G: Scope<Timestamp = u64>,
+    G: Scope<Timestamp = u128>,
 {
     fixed_rate_source(VBData::Barrier, scope, loc, frequency, total)
 }
