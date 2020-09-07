@@ -15,13 +15,10 @@ use timely::dataflow::stream::Stream;
 
 use std::time::{Duration, SystemTime};
 
-/*
-    The main value source
-*/
-
 type Item = VBItem<u128>;
 
-pub fn value_source<G>(
+pub fn fixed_rate_source<G>(
+    v_or_b: VBData,
     scope: &G,
     loc: usize,
     frequency: Duration,
@@ -57,7 +54,7 @@ where
                       vals_sent < vals_max {
                     let elapsed = time_since(start_time);
                     let item = VBItem {
-                        data: VBData::Value,
+                        data: v_or_b,
                         time: elapsed.as_nanos(),
                         loc: loc,
                     };
@@ -75,4 +72,28 @@ where
         }
 
     })
+}
+
+pub fn value_source<G>(
+    scope: &G,
+    loc: usize,
+    frequency: Duration,
+    total: Duration,
+) -> Stream<G, Item>
+where
+    G: Scope<Timestamp = u64>,
+{
+    fixed_rate_source(VBData::Value, scope, loc, frequency, total)
+}
+
+pub fn barrier_source<G>(
+    scope: &G,
+    loc: usize,
+    frequency: Duration,
+    total: Duration,
+) -> Stream<G, Item>
+where
+    G: Scope<Timestamp = u64>,
+{
+    fixed_rate_source(VBData::Barrier, scope, loc, frequency, total)
 }
