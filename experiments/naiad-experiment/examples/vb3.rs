@@ -7,7 +7,7 @@ than low-level state management per worker.
 */
 
 use naiad_experiment::vb_generator::{barrier_source, value_source};
-use naiad_experiment::vb_perf::{latency_meter,throughput_meter};
+use naiad_experiment::perf::{latency_meter,throughput_meter};
 
 use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
 use timely::dataflow::operators::aggregation::Aggregate;

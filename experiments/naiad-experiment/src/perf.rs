@@ -1,6 +1,6 @@
 /*
     Timely code for the performance measurement
-    in the Value Barrier example.
+    of dataflow programs.
 */
 
 use super::util::{nanos_timestamp,vec_to_file};
