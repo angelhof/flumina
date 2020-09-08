@@ -7,7 +7,7 @@ than low-level state management per worker.
 */
 
 use naiad_experiment::vb_generator::{barrier_source, value_source};
-use naiad_experiment::perf::{latency_meter,throughput_meter};
+use naiad_experiment::perf::{latency_meter};
 
 use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
 use timely::dataflow::operators::aggregation::Aggregate;
@@ -65,12 +65,11 @@ fn main() {
                 .inspect(move |x| println!("[worker {}] total: {:?}",
                                            w_index, x));
 
-            latency_meter(&value_stream);
+            latency_meter(&value_stream, "latencies.out");
         });
 
         println!("[worker {}] dataflow created", w_index);
 
     }).unwrap();
 
-    throughput_meter(); // Not Implemented Yet
 }
