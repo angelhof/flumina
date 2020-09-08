@@ -3,11 +3,16 @@
 */
 
 use std::fmt::Debug;
+use std::fs::OpenOptions;
 use std::io;
+use std::io::prelude::*;
 use std::str::FromStr;
 use std::time::{Duration, SystemTime};
+use std::vec::Vec;
 
-// Related to time
+/*
+    Related to time
+*/
 pub fn time_since(t: SystemTime) -> Duration {
     // Note: this function may panic in case of clock drift
     t.elapsed().unwrap()
@@ -20,7 +25,9 @@ pub fn nanos_timestamp(t: SystemTime) -> u128 {
     t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()
 }
 
-// For stdin input
+/*
+    For stdin input
+*/
 pub fn get_input<T>(msg: &str) -> T
 where
     T: FromStr,
@@ -32,4 +39,19 @@ where
         .read_line(&mut input_text)
         .expect("failed to read from stdin");
     input_text.trim().parse::<T>().expect("not an integer")
+}
+
+/*
+    File handling
+*/
+pub fn vec_to_file<T>(v: Vec<T>, filename: &str) -> ()
+where T: std::fmt::Debug {
+    // This function may panic due to multiple reasons
+    let mut file = OpenOptions::new()
+        .create(true).write(true)
+        .open(filename).unwrap();
+
+    for item in v {
+        writeln!(file, "{:?}", item).unwrap();
+    }
 }
