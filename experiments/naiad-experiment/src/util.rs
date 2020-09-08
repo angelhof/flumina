@@ -10,10 +10,14 @@ use std::time::{Duration, SystemTime};
 // Related to time
 pub fn time_since(t: SystemTime) -> Duration {
     // Note: this function may panic in case of clock drift
-    return t.elapsed().unwrap();
+    t.elapsed().unwrap()
 }
 pub fn div_durations(d1: Duration, d2: Duration) -> u64 {
     ((d1.as_nanos() as f64) / (d2.as_nanos() as f64)) as u64
+}
+pub fn nanos_timestamp(t: SystemTime) -> u128 {
+    // Note: this function may panic in case of clock drift
+    t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()
 }
 
 // For stdin input

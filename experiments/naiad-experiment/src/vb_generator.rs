@@ -3,7 +3,7 @@
     in the Value Barrier example.
 */
 
-use super::util::{div_durations,time_since};
+use super::util::{div_durations,time_since,nanos_timestamp};
 use super::vb_data::{VBData, VBItem};
 
 use timely::dataflow::channels::pushers::tee::Tee;
@@ -52,13 +52,13 @@ where
                 // Output values to catch up
                 while vals_sent < vals_to_send &&
                       vals_sent < vals_max {
-                    let elapsed_nanos = time_since(start_time).as_nanos();
+                    let time_nanos = nanos_timestamp(SystemTime::now());
                     let item = VBItem {
                         data: v_or_b,
-                        time: elapsed_nanos,
+                        time: time_nanos,
                         loc: loc,
                     };
-                    cap.downgrade(&elapsed_nanos);
+                    cap.downgrade(&time_nanos);
                     output.session(&cap).give(item);
                     vals_sent += 1;
                     // cap.downgrade(&vals_sent);
