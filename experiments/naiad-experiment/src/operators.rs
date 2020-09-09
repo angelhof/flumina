@@ -5,8 +5,10 @@
     want to aggregate the entire stream.
 */
 
+use super::either::Either;
+
 use timely::dataflow::channels::pact::Pipeline;
-use timely::dataflow::operators::{Exchange, Filter, Map, Operator};
+use timely::dataflow::operators::{Concat, Exchange, Filter, Map, Operator};
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 use timely::progress::timestamp::Timestamp;
@@ -149,3 +151,44 @@ where
     Binary operation on two "singleton" streams, i.e.
     streams which have only one element each.
 */
+pub fn single_op_binary<D1, D2, D3, F, T, G>(
+    name: &str,
+    in_stream1: &Stream<G, D1>,
+    in_stream2: &Stream<G, D2>,
+    op: F,
+) -> Stream<G, D3>
+where
+    D1: timely::Data + Debug + timely::ExchangeData, // input data 1
+    D2: timely::Data + Debug + timely::ExchangeData, // input data 2
+    D3: timely::Data + Debug, // output data
+    F: Fn(D1, D2) -> D3 + 'static,
+    T: Timestamp + Copy,
+    G: Scope<Timestamp = T>,
+{
+    let stream1 = in_stream1.map(|x| Either::Left(x));
+    let stream2 = in_stream2.map(|x| Either::Right(x));
+    let stream = stream1.concat(&stream2);
+
+    window_all(
+        name,
+        &stream,
+        || (None, None),
+        |(seen1, seen2), _time, data| {
+            for d in data {
+                match d {
+                    Either::Left(d1) => {
+                        assert!(seen1.is_none());
+                        *seen1 = Some(d1);
+                    },
+                    Either::Right(d2) => {
+                        assert!(seen2.is_none());
+                        *seen2 = Some(d2);
+                    }
+                }
+            }
+        },
+        move |(seen1, seen2)| {
+            op(seen1.clone().unwrap(), seen2.clone().unwrap())
+        },
+    )
+}
