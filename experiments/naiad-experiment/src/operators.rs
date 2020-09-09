@@ -6,12 +6,13 @@
 */
 
 use timely::dataflow::channels::pact::Pipeline;
-use timely::communication::message::RefOrMut;
 use timely::dataflow::operators::{Exchange, Filter, Map, Operator};
-// use timely::dataflow::operators::aggregation::Aggregate;
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 use timely::progress::timestamp::Timestamp;
+
+use std::fmt::Debug;
+use std::vec::Vec;
 
 /*
     Window over the entire input stream, producing a single
@@ -28,11 +29,11 @@ pub fn window_all_parallel<D1, D2, D3, I, F, E, T, G>(
     emit: E,
 ) -> Stream<G, D3>
 where
-    D1: timely::Data, // input data
-    D2: timely::Data, // accumulator
-    D3: timely::Data, // output data
+    D1: timely::Data + Debug, // input data
+    D2: timely::Data + Debug, // accumulator
+    D3: timely::Data + Debug, // output data
     I: FnOnce() -> D2 + 'static,
-    F: Fn(&mut D2, &T, RefOrMut<Vec<D1>>) + 'static,
+    F: Fn(&mut D2, &T, Vec<D1>) + 'static,
     E: Fn(&D2) -> D3 + 'static,
     T: Timestamp + Copy,
     G: Scope<Timestamp = T>,
@@ -45,7 +46,9 @@ where
 
         move |input, output| {
             while let Some((capability2, data)) = input.next() {
-                fold(&mut agg, capability2.time(), data);
+                let mut data_vec = Vec::new();
+                data.swap(&mut data_vec);
+                fold(&mut agg, capability2.time(), data_vec);
                 if *capability2.time() > cap_time {
                     maybe_cap = Some(capability2.retain());
                 }
@@ -76,11 +79,11 @@ pub fn window_all<D1, D2, D3, I, F, E, T, G>(
     emit: E,
 ) -> Stream<G, D3>
 where
-    D1: timely::Data + timely::ExchangeData, // input data
-    D2: timely::Data, // accumulator
-    D3: timely::Data, // output data
+    D1: timely::Data + Debug + timely::ExchangeData, // input data
+    D2: timely::Data + Debug, // accumulator
+    D3: timely::Data + Debug, // output data
     I: FnOnce() -> D2 + 'static,
-    F: Fn(&mut D2, &T, RefOrMut<Vec<D1>>) + 'static,
+    F: Fn(&mut D2, &T, Vec<D1>) + 'static,
     E: Fn(&D2) -> D3 + 'static,
     T: Timestamp + Copy,
     G: Scope<Timestamp = T>,

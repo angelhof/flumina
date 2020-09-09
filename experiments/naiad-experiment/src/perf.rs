@@ -5,7 +5,7 @@
     is completely finished. They are designed this way for easier use in experiments.
 */
 
-use super::operators::window_all_parallel;
+use super::operators::{window_all, window_all_parallel};
 use super::util::{nanos_timestamp};
 
 use timely::dataflow::operators::Inspect;
@@ -13,6 +13,7 @@ use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 
 use std::cmp::max;
+use std::fmt::Debug;
 use std::time::SystemTime;
 use std::vec::Vec;
 
@@ -24,10 +25,10 @@ pub fn latency_meter<G, D>(
     _output_filename: &'static str,
 ) -> ()
 where
-    D: timely::Data,
+    D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
 {
-    window_all_parallel(
+    let stream = window_all_parallel(
         "Latency Meter",
         stream,
         || Vec::new(),
@@ -40,8 +41,19 @@ where
             }
         },
         |latencies| latencies.clone(),
-    )
-    .inspect(|latencies| println!("Latencies: {:?}", latencies));
+    );
+    let stream = window_all(
+        "Latency Meter",
+        &stream,
+        || Vec::new(),
+        |latencies, _time, data| {
+            for latencies_other in data {
+                latencies.append(&mut latencies_other.clone());
+            }
+        },
+        |latencies| latencies.clone(),
+    );
+    stream.inspect(|latencies| println!("Latencies: {:?}", latencies));
 }
 
 /*
@@ -51,17 +63,28 @@ pub fn volume_meter<G, D>(
     stream: &Stream<G, D>,
 ) -> ()
 where
-    D: timely::Data + timely::ExchangeData,
+    D: timely::Data + timely::ExchangeData + Debug,
     G: Scope<Timestamp = u128>,
 {
-    window_all_parallel(
+    let stream = window_all_parallel(
         "Volume Meter",
         stream,
         || 0,
         |count, _time, data| { *count += data.len(); },
         |count| count.clone(),
-    )
-    .inspect(|count| println!("Volume: {:?}", count));
+    );
+    let stream = window_all(
+        "Volume Meter",
+        &stream,
+        || 0,
+        |count, _time, data| {
+            for count_other in data {
+                *count += count_other;
+            }
+        },
+        |count| count.clone(),
+    );
+    stream.inspect(|count| println!("Volume: {:?}", count));
 }
 
 /*
@@ -71,10 +94,10 @@ pub fn completion_meter<G, D>(
     stream: &Stream<G, D>,
 ) -> ()
 where
-    D: timely::Data + timely::ExchangeData,
+    D: timely::Data + timely::ExchangeData + Debug,
     G: Scope<Timestamp = u128>,
 {
-    window_all_parallel(
+    let _stream = window_all_parallel(
         "Completion Meter",
         stream,
         || 0,
@@ -103,9 +126,9 @@ pub fn throughput_meter<G1, D1, G2, D2>(
     _output_filename: &str,
 ) -> ()
 where
-    D1: timely::Data + timely::ExchangeData,
+    D1: timely::Data + timely::ExchangeData + Debug,
     G1: Scope<Timestamp = u128>,
-    D2: timely::Data + timely::ExchangeData,
+    D2: timely::Data + timely::ExchangeData + Debug,
     G2: Scope<Timestamp = u128>,
 {
     volume_meter(in_stream);
