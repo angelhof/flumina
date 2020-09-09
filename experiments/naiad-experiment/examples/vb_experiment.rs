@@ -1,9 +1,9 @@
 /*
-Timely code for the Value Barrier example, Version 3.
+    Timely code for the Value Barrier example, Version 3.
 
-This is like version 1, but implemented using a custom generator,
-and also using more high-level mechanisms provided by timely rather
-than low-level state management per worker.
+    This is like version 1, but implemented using a custom generator,
+    and also using more high-level mechanisms provided by timely rather
+    than low-level state management per worker.
 */
 
 use naiad_experiment::vb_generator::{barrier_source, value_source};
