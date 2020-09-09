@@ -5,13 +5,13 @@
     is completely finished. They are designed this way for easier use in experiments.
 */
 
+use super::operators::window_all_parallel;
 use super::util::{nanos_timestamp};
 
 use timely::dataflow::channels::pact::Pipeline;
-use timely::dataflow::channels::pushers::tee::Tee;
 use timely::dataflow::operators::{Capability, Map, Inspect, Operator};
 use timely::dataflow::operators::aggregation::Aggregate;
-use timely::dataflow::operators::generic::{OperatorInfo, OutputHandle};
+use timely::dataflow::operators::generic::{OperatorInfo};
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 
@@ -30,32 +30,22 @@ where
     D: timely::Data,
     G: Scope<Timestamp = u128>,
 {
-    stream.unary_frontier(Pipeline, "Latency Meter",
-                          |_capability: Capability<u128>, _info: OperatorInfo| {
-
-        let mut count = 0;
-        let mut latencies = Vec::new();
-
-        move |input, _output: &mut OutputHandle<u128, D, Tee<u128, D>>| {
-            while let Some((capability, data)) = input.next() {
-                let time = capability.time();
-                let num_inputs = data.len();
-                for _i in 0..num_inputs {
-                    // Core performance measuring logic
-                    let timestamp_now = nanos_timestamp(SystemTime::now());
-                    let latency = timestamp_now - time;
-                    latencies.push(latency);
-                    // println!("latency: {:?}", latency);
-                    count += 1;
-                }
+    window_all_parallel(
+        "Latency Meter",
+        stream,
+        || Vec::new(),
+        |latencies, time, data| {
+            let num_inputs = data.len();
+            let timestamp_now = nanos_timestamp(SystemTime::now());
+            let latency = timestamp_now - time;
+            for _i in 0..num_inputs {
+                latencies.push(latency);
             }
-            // Check if entire input is done
-            if input.frontier().is_empty() && latencies.len() > 0 {
-                println!("Latencies: {:?}", latencies);
-                // vec_to_file(latencies.clone(), output_filename)
-            }
-        }
-    });
+        },
+        |latencies| {
+            println!("Latencies: {:?}", latencies);
+        },
+    );
 }
 
 /*

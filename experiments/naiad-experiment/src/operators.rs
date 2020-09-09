@@ -6,7 +6,6 @@
 */
 
 use timely::dataflow::channels::pact::Pipeline;
-// use timely::dataflow::channels::pushers::tee::Tee;
 use timely::communication::message::RefOrMut;
 use timely::dataflow::operators::{Operator};
 // use timely::dataflow::operators::aggregation::Aggregate;
