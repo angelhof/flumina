@@ -8,10 +8,7 @@
 use super::operators::window_all_parallel;
 use super::util::{nanos_timestamp};
 
-use timely::dataflow::channels::pact::Pipeline;
-use timely::dataflow::operators::{Capability, Map, Inspect, Operator};
-use timely::dataflow::operators::aggregation::Aggregate;
-use timely::dataflow::operators::generic::{OperatorInfo};
+use timely::dataflow::operators::Inspect;
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 
@@ -42,10 +39,9 @@ where
                 latencies.push(latency);
             }
         },
-        |latencies| {
-            println!("Latencies: {:?}", latencies);
-        },
-    );
+        |latencies| latencies.clone(),
+    )
+    .inspect(|latencies| println!("Latencies: {:?}", latencies));
 }
 
 /*
@@ -58,35 +54,14 @@ where
     D: timely::Data + timely::ExchangeData,
     G: Scope<Timestamp = u128>,
 {
-    stream.unary_frontier(Pipeline, "Volume Meter",
-                          |capability: Capability<u128>, _info: OperatorInfo| {
-
-        let mut count = 0;
-        let cap_time = *capability.time();
-        let mut maybe_cap = Some(capability);
-
-        move |input, output| {
-            while let Some((capability, data)) = input.next() {
-                count += data.len();
-                if *capability.time() > cap_time {
-                    maybe_cap = Some(capability.retain());
-                }
-            }
-            // Check if entire input is done
-            if input.frontier().is_empty() {
-                let cap = maybe_cap.as_ref().unwrap();
-                output.session(cap).give(count);
-                maybe_cap = None;
-            }
-        }
-    })
-    .map(|x| (0, x))
-    .aggregate(
-        |_key, val, agg| { *agg += val; },
-        |_key, agg: usize| agg,
-        |_key| 0,
+    window_all_parallel(
+        "Volume Meter",
+        stream,
+        || 0,
+        |count, _time, data| { *count += data.len(); },
+        |count| count.clone(),
     )
-    .inspect(|x| println!("Total Volume: {}", x));
+    .inspect(|count| println!("Volume: {:?}", count));
 }
 
 /*
@@ -99,34 +74,24 @@ where
     D: timely::Data + timely::ExchangeData,
     G: Scope<Timestamp = u128>,
 {
-    stream.unary_frontier(Pipeline, "Completion Meter",
-                          |capability: Capability<u128>, _info: OperatorInfo| {
-
-        let cap_time = *capability.time();
-        let mut maybe_cap = Some(capability);
-
-        move |input, output| {
-            while let Some((capability, _data)) = input.next() {
-                if *capability.time() > cap_time {
-                    maybe_cap = Some(capability.retain());
-                }
-            }
-            // Check if entire input is done
-            if input.frontier().is_empty() {
-                let cap = maybe_cap.as_ref().unwrap();
-                output.session(&cap).give(*cap.time());
-                maybe_cap = None;
-            }
-        }
-    })
-    .map(|x| (0, x))
-    .aggregate(
-        |_key, val, agg| { *agg += max(*agg, val); },
-        |_key, agg| agg,
-        |_key| 0,
+    window_all_parallel(
+        "Completion Meter",
+        stream,
+        || 0,
+        |max_time, time, _data| { *max_time += max(*max_time, *time); },
+        |max_time| max_time.clone(),
     )
-    .inspect(|x| println!("Completion: {}", x));
+    .inspect(|max_time| println!("Completed At: {:?}", max_time));
 }
+
+//     .map(|x| (0, x))
+//     .aggregate(
+//         |_key, val, agg| { *agg += max(*agg, val); },
+//         |_key, agg| agg,
+//         |_key| 0,
+//     )
+//     .inspect(|x| println!("Completion: {}", x));
+// }
 
 /*
     Meter which computes the throughput on a computation from an input
