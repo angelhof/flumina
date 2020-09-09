@@ -7,12 +7,19 @@
 
 use timely::dataflow::channels::pact::Pipeline;
 use timely::communication::message::RefOrMut;
-use timely::dataflow::operators::{Operator};
+use timely::dataflow::operators::{Exchange, Filter, Map, Operator};
 // use timely::dataflow::operators::aggregation::Aggregate;
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 use timely::progress::timestamp::Timestamp;
 
+/*
+    Window over the entire input stream, producing a single
+    output at the end.
+
+    This version is parallel: it preserves the partition on the
+    input stream and thus produces one output per worker.
+*/
 pub fn window_all_parallel<D1, D2, D3, I, F, E, T, G>(
     name: &str,
     in_stream: &Stream<G, D1>,
@@ -54,7 +61,38 @@ where
     })
 }
 
-// pub fn window_all<G, D>(
-//     stream: &Stream<G, D>,
-// 
-// )
+/*
+    Window over the entire input stream, producing a single
+    output at the end.
+
+    This version forwards all inputs to a single worker,
+    and produces only one output item (for that worker).
+*/
+pub fn window_all<D1, D2, D3, I, F, E, T, G>(
+    name: &str,
+    in_stream: &Stream<G, D1>,
+    init: I,
+    fold: F,
+    emit: E,
+) -> Stream<G, D3>
+where
+    D1: timely::Data + timely::ExchangeData, // input data
+    D2: timely::Data, // accumulator
+    D3: timely::Data, // output data
+    I: FnOnce() -> D2 + 'static,
+    F: Fn(&mut D2, &T, RefOrMut<Vec<D1>>) + 'static,
+    E: Fn(&D2) -> D3 + 'static,
+    T: Timestamp + Copy,
+    G: Scope<Timestamp = T>,
+{
+    let in_stream_single = in_stream.exchange(|_x| 0);
+    window_all_parallel(
+        name,
+        &in_stream_single,
+        || (init(), false),
+        move |(x, nonempty), time, data| { fold(x, time, data); *nonempty = true; },
+        move |(x, nonempty)| { if *nonempty { Some(emit(x)) } else { None } },
+    )
+    .filter(|x| x.is_some())
+    .map(|x| x.unwrap()) // guaranteed not to panic
+}
