@@ -20,6 +20,13 @@ use std::vec::Vec;
 
     This version is parallel: it preserves the partition on the
     input stream and thus produces one output per worker.
+
+    Possible Improvements:
+    - It would be nice if 'emit' was an FnOnce. Right now I'm not sure
+      how to accomplish that.
+    - It would also be nice if the window does not persist at all after emit
+      is called; perhaps this can be accomplished by using Option magic
+      to set the state to None at the end.
 */
 pub fn window_all_parallel<D1, D2, D3, I, F, E, T, G>(
     name: &str,
@@ -99,3 +106,46 @@ where
     .filter(|x| x.is_some())
     .map(|x| x.unwrap()) // guaranteed not to panic
 }
+
+/*
+    Unary operation on a "singleton" stream, i.e.
+    one which has only one element.
+
+    Notes:
+    - Panics if called on an input stream which receives more than 2 elements.
+    - Waits for an input stream to finish before emitting output, so will hang
+      on an input stream which isn't closed even if it only ever gets 1 element.
+    - Clones the input once. (This shouldn't be necessary, it's just due to some
+      difficulties with ownernship, probably because window_all isn't quite
+      implemented in the best way yet.)
+*/
+pub fn single_op_unary<D1, D2, F, T, G>(
+    name: &str,
+    in_stream: &Stream<G, D1>,
+    op: F,
+) -> Stream<G, D2>
+where
+    D1: timely::Data + Debug + timely::ExchangeData, // input data
+    D2: timely::Data + Debug, // output data
+    F: Fn(D1) -> D2 + 'static,
+    T: Timestamp + Copy,
+    G: Scope<Timestamp = T>,
+{
+    window_all(
+        name,
+        in_stream,
+        || None,
+        |seen, _time, data| {
+            for d in data {
+                assert!(seen.is_none());
+                *seen = Some(d);
+            }
+        },
+        move |seen| { op(seen.clone().unwrap()) },
+    )
+}
+
+/*
+    Binary operation on two "singleton" streams, i.e.
+    streams which have only one element each.
+*/
