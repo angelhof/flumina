@@ -3,12 +3,12 @@
     in the Value Barrier example.
 */
 
-use super::util::{div_durations,time_since,nanos_timestamp};
+use super::util::{div_durations, time_since, nanos_timestamp};
 use super::vb_data::{VBData, VBItem};
 
 use timely::dataflow::channels::pushers::tee::Tee;
 use timely::dataflow::operators::Capability;
-use timely::dataflow::operators::generic::{OperatorInfo,OutputHandle};
+use timely::dataflow::operators::generic::{OperatorInfo, OutputHandle};
 use timely::dataflow::operators::generic::operator::source;
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;

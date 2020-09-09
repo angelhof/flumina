@@ -7,7 +7,7 @@ than low-level state management per worker.
 */
 
 use naiad_experiment::vb_generator::{barrier_source, value_source};
-use naiad_experiment::perf::{latency_meter};
+use naiad_experiment::perf::{completion_meter, latency_meter, volume_meter};
 
 use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
 use timely::dataflow::operators::aggregation::Aggregate;
@@ -46,8 +46,12 @@ fn main() {
                 //                            w_index, x))
                 .map(|_| ()); // drop data to use barrier stream as clock
 
-            let value_stream =
-                value_source(scope, w_index, value_frequency, value_total)
+            let value_source = value_source(
+                scope, w_index, value_frequency, value_total
+            );
+
+            let out_stream =
+                &value_source
                 // .inspect(move |x| println!("[worker {}] value seen: {:?}",
                 //                            w_index, x))
                 .reclock(&barrier_stream)
@@ -58,14 +62,16 @@ fn main() {
                 //                            w_index, x))
                 .map(|x| (0, x))
                 .aggregate(
-                    |_key, val, agg| {*agg += val; },
+                    |_key, val, agg| { *agg += val; },
                     |_key, agg: usize| agg,
                     |_key| 0,
                 )
                 .inspect(move |x| println!("[worker {}] total: {:?}",
                                            w_index, x));
 
-            latency_meter(&value_stream, "latencies.out");
+            volume_meter(&value_source);
+            completion_meter(&out_stream);
+            latency_meter(&out_stream, "latencies.out");
         });
 
         println!("[worker {}] dataflow created", w_index);
