@@ -43,7 +43,7 @@ where
         |latencies| latencies.clone(),
     );
     let stream = window_all(
-        "Latency Meter",
+        "Latency Meter Collect",
         &stream,
         || Vec::new(),
         |latencies, _time, data| {
@@ -74,7 +74,7 @@ where
         |count| count.clone(),
     );
     let stream = window_all(
-        "Volume Meter",
+        "Volume Meter Collect",
         &stream,
         || 0,
         |count, _time, data| {
@@ -97,14 +97,25 @@ where
     D: timely::Data + timely::ExchangeData + Debug,
     G: Scope<Timestamp = u128>,
 {
-    let _stream = window_all_parallel(
+    let stream = window_all_parallel(
         "Completion Meter",
         stream,
         || 0,
         |max_time, time, _data| { *max_time += max(*max_time, *time); },
         |max_time| max_time.clone(),
-    )
-    .inspect(|max_time| println!("Completed At: {:?}", max_time));
+    );
+    let stream = window_all(
+        "Completion Meter Collect",
+        &stream,
+        || 0,
+        |max_time, _time, data| {
+            for max_time_other in data {
+                *max_time += max_time_other;
+            }
+        },
+        |max_time| max_time.clone(),
+    );
+    stream.inspect(|max_time| println!("Completed At: {:?}", max_time));
 }
 
 //     .map(|x| (0, x))
