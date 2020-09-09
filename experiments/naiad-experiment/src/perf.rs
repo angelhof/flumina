@@ -5,7 +5,7 @@
     is completely finished. They are designed this way for easier use in experiments.
 */
 
-use super::operators::{window_all, window_all_parallel};
+use super::operators::{single_op_binary, window_all, window_all_parallel};
 use super::util::{nanos_timestamp};
 
 use timely::dataflow::operators::Inspect;
@@ -22,8 +22,7 @@ use std::vec::Vec;
 */
 pub fn latency_meter<G, D>(
     stream: &Stream<G, D>,
-    _output_filename: &'static str,
-) -> ()
+) -> Stream<G, Vec<u128>>
 where
     D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
@@ -53,7 +52,7 @@ where
         },
         |latencies| latencies.clone(),
     );
-    stream.inspect(|latencies| println!("Latencies: {:?}", latencies));
+    stream.inspect(|latencies| println!("Latencies: {:?}", latencies))
 }
 
 /*
@@ -61,7 +60,7 @@ where
 */
 pub fn volume_meter<G, D>(
     stream: &Stream<G, D>,
-) -> ()
+) -> Stream<G, usize>
 where
     D: timely::Data + timely::ExchangeData + Debug,
     G: Scope<Timestamp = u128>,
@@ -84,7 +83,7 @@ where
         },
         |count| count.clone(),
     );
-    stream.inspect(|count| println!("Volume: {:?}", count));
+    stream.inspect(|count| println!("Volume: {:?}", count))
 }
 
 /*
@@ -92,7 +91,7 @@ where
 */
 pub fn completion_meter<G, D>(
     stream: &Stream<G, D>,
-) -> ()
+) -> Stream<G, u128>
 where
     D: timely::Data + timely::ExchangeData + Debug,
     G: Scope<Timestamp = u128>,
@@ -115,34 +114,31 @@ where
         },
         |max_time| max_time.clone(),
     );
-    stream.inspect(|max_time| println!("Completed At: {:?}", max_time));
+    stream.inspect(|max_time| println!("Completed At: {:?}", max_time))
 }
-
-//     .map(|x| (0, x))
-//     .aggregate(
-//         |_key, val, agg| { *agg += max(*agg, val); },
-//         |_key, agg| agg,
-//         |_key| 0,
-//     )
-//     .inspect(|x| println!("Completion: {}", x));
-// }
 
 /*
     Meter which computes the throughput on a computation from an input
     stream to an output stream.
 */
-pub fn throughput_meter<G1, D1, G2, D2>(
-    in_stream: &Stream<G1, D1>,
-    out_stream: &Stream<G2, D2>,
-    _output_filename: &str,
-) -> ()
+pub fn throughput_meter<D1, D2, G>(
+    in_stream: &Stream<G, D1>,
+    out_stream: &Stream<G, D2>,
+) -> Stream<G, f64>
 where
     D1: timely::Data + timely::ExchangeData + Debug,
-    G1: Scope<Timestamp = u128>,
     D2: timely::Data + timely::ExchangeData + Debug,
-    G2: Scope<Timestamp = u128>,
+    G: Scope<Timestamp = u128>,
 {
-    volume_meter(in_stream);
-    completion_meter(out_stream);
-    // in_stream.binary_frontier(&out_stream, Pipeline, Pipeline)
+    let volume = volume_meter(in_stream);
+    let max_time = completion_meter(out_stream);
+    let throughput = single_op_binary(
+        "Throughput Meter Collect",
+        &volume,
+        &max_time,
+        |volume, max_time| {
+            (volume as f64) / (max_time as f64)
+        }
+    );
+    throughput.inspect(|throughput| println!("Throughput: {:?}", throughput))
 }
