@@ -100,7 +100,7 @@ where
         "Completion Meter",
         stream,
         || 0,
-        |max_time, time, _data| { *max_time += max(*max_time, *time); },
+        |max_time, time, _data| { *max_time = max(*max_time, *time); },
         |max_time| max_time.clone(),
     );
     let stream = window_all(

@@ -6,24 +6,27 @@
     than low-level state management per worker.
 */
 
-use naiad_experiment::vb_generator::{barrier_source, value_source};
+use naiad_experiment::util;
 use naiad_experiment::perf::{latency_meter, throughput_meter};
+use naiad_experiment::vb_generator::{barrier_source, value_source};
 
 use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
 use timely::dataflow::operators::aggregation::Aggregate;
 
 use std::time::Duration;
 
-fn main() {
-    timely::execute_from_args(std::env::args(), |worker| {
-
-        // Parameters for the experiment
-        let value_frequency = Duration::from_micros(1000);
-        let value_total = Duration::from_secs(1);
-        let barrier_frequency = Duration::from_micros(100000);
-        let mut barrier_total = Duration::from_secs(1);
+fn vb_experiment(
+    value_frequency: Duration,
+    barrier_frequency: Duration,
+    experiment_duration: Duration,
+)
+{
+    timely::execute_from_args(std::env::args(), move |worker| {
 
         /***** 1. Initialization *****/
+
+        let value_total = experiment_duration;
+        let mut barrier_total = experiment_duration.clone();
 
         // Index of this worker and the total number in existence
         let w_index = worker.index();
@@ -79,4 +82,18 @@ fn main() {
 
     }).unwrap();
 
+}
+
+fn main() {
+    let value_frequency = Duration::from_micros(
+        util::get_input("Value frequency in microseconds:")
+    );
+    let barrier_frequency = Duration::from_millis(
+        util::get_input("Barrier frequency in milliseconds:")
+    );
+    let experiment_duration = Duration::from_secs(
+        util::get_input("Total time to run in seconds:")
+    );
+
+    vb_experiment(value_frequency, barrier_frequency, experiment_duration);
 }
