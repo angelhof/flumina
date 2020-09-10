@@ -22,7 +22,7 @@ use std::vec::Vec;
 */
 pub fn latency_meter<G, D>(
     stream: &Stream<G, D>,
-) -> Stream<G, Vec<u128>>
+) -> Stream<G, f64>
 where
     D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
@@ -50,9 +50,12 @@ where
                 latencies.append(&mut latencies_other.clone());
             }
         },
-        |latencies| latencies.clone(),
+        |latencies| {
+            let sum : u128 = Iterator::sum(latencies.iter());
+            (sum as f64) / (latencies.len() as f64)
+        }
     );
-    stream.inspect(|latencies| println!("Latencies: {:?}", latencies))
+    stream.inspect(|latency| println!("Avg Latency: {:?}", latency))
 }
 
 /*
