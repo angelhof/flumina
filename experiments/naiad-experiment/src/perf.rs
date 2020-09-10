@@ -52,10 +52,10 @@ where
         },
         |latencies| {
             let sum : u128 = Iterator::sum(latencies.iter());
-            (sum as f64) / (latencies.len() as f64)
+            (sum as f64) / (1000000.0 * (latencies.len() as f64))
         }
     );
-    stream.inspect(|latency| println!("Avg Latency: {:?}", latency))
+    stream.inspect(|latency| println!("Avg Latency (ms): {:?}", latency))
 }
 
 /*
@@ -86,11 +86,12 @@ where
         },
         |count| count.clone(),
     );
-    stream.inspect(|count| println!("Volume: {:?}", count))
+    stream.inspect(|count| println!("Volume (events): {:?}", count))
 }
 
 /*
-    Meter which computes the max timestamp on a stream.
+    Meter which computes the total completion time
+    (max timestamp - starting timestamp) on a stream.
 */
 pub fn completion_meter<G, D>(
     stream: &Stream<G, D>,
@@ -99,6 +100,7 @@ where
     D: timely::Data + timely::ExchangeData + Debug,
     G: Scope<Timestamp = u128>,
 {
+    let start_timestamp = nanos_timestamp(SystemTime::now());
     let stream = window_all_parallel(
         "Completion Meter",
         stream,
@@ -112,12 +114,12 @@ where
         || 0,
         |max_time, _time, data| {
             for max_time_other in data {
-                *max_time += max_time_other;
+                *max_time = max(*max_time, max_time_other);
             }
         },
-        |max_time| max_time.clone(),
+        move |max_time| ((*max_time - start_timestamp) / 1000000),
     );
-    stream.inspect(|max_time| println!("Completed At: {:?}", max_time))
+    stream.inspect(|compl_time| println!("Completion Time (ms): {:?}", compl_time))
 }
 
 /*
@@ -134,14 +136,14 @@ where
     G: Scope<Timestamp = u128>,
 {
     let volume = volume_meter(in_stream);
-    let max_time = completion_meter(out_stream);
+    let compl_time = completion_meter(out_stream);
     let throughput = single_op_binary(
         "Throughput Meter Collect",
         &volume,
-        &max_time,
-        |volume, max_time| {
-            (volume as f64) / (max_time as f64)
+        &compl_time,
+        |volume, compl_time| {
+            (volume as f64) / (compl_time as f64)
         }
     );
-    throughput.inspect(|throughput| println!("Throughput: {:?}", throughput))
+    throughput.inspect(|throughput| println!("Throughput (events/ms): {:?}", throughput))
 }
