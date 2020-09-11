@@ -8,7 +8,7 @@
 
 use naiad_experiment::util;
 use naiad_experiment::perf::{latency_meter, throughput_meter};
-use naiad_experiment::vb_generator::{barrier_source, value_source};
+use naiad_experiment::vb_generators::{barrier_source, value_source};
 
 use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
 use timely::dataflow::operators::aggregation::Aggregate;

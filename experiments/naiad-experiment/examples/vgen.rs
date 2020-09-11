@@ -3,7 +3,7 @@
     outputting the stream without performing any computation
 */
 
-use naiad_experiment::vb_generator::value_source;
+use naiad_experiment::vb_generators::value_source;
 use naiad_experiment::util;
 
 use timely::dataflow::operators::Inspect;

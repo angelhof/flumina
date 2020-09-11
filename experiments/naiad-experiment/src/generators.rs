@@ -1,10 +1,8 @@
 /*
-    Timely code for the generator (data producer)
-    in the Value Barrier example.
+    Useful generator patterns for source data
 */
 
 use super::util::{div_durations, time_since, nanos_timestamp};
-use super::vb_data::{VBData, VBItem};
 
 use timely::dataflow::channels::pushers::tee::Tee;
 use timely::dataflow::operators::Capability;
@@ -15,16 +13,15 @@ use timely::dataflow::stream::Stream;
 
 use std::time::{Duration, SystemTime};
 
-type Item = VBItem<u128>;
-
-pub fn fixed_rate_source<G>(
-    v_or_b: VBData,
+pub fn fixed_rate_source<D, F, G>(
+    item_gen: F,
     scope: &G,
-    loc: usize,
     frequency: Duration,
     total: Duration,
-) -> Stream<G, Item>
+) -> Stream<G, D>
 where
+    D: timely::Data + timely::ExchangeData,
+    F: Fn(u128) -> D + 'static,
     G: Scope<Timestamp = u128>,
 {
     source(scope, "Source", |capability: Capability<u128>, info: OperatorInfo| {
@@ -42,7 +39,7 @@ where
         let vals_max = div_durations(total, frequency);
 
         // Return closure
-        move |output: &mut OutputHandle<u128, Item, Tee<u128, Item>>| {
+        move |output: &mut OutputHandle<u128, D, Tee<u128, D>>| {
             if let Some(cap) = maybe_cap.as_mut() {
 
                 // Decide how behind we are on outputting values
@@ -53,11 +50,7 @@ where
                 while vals_sent < vals_to_send &&
                       vals_sent < vals_max {
                     let time_nanos = nanos_timestamp(SystemTime::now());
-                    let item = VBItem {
-                        data: v_or_b,
-                        time: time_nanos,
-                        loc: loc,
-                    };
+                    let item = item_gen(time_nanos);
                     cap.downgrade(&time_nanos);
                     output.session(&cap).give(item);
                     vals_sent += 1;
@@ -73,28 +66,4 @@ where
         }
 
     })
-}
-
-pub fn value_source<G>(
-    scope: &G,
-    loc: usize,
-    frequency: Duration,
-    total: Duration,
-) -> Stream<G, Item>
-where
-    G: Scope<Timestamp = u128>,
-{
-    fixed_rate_source(VBData::Value, scope, loc, frequency, total)
-}
-
-pub fn barrier_source<G>(
-    scope: &G,
-    loc: usize,
-    frequency: Duration,
-    total: Duration,
-) -> Stream<G, Item>
-where
-    G: Scope<Timestamp = u128>,
-{
-    fixed_rate_source(VBData::Barrier, scope, loc, frequency, total)
 }
