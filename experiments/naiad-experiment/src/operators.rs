@@ -5,13 +5,10 @@
     want to aggregate the entire stream.
 */
 
+use super::common::{Pipeline, Scope, Stream, Timestamp};
 use super::either::Either;
 
-use timely::dataflow::channels::pact::Pipeline;
 use timely::dataflow::operators::{Concat, Exchange, Filter, Map, Operator};
-use timely::dataflow::scopes::Scope;
-use timely::dataflow::stream::Stream;
-use timely::progress::timestamp::Timestamp;
 
 use std::fmt::Debug;
 use std::vec::Vec;

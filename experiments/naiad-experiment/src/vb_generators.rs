@@ -3,19 +3,9 @@
     specific to the Value Barrier example.
 */
 
+use super::common::{Duration, Scope, Stream};
 use super::generators::fixed_rate_source;
 use super::vb_data::{VBData, VBItem};
-
-use timely::dataflow::scopes::Scope;
-use timely::dataflow::stream::Stream;
-
-use std::time::Duration;
-
-// VBItem {
-//     data: v_or_b,
-//     time: time_nanos,
-//     loc: loc,
-// };
 
 type Item = VBItem<u128>;
 

@@ -2,16 +2,10 @@
     Useful generator patterns for source data
 */
 
+use super::common::{Duration, Scope, Stream, SystemTime};
 use super::util::{div_durations, time_since, nanos_timestamp};
 
-use timely::dataflow::channels::pushers::tee::Tee;
-use timely::dataflow::operators::Capability;
-use timely::dataflow::operators::generic::{OperatorInfo, OutputHandle};
 use timely::dataflow::operators::generic::operator::source;
-use timely::dataflow::scopes::Scope;
-use timely::dataflow::stream::Stream;
-
-use std::time::{Duration, SystemTime};
 
 pub fn fixed_rate_source<D, F, G>(
     item_gen: F,
@@ -24,7 +18,7 @@ where
     F: Fn(u128) -> D + 'static,
     G: Scope<Timestamp = u128>,
 {
-    source(scope, "Source", |capability: Capability<u128>, info: OperatorInfo| {
+    source(scope, "Source", |capability, info| {
 
         // Internal details of timely dataflow
         // 1. Acquire a re-activator for this operator.
@@ -39,7 +33,7 @@ where
         let vals_max = div_durations(total, frequency);
 
         // Return closure
-        move |output: &mut OutputHandle<u128, D, Tee<u128, D>>| {
+        move |output| {
             if let Some(cap) = maybe_cap.as_mut() {
 
                 // Decide how behind we are on outputting values

@@ -5,16 +5,14 @@
     is completely finished. They are designed this way for easier use in experiments.
 */
 
+use super::common::{Scope, Stream, SystemTime};
 use super::operators::{single_op_binary, window_all, window_all_parallel};
 use super::util::{nanos_timestamp};
 
 use timely::dataflow::operators::Inspect;
-use timely::dataflow::scopes::Scope;
-use timely::dataflow::stream::Stream;
 
 use std::cmp::max;
 use std::fmt::Debug;
-use std::time::SystemTime;
 use std::vec::Vec;
 
 /*
