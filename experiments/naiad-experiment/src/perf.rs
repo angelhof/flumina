@@ -137,11 +137,29 @@ where
     let compl_time = completion_meter(out_stream);
     let throughput = single_op_binary(
         "Throughput Meter Collect",
-        &volume,
-        &compl_time,
-        |volume, compl_time| {
-            (volume as f64) / (compl_time as f64)
-        }
+        &volume, &compl_time,
+        |volume, compl_time| { (volume as f64) / (compl_time as f64) }
     );
     throughput.inspect(|throughput| println!("Throughput (events/ms): {:?}", throughput))
+}
+
+/*
+    Meter for both latency and throughput.
+*/
+pub fn latency_throughput_meter<D1, D2, G>(
+    in_stream: &Stream<G, D1>,
+    out_stream: &Stream<G, D2>,
+) -> Stream<G, (f64, f64)>
+where
+    D1: timely::Data + timely::ExchangeData + Debug,
+    D2: timely::Data + timely::ExchangeData + Debug,
+    G: Scope<Timestamp = u128>,
+{
+    let latency = latency_meter(out_stream);
+    let throughput = throughput_meter(in_stream, out_stream);
+    single_op_binary(
+        "Latency-Throughput Meter Collect",
+        &latency, &throughput,
+        |latency, throughput| { (latency, throughput) }
+    )
 }

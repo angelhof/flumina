@@ -7,11 +7,12 @@
 */
 
 use super::common::{Duration, Scope, Stream};
-use super::perf::{latency_meter, throughput_meter};
+use super::operators::{save_to_file};
+use super::perf::{latency_throughput_meter};
 use super::vb_data::VBItem;
 use super::vb_generators::{barrier_source, value_source};
 
-use timely::dataflow::operators::{Accumulate, Broadcast, Map, Inspect, Reclock};
+use timely::dataflow::operators::{Accumulate, Broadcast, Inspect, Map, Reclock};
 use timely::dataflow::operators::aggregation::Aggregate;
 
 type Item = VBItem<u128>;
@@ -55,6 +56,7 @@ where
     barrier_stream
     .inspect(|x| println!("barrier generated: {:?}", x));
     value_stream
+    // .inspect(|_x| {})
     .inspect(|x| println!("value generated: {:?}", x))
 }
 
@@ -90,8 +92,21 @@ where
 
     // volume_meter(&vals);
     // completion_meter(&output);
-    latency_meter(&output);
-    throughput_meter(&vals, &output);
+    // latency_meter(&output);
+    // throughput_meter(&vals, &output);
+    let latency_throughput = latency_throughput_meter(&vals, &output);
+    save_to_file(
+        &latency_throughput,
+        "results.out",
+        move |(latency, throughput)| { format!(
+            "{} ms, {} ms, {} ms, {} ms, {} events/ms",
+            val_frequency.as_millis(),
+            bar_frequency.as_millis(),
+            exp_duration.as_millis(),
+            latency,
+            throughput
+        )}
+    );
 
     println!("[worker {}] setup complete", worker_index);
 }

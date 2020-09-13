@@ -8,9 +8,11 @@
 use super::common::{Pipeline, Scope, Stream, Timestamp};
 use super::either::Either;
 
-use timely::dataflow::operators::{Concat, Exchange, Filter, Map, Operator};
+use timely::dataflow::operators::{Concat, Exchange, Filter, Inspect, Map, Operator};
 
 use std::fmt::Debug;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
 use std::vec::Vec;
 
 /*
@@ -188,4 +190,30 @@ where
             op(seen1.clone().unwrap(), seen2.clone().unwrap())
         },
     )
+}
+
+/*
+    Save a stream to a file in append mode.
+
+    Requires as input a formatting function for what to print.
+    Returns the input stream (unchanged as output).
+    Panics if file handling fails.
+*/
+pub fn save_to_file<'a, D, F, T, G>(
+    in_stream: &Stream<G, D>,
+    filename: &str,
+    format: F,
+) -> Stream<G, D>
+where
+    D: timely::Data, // input data
+    F: Fn(&D) -> std::string::String + 'static,
+    T: Timestamp,
+    G: Scope<Timestamp = T>,
+{
+    let mut file = OpenOptions::new()
+        .create(true).append(true)
+        .open(filename).unwrap();
+    in_stream.inspect(move |d| {
+        writeln!(file, "{}", format(d)).unwrap();
+    })
 }
