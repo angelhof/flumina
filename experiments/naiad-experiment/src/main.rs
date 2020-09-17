@@ -4,7 +4,7 @@
 
 use naiad_experiment::vb::{vb_experiment_main,vb_experiment_gen_only};
 
-use clap::{Arg, App, SubCommand};
+use clap::{Arg, App, AppSettings, SubCommand};
 
 use std::time::Duration;
 
@@ -31,12 +31,13 @@ fn main() {
         ));
             // .validator(|s| { s.parse::<u64>(); }));
 
-    let app = App::new("Timely Experiments")
+    let app = App::new("naiad-experiment")
         .author("Caleb Stanford")
-        .about("Run an experiment")
+        .about("Command line for running Naiad (Timely Dataflow) experiments")
+        .setting(AppSettings::SubcommandRequired)
         .subcommand(command_vb);
     
-    let matches = app.get_matches();
+    let matches = app.clone().get_matches();
 
     if let Some(matches) = matches.subcommand_matches("vb") {
         // Value Barrier Command
@@ -60,10 +61,6 @@ fn main() {
         else {
             vb_experiment_main(val_frequency, bar_frequency, exp_duration);
         }
-    }
-    else {
-        // app.print_help();
-        panic!("Please choose a subcommand to run.");
     }
 
 }
