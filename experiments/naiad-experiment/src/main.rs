@@ -2,6 +2,7 @@
     Command-line entrypoint to run experiments.
 */
 
+use naiad_experiment::util::{current_datetime_str,string_to_static_str};
 use naiad_experiment::vb::{vb_experiment_main,vb_experiment_gen_only};
 
 use clap::{Arg, App, AppSettings, SubCommand};
@@ -68,16 +69,22 @@ fn main() {
             .expect("expected u64 (microseconds)")
         );
 
+        let datetime_str = string_to_static_str(
+            current_datetime_str() + "-results.out"
+        );
+
         if matches.is_present("-g") {
             vb_experiment_gen_only(
                 val_frequency, bar_frequency, exp_duration,
-                timely_args.drain(0..)
+                timely_args.drain(0..),
+                datetime_str,
             );
         }
         else {
             vb_experiment_main(
                 val_frequency, bar_frequency, exp_duration,
-                timely_args.drain(0..)
+                timely_args.drain(0..),
+                datetime_str,
             );
         }
     }

@@ -69,6 +69,7 @@ fn vb_experiment_core<G, O, F>(
     scope: &G,
     computation: F,
     worker_index: usize,
+    output_filename: &'static str,
 )
 where
     G: Scope<Timestamp = u128>,
@@ -99,7 +100,7 @@ where
     let latency_throughput = latency_throughput_meter(&vals, &output);
     save_to_file(
         &latency_throughput,
-        "results.out",
+        &output_filename,
         move |(latency, throughput)| { format!(
             "{} ms, {} ms, {} ms, {} ms, {} events/ms",
             val_frequency.as_millis(),
@@ -118,6 +119,7 @@ pub fn vb_experiment_main<I>(
     bar_frequency: Duration,
     exp_duration: Duration,
     args: I,
+    output_filename: &'static str,
 )
 where
     I: Iterator<Item = String>
@@ -128,7 +130,8 @@ where
             vb_experiment_core(
                 val_frequency, bar_frequency, exp_duration, scope,
                 |s1, s2| vb_dataflow(s1, s2),
-                worker_index
+                worker_index,
+                output_filename
             );
         });
     }).unwrap();
@@ -139,6 +142,7 @@ pub fn vb_experiment_gen_only<I>(
     bar_frequency: Duration,
     exp_duration: Duration,
     args: I,
+    output_filename: &'static str,
 )
 where
     I: Iterator<Item = String>
@@ -149,7 +153,8 @@ where
             vb_experiment_core(
                 val_frequency, bar_frequency, exp_duration, scope,
                 |s1, s2| vb_do_nothing(s1, s2),
-                worker_index
+                worker_index,
+                output_filename
             );
         });
     }).unwrap();

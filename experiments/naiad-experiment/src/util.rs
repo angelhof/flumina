@@ -2,11 +2,14 @@
     Utility functions
 */
 
+use chrono;
+use std::boxed::Box;
 use std::fmt::Debug;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::prelude::*;
 use std::str::FromStr;
+use std::string::String;
 use std::time::{Duration, SystemTime};
 use std::vec::Vec;
 
@@ -23,6 +26,11 @@ pub fn div_durations(d1: Duration, d2: Duration) -> u64 {
 pub fn nanos_timestamp(t: SystemTime) -> u128 {
     // Note: this function may panic in case of clock drift
     t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()
+}
+pub fn current_datetime_str() -> String {
+    let out = chrono::offset::Local::now().format("%Y-%m-%d-%H%M%S").to_string();
+    println!("{:?}", out);
+    out
 }
 
 /*
@@ -54,4 +62,13 @@ where T: std::fmt::Debug {
     for item in v {
         writeln!(file, "{:?}", item).unwrap();
     }
+}
+
+/*
+    String manipulation
+*/
+// Very bad function -- leaks the string memory :)
+// Only use for e.g. command line arguments where it won't happen repeatedly.
+pub fn string_to_static_str(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
 }
