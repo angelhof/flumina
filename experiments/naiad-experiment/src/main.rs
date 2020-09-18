@@ -10,6 +10,9 @@ use clap::{Arg, App, AppSettings, SubCommand};
 use std::vec::Vec;
 use std::time::Duration;
 
+const RESULTS_DIR: &str = "results/";
+const RESULTS_EXT: &str = ".out";
+
 fn main() {
     let command_vb = SubCommand::with_name("vb")
         .about("Value-Barrier experiment")
@@ -69,22 +72,26 @@ fn main() {
             .expect("expected u64 (microseconds)")
         );
 
-        let datetime_str = string_to_static_str(
-            current_datetime_str() + "-results.out"
-        );
-
         if matches.is_present("-g") {
+            let results_path = string_to_static_str(
+                RESULTS_DIR.to_owned()
+                + "vbgen_" + &current_datetime_str() + RESULTS_EXT
+            );
             vb_experiment_gen_only(
                 val_frequency, bar_frequency, exp_duration,
                 timely_args.drain(0..),
-                datetime_str,
+                results_path,
             );
         }
         else {
+            let results_path = string_to_static_str(
+                RESULTS_DIR.to_owned()
+                + "vb_" + &current_datetime_str() + RESULTS_EXT
+            );
             vb_experiment_main(
                 val_frequency, bar_frequency, exp_duration,
                 timely_args.drain(0..),
-                datetime_str,
+                results_path,
             );
         }
     }
