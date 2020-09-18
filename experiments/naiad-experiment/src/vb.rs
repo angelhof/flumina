@@ -15,6 +15,8 @@ use super::vb_generators::{barrier_source, value_source};
 use timely::dataflow::operators::{Accumulate, Broadcast, Inspect, Map, Reclock};
 use timely::dataflow::operators::aggregation::Aggregate;
 
+use std::string::String;
+
 type Item = VBItem<u128>;
 
 fn vb_dataflow<G>(
@@ -111,12 +113,16 @@ where
     println!("[worker {}] setup complete", worker_index);
 }
 
-pub fn vb_experiment_main(
+pub fn vb_experiment_main<I>(
     val_frequency: Duration,
     bar_frequency: Duration,
     exp_duration: Duration,
-) {
-    timely::execute_from_args(std::env::args(), move |worker| {
+    args: I,
+)
+where
+    I: Iterator<Item = String>
+{
+    timely::execute_from_args(args, move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
@@ -128,12 +134,16 @@ pub fn vb_experiment_main(
     }).unwrap();
 }
 
-pub fn vb_experiment_gen_only(
+pub fn vb_experiment_gen_only<I>(
     val_frequency: Duration,
     bar_frequency: Duration,
     exp_duration: Duration,
-) {
-    timely::execute_from_args(std::env::args(), move |worker| {
+    args: I,
+)
+where
+    I: Iterator<Item = String>
+{
+    timely::execute_from_args(args, move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
