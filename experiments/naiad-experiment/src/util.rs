@@ -20,8 +20,8 @@ pub fn time_since(t: SystemTime) -> Duration {
     // Note: this function may panic in case of clock drift
     t.elapsed().unwrap()
 }
-pub fn div_durations(d1: Duration, d2: Duration) -> u64 {
-    ((d1.as_nanos() as f64) / (d2.as_nanos() as f64)) as u64
+pub fn div_durations(d1: Duration, d2: Duration) -> u128 {
+    ((d1.as_nanos() as f64) / (d2.as_nanos() as f64)) as u128
 }
 pub fn nanos_timestamp(t: SystemTime) -> u128 {
     // Note: this function may panic in case of clock drift
