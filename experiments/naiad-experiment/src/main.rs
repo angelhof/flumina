@@ -58,24 +58,25 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("vb") {
         // Value Barrier Command
-        // The following parsing may panic
+        let arg1 = matches.value_of("VAL_FREQ").unwrap();
+        let arg2 = matches.value_of("BAR_FREQ").unwrap();
+        let arg3 = matches.value_of("DURATION").unwrap();
         let val_frequency = Duration::from_micros(
-            matches.value_of("VAL_FREQ").unwrap().parse::<u64>()
-            .expect("expected u64 (microseconds)")
+            arg1.parse::<u64>().expect("expected u64 (microseconds)")
         );
         let bar_frequency = Duration::from_micros(
-            matches.value_of("BAR_FREQ").unwrap().parse::<u64>()
-            .expect("expected u64 (microseconds)")
+            arg2.parse::<u64>().expect("expected u64 (microseconds)")
         );
         let exp_duration = Duration::from_micros(
-            matches.value_of("DURATION").unwrap().parse::<u64>()
-            .expect("expected u64 (microseconds)")
+            arg3.parse::<u64>().expect("expected u64 (microseconds)")
         );
 
         if matches.is_present("-g") {
             let results_path = string_to_static_str(
                 RESULTS_DIR.to_owned()
-                + "vbgen_" + &current_datetime_str() + RESULTS_EXT
+                + &current_datetime_str()
+                + "_vbgen_" + arg1 + "_" + arg2 + "_" + arg3
+                + RESULTS_EXT
             );
             vb_experiment_gen_only(
                 val_frequency, bar_frequency, exp_duration,
@@ -86,7 +87,9 @@ fn main() {
         else {
             let results_path = string_to_static_str(
                 RESULTS_DIR.to_owned()
-                + "vb_" + &current_datetime_str() + RESULTS_EXT
+                + &current_datetime_str()
+                + "_vb_" + arg1 + "_" + arg2 + "_" + arg3
+                + RESULTS_EXT
             );
             vb_experiment_main(
                 val_frequency, bar_frequency, exp_duration,
