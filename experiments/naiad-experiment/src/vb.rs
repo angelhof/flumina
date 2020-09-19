@@ -48,7 +48,7 @@ where
         .inspect(move |x| println!("total: {:?}", x))
 }
 
-fn vb_do_nothing<G>(
+fn vb_gen_only<G>(
     value_stream: &Stream<G, Item>,
     barrier_stream: &Stream<G, Item>,
 ) -> Stream<G, Item>
@@ -152,7 +152,7 @@ where
         worker.dataflow(move |scope| {
             vb_experiment_core(
                 val_frequency, bar_frequency, exp_duration, scope,
-                |s1, s2| vb_do_nothing(s1, s2),
+                |s1, s2| vb_gen_only(s1, s2),
                 worker_index,
                 output_filename
             );
