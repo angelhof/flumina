@@ -109,8 +109,8 @@ where
         &latency_throughput,
         &output_filename,
         move |(latency, throughput)| { format!(
-            "{} ms/val, {} val/hb/wkr, {} hb/bar, {} s, {} ms, {} events/ms",
-            val_frequency.as_millis(),
+            "{} μs/val, {} val/hb/wkr, {} hb/bar, {} s, {} ms, {} events/ms",
+            val_frequency.as_micros(),
             vals_per_hb_per_worker,
             hbs_per_bar,
             exp_duration.as_secs_f64(),
