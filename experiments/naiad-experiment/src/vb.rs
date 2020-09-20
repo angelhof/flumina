@@ -31,11 +31,11 @@ where
     let barrier_broadcast = barrier_stream
         .broadcast();
     let barrier_clock_withheartbeats = barrier_broadcast
-        .inspect(move |x| println!("barrier or heartbeat seen: {:?}", x))
+        // .inspect(move |x| println!("barrier or heartbeat seen: {:?}", x))
         .map(|_| ());
     let barrier_clock_noheartbeats = barrier_broadcast
         .filter(|x| x.data == VBData::Barrier)
-        .inspect(move |x| println!("barrier seen: {:?}", x))
+        // .inspect(move |x| println!("barrier seen: {:?}", x))
         .map(|_| ());
 
     value_stream
@@ -43,14 +43,14 @@ where
         .reclock(&barrier_clock_withheartbeats)
         // .inspect(move |x| println!("reclocked: {:?}", x))
         .count()
-        .inspect(move |x| println!("count per heartbeat: {:?}", x))
+        // .inspect(move |x| println!("count per heartbeat: {:?}", x))
         .reclock(&barrier_clock_noheartbeats)
-        .inspect(move |x| println!("reclocked: {:?}", x))
+        // .inspect(move |x| println!("reclocked: {:?}", x))
         .sum()
-        .inspect(move |x| println!("count: {:?}", x))
+        // .inspect(move |x| println!("count: {:?}", x))
         .exchange(|_x| 0)
         .sum()
-        .inspect(move |x| println!("total: {:?}", x))
+        // .inspect(move |x| println!("total: {:?}", x))
 }
 
 fn vb_gen_only<G>(
