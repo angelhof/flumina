@@ -111,7 +111,7 @@ fn main() {
             200, 190, 180, 170, 160, 150, 140, 130, 120, 110,
             100, 90, 80, 70, 60, 50, 40, 30, 20
         ];
-        let parallelism = &[1, 2, 3, 4];
+        let parallelism = &[1, 2, 4, 8, 16];
         let vals_per_hb_per_worker = 100.0;
         let hbs_per_bar = 100;
         let exp_duration = Duration::from_secs(5);
