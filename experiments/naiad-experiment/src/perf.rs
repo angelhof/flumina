@@ -93,7 +93,7 @@ where
 */
 pub fn completion_meter<G, D>(
     stream: &Stream<G, D>,
-) -> Stream<G, u128>
+) -> Stream<G, f64>
 where
     D: timely::Data + timely::ExchangeData + Debug,
     G: Scope<Timestamp = u128>,
@@ -102,9 +102,9 @@ where
     let stream = window_all_parallel(
         "Completion Meter",
         stream,
-        || 0,
-        |max_time, time, _data| { *max_time = max(*max_time, *time); },
-        |max_time| max_time.clone(),
+        || (),
+        |_agg, _time, _data| {},
+        |_agg| nanos_timestamp(SystemTime::now())
     );
     let stream = window_all(
         "Completion Meter Collect",
@@ -115,7 +115,7 @@ where
                 *max_time = max(*max_time, max_time_other);
             }
         },
-        move |max_time| ((*max_time - start_timestamp) / 1000000),
+        move |max_time| (((*max_time - start_timestamp) as f64) / 1000000.0),
     );
     stream.inspect(|compl_time| println!("Completion Time (ms): {:?}", compl_time))
 }
@@ -138,7 +138,7 @@ where
     let throughput = single_op_binary(
         "Throughput Meter Collect",
         &volume, &compl_time,
-        |volume, compl_time| { (volume as f64) / (compl_time as f64) }
+        |volume, compl_time| { (volume as f64) / compl_time }
     );
     throughput.inspect(|throughput| println!("Throughput (events/ms): {:?}", throughput))
 }
