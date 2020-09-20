@@ -122,18 +122,17 @@ where
     println!("[worker {}] setup complete", worker_index);
 }
 
-pub fn vb_experiment_main<I>(
+pub fn vb_experiment_main(
     val_frequency: Duration,
     vals_per_hb_per_worker: f64,
     hbs_per_bar: u64,
     exp_duration: Duration,
-    args: I,
+    args: &Vec<String>,
     output_filename: &'static str,
-)
-where
-    I: Iterator<Item = String>
-{
-    timely::execute_from_args(args, move |worker| {
+) {
+    let mut args = args.clone();
+    let args_iter = args.drain(0..);
+    timely::execute_from_args(args_iter, move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
@@ -150,18 +149,17 @@ where
     }).unwrap();
 }
 
-pub fn vb_experiment_gen_only<I>(
+pub fn vb_experiment_gen_only(
     val_frequency: Duration,
     vals_per_hb_per_worker: f64,
     hbs_per_bar: u64,
     exp_duration: Duration,
-    args: I,
+    args: &Vec<String>,
     output_filename: &'static str,
-)
-where
-    I: Iterator<Item = String>
-{
-    timely::execute_from_args(args, move |worker| {
+) {
+    let mut args = args.clone();
+    let args_iter = args.drain(0..);
+    timely::execute_from_args(args_iter, move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
