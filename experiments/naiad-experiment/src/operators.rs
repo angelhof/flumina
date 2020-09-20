@@ -8,7 +8,8 @@
 use super::common::{Pipeline, Scope, Stream, Timestamp};
 use super::either::Either;
 
-use timely::dataflow::operators::{Concat, Exchange, Filter, Inspect, Map, Operator};
+use timely::dataflow::operators::{Accumulate, Concat, Exchange, Filter,
+                                  Inspect, Map, Operator};
 
 use std::fmt::Debug;
 use std::fs::OpenOptions;
@@ -216,4 +217,17 @@ where
     in_stream.inspect(move |d| {
         writeln!(file, "{}", format(d)).unwrap();
     })
+}
+
+/*
+    Sum the values in each timestamp.
+    (Like count, produce a separate value for each worker)
+*/
+pub trait Sum<G: Scope> {
+    fn sum(&self) -> Stream<G, usize>;
+}
+impl<G: Scope> Sum<G> for Stream<G, usize> {
+    fn sum(&self) -> Stream<G, usize>{
+        self.accumulate(0, |sum, data| { for &x in data.iter() { *sum += x; } })
+    }
 }

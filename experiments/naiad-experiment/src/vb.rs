@@ -7,13 +7,13 @@
 */
 
 use super::common::{Duration, Scope, Stream};
-use super::operators::{save_to_file};
+use super::operators::{save_to_file, Sum};
 use super::perf::{latency_throughput_meter};
-use super::vb_data::VBItem;
+use super::vb_data::{VBData, VBItem};
 use super::vb_generators::{barrier_source, value_source};
 
-use timely::dataflow::operators::{Accumulate, Broadcast, Inspect, Map, Reclock};
-use timely::dataflow::operators::aggregation::Aggregate;
+use timely::dataflow::operators::{Accumulate, Broadcast, Exchange, Filter,
+                                  Inspect, Map, Reclock};
 
 use std::string::String;
 
@@ -26,25 +26,30 @@ fn vb_dataflow<G>(
 where
     G: Scope<Timestamp = u128>,
 {
-    // Use barrier stream as clock, dropping data
-    let barrier_clock =
-        barrier_stream
-        .broadcast()
-        // .inspect(move |x| println!("barrier seen: {:?}", x))
+    // Use barrier stream to create two clocks, one with
+    // hearbeats and one without
+    let barrier_broadcast = barrier_stream
+        .broadcast();
+    let barrier_clock_withheartbeats = barrier_broadcast
+        .inspect(move |x| println!("barrier or heartbeat seen: {:?}", x))
+        .map(|_| ());
+    let barrier_clock_noheartbeats = barrier_broadcast
+        .filter(|x| x.data == VBData::Barrier)
+        .inspect(move |x| println!("barrier seen: {:?}", x))
         .map(|_| ());
 
     value_stream
         // .inspect(move |x| println!("value seen: {:?}", x))
-        .reclock(&barrier_clock)
+        .reclock(&barrier_clock_withheartbeats)
         // .inspect(move |x| println!("reclocked: {:?}", x))
         .count()
-        // .inspect(move |x| println!("count: {:?}", x))
-        .map(|x| (0, x))
-        .aggregate(
-            |_key, val, agg| { *agg += val; },
-            |_key, agg: usize| agg,
-            |_key| 0,
-        )
+        .inspect(move |x| println!("count per heartbeat: {:?}", x))
+        .reclock(&barrier_clock_noheartbeats)
+        .inspect(move |x| println!("reclocked: {:?}", x))
+        .sum()
+        .inspect(move |x| println!("count: {:?}", x))
+        .exchange(|_x| 0)
+        .sum()
         .inspect(move |x| println!("total: {:?}", x))
 }
 
@@ -64,7 +69,8 @@ where
 
 fn vb_experiment_core<G, O, F>(
     val_frequency: Duration,
-    bar_frequency: Duration,
+    vals_per_hb_per_worker: f64,
+    hbs_per_bar: u64,
     exp_duration: Duration,
     scope: &G,
     computation: F,
@@ -80,16 +86,17 @@ where
 
     let val_total = exp_duration;
     let mut bar_total = exp_duration.clone();
-    // Only generate barriers at worker 0
     if worker_index != 0 {
+        // Only generate barriers at worker 0
         bar_total = Duration::from_secs(0);
     }
+    let hb_frequency = val_frequency.mul_f64(vals_per_hb_per_worker);
 
     /* 2. Create the Dataflow */
 
-    let bars = barrier_source(scope, worker_index, bar_frequency, bar_total);
+    let bars = barrier_source(scope, worker_index, hb_frequency, hbs_per_bar, bar_total);
     let vals = value_source(scope, worker_index, val_frequency, val_total);
-    let output = computation(&bars, &vals);
+    let output = computation(&vals, &bars);
 
     /* 3. Monitor the Performance */
 
@@ -102,10 +109,11 @@ where
         &latency_throughput,
         &output_filename,
         move |(latency, throughput)| { format!(
-            "{} ms, {} ms, {} ms, {} ms, {} events/ms",
+            "{} ms/val, {} val/hb/wkr, {} hb/bar, {} s, {} ms, {} events/ms",
             val_frequency.as_millis(),
-            bar_frequency.as_millis(),
-            exp_duration.as_millis(),
+            vals_per_hb_per_worker,
+            hbs_per_bar,
+            exp_duration.as_secs_f64(),
             latency,
             throughput
         )}
@@ -116,7 +124,8 @@ where
 
 pub fn vb_experiment_main<I>(
     val_frequency: Duration,
-    bar_frequency: Duration,
+    vals_per_hb_per_worker: f64,
+    hbs_per_bar: u64,
     exp_duration: Duration,
     args: I,
     output_filename: &'static str,
@@ -128,7 +137,11 @@ where
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
-                val_frequency, bar_frequency, exp_duration, scope,
+                val_frequency,
+                vals_per_hb_per_worker,
+                hbs_per_bar,
+                exp_duration,
+                scope,
                 |s1, s2| vb_dataflow(s1, s2),
                 worker_index,
                 output_filename
@@ -139,7 +152,8 @@ where
 
 pub fn vb_experiment_gen_only<I>(
     val_frequency: Duration,
-    bar_frequency: Duration,
+    vals_per_hb_per_worker: f64,
+    hbs_per_bar: u64,
     exp_duration: Duration,
     args: I,
     output_filename: &'static str,
@@ -151,7 +165,11 @@ where
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
-                val_frequency, bar_frequency, exp_duration, scope,
+                val_frequency,
+                vals_per_hb_per_worker,
+                hbs_per_bar,
+                exp_duration,
+                scope,
                 |s1, s2| vb_gen_only(s1, s2),
                 worker_index,
                 output_filename

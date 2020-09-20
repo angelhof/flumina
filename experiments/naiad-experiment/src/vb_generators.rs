@@ -27,14 +27,22 @@ where
 pub fn barrier_source<G>(
     scope: &G,
     loc: usize,
-    frequency: Duration,
+    heartbeat_frequency: Duration,
+    heartbeats_per_barrier: u64,
     total: Duration,
 ) -> Stream<G, Item>
 where
     G: Scope<Timestamp = u128>,
 {
+    let mut count = 0;
     let item_gen = move |time| {
-        VBItem { data: VBData::Barrier, time: time, loc: loc }
+        count += 1;
+        if count % heartbeats_per_barrier == 0 {
+            VBItem { data: VBData::Barrier, time: time, loc: loc }
+        }
+        else {
+            VBItem { data: VBData::BarrierHeartbeat, time: time, loc: loc }
+        }
     };
-    fixed_rate_source(item_gen, scope, frequency, total)
+    fixed_rate_source(item_gen, scope, heartbeat_frequency, total)
 }

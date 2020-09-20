@@ -13,14 +13,14 @@ use timely::dataflow::operators::generic::operator::source;
     total to produce, and stopping after the uptime is complete.
 */
 fn variable_rate_source<D, F, G, H>(
-    item_gen: F,
+    mut item_gen: F,
     scope: &G,
     cumulative_total_fun: H,
     uptime: Duration,
 ) -> Stream<G, D>
 where
     D: timely::Data + timely::ExchangeData,
-    F: Fn(u128) -> D + 'static, // Input: timestamp in nanoseconds
+    F: FnMut(u128) -> D + 'static, // Input: timestamp in nanoseconds
     G: Scope<Timestamp = u128>,
     H: Fn(Duration) -> u128 + 'static, // Input: time sicne source start time
 {
@@ -78,7 +78,7 @@ pub fn fixed_rate_source<D, F, G>(
 ) -> Stream<G, D>
 where
     D: timely::Data + timely::ExchangeData,
-    F: Fn(u128) -> D + 'static,
+    F: FnMut(u128) -> D + 'static,
     G: Scope<Timestamp = u128>,
 {
     variable_rate_source(
@@ -101,7 +101,7 @@ pub fn linear_rate_source<D, F, G>(
 ) -> Stream<G, D>
 where
     D: timely::Data + timely::ExchangeData,
-    F: Fn(u128) -> D + 'static,
+    F: FnMut(u128) -> D + 'static,
     G: Scope<Timestamp = u128>,
 {
     variable_rate_source(

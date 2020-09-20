@@ -8,6 +8,7 @@ use abomonation_derive::Abomonation;
 pub enum VBData {
     Value, // alternative: Value(u64)
     Barrier,
+    BarrierHeartbeat,
 }
 
 #[derive(Debug, PartialEq, Copy, Clone, Abomonation)]
