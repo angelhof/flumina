@@ -68,10 +68,10 @@ where
 }
 
 fn vb_experiment_core<G, O, F>(
-    val_frequency: Duration,
+    val_rate_per_milli: u64,
     vals_per_hb_per_worker: f64,
     hbs_per_bar: u64,
-    exp_duration: Duration,
+    exp_duration_secs: u64,
     scope: &G,
     computation: F,
     worker_index: usize,
@@ -84,8 +84,9 @@ where
 {
     /* 1. Initialize */
 
-    let val_total = exp_duration;
-    let mut bar_total = exp_duration.clone();
+    let val_frequency = Duration::from_nanos(1000000 / val_rate_per_milli);
+    let val_total = Duration::from_secs(exp_duration_secs);
+    let mut bar_total = val_total.clone();
     if worker_index != 0 {
         // Only generate barriers at worker 0
         bar_total = Duration::from_secs(0);
@@ -109,13 +110,13 @@ where
         &latency_throughput,
         &output_filename,
         move |(latency, throughput)| { format!(
-            "{} μs/val, {} val/hb/wkr, {} hb/bar, {} s, {} ms, {} events/ms",
-            val_frequency.as_micros(),
+            "{} events/ms, {} val/hb/wkr, {} hb/bar, {} s, {} ms, {} events/ms",
+            val_rate_per_milli,
             vals_per_hb_per_worker,
             hbs_per_bar,
-            exp_duration.as_secs_f64(),
+            exp_duration_secs,
             latency,
-            throughput
+            throughput,
         )}
     );
 
@@ -123,10 +124,10 @@ where
 }
 
 pub fn vb_experiment_main(
-    val_frequency: Duration,
+    val_rate_per_milli: u64,
     vals_per_hb_per_worker: f64,
     hbs_per_bar: u64,
-    exp_duration: Duration,
+    exp_duration_secs: u64,
     args: &Vec<String>,
     output_filename: &'static str,
 ) {
@@ -136,10 +137,10 @@ pub fn vb_experiment_main(
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
-                val_frequency,
+                val_rate_per_milli,
                 vals_per_hb_per_worker,
                 hbs_per_bar,
-                exp_duration,
+                exp_duration_secs,
                 scope,
                 |s1, s2| vb_dataflow(s1, s2),
                 worker_index,
@@ -150,10 +151,10 @@ pub fn vb_experiment_main(
 }
 
 pub fn vb_experiment_gen_only(
-    val_frequency: Duration,
+    val_rate_per_milli: u64,
     vals_per_hb_per_worker: f64,
     hbs_per_bar: u64,
-    exp_duration: Duration,
+    exp_duration_secs: u64,
     args: &Vec<String>,
     output_filename: &'static str,
 ) {
@@ -163,10 +164,10 @@ pub fn vb_experiment_gen_only(
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
-                val_frequency,
+                val_rate_per_milli,
                 vals_per_hb_per_worker,
                 hbs_per_bar,
-                exp_duration,
+                exp_duration_secs,
                 scope,
                 |s1, s2| vb_gen_only(s1, s2),
                 worker_index,
