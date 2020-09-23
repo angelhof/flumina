@@ -29,7 +29,7 @@ pub fn nanos_timestamp(t: SystemTime) -> u128 {
 }
 pub fn current_datetime_str() -> String {
     let out = chrono::offset::Local::now().format("%Y-%m-%d-%H%M%S").to_string();
-    println!("{:?}", out);
+    println!("Current Datetime: {:?}", out);
     out
 }
 

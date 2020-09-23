@@ -124,15 +124,25 @@ where
 }
 
 pub fn vb_experiment_main(
+    parallelism: u64,
     val_rate_per_milli: u64,
     vals_per_hb_per_worker: f64,
     hbs_per_bar: u64,
     exp_duration_secs: u64,
-    args: &Vec<String>,
     output_filename: &'static str,
 ) {
-    let mut args = args.clone();
-    let args_iter = args.drain(0..);
+    println!(
+        "VB Experiment Parameters: \
+         {} wkrs, {} events/ms, {} vals/hb/wkr, {} hbs/bar, {} s",
+        parallelism, val_rate_per_milli, vals_per_hb_per_worker,
+        hbs_per_bar, exp_duration_secs
+    );
+    // Vector args to pass to timely
+    let mut timely_args : Vec<String> = Vec::new();
+    timely_args.push("-w".to_string());
+    timely_args.push(parallelism.to_string());
+    let args_iter = timely_args.drain(0..);
+    // Execute the dataflow
     timely::execute_from_args(args_iter, move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
@@ -151,15 +161,25 @@ pub fn vb_experiment_main(
 }
 
 pub fn vb_experiment_gen_only(
+    parallelism: u64,
     val_rate_per_milli: u64,
     vals_per_hb_per_worker: f64,
     hbs_per_bar: u64,
     exp_duration_secs: u64,
-    args: &Vec<String>,
     output_filename: &'static str,
 ) {
-    let mut args = args.clone();
-    let args_iter = args.drain(0..);
+    println!(
+        "VBgen Experiment Parameters: \
+         {} wkrs, {} events/ms, {} vals/hb/wkr, {} hbs/bar, {} s",
+        parallelism, val_rate_per_milli, vals_per_hb_per_worker,
+        hbs_per_bar, exp_duration_secs
+    );
+    // Vector args to pass to timely
+    let mut timely_args : Vec<String> = Vec::new();
+    timely_args.push("-w".to_string());
+    timely_args.push(parallelism.to_string());
+    let args_iter = timely_args.drain(0..);
+    // Execute the dataflow
     timely::execute_from_args(args_iter, move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
