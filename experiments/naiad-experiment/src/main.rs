@@ -30,7 +30,7 @@ fn main() {
     /* Create experiment-specific subcommands */
 
     let command_vb = SubCommand::with_name("vb")
-        .about("Value-Barrier experiment")
+        .about("Value-barrier experiment")
         .arg(Arg::with_name("PAR")
             .help("parallelism (1 = sequential)")
             .index(1)
@@ -60,7 +60,12 @@ fn main() {
             .help("data generation only (no processing)"
         ));
     let command_vb_exp1 = SubCommand::with_name("vbe1")
-        .about("Value barrier experiment 1: vary the rate");
+        .about("Value-barrier experiment 1: vary the parallelism and rate");
+    let command_pv = SubCommand::with_name("pv")
+        .about("Pageview experiment");
+        // TODO
+    let command_pv_exp1 = SubCommand::with_name("pve1")
+        .about("Pageview experiment 1: vary the parallelism and rate");
 
     /* Create application */
 
@@ -69,14 +74,17 @@ fn main() {
         .about("Command line for running Naiad (Timely Dataflow) experiments")
         .setting(AppSettings::SubcommandRequired)
         .subcommand(command_vb)
-        .subcommand(command_vb_exp1);
+        .subcommand(command_vb_exp1)
+        .subcommand(command_pv)
+        .subcommand(command_pv_exp1);
 
     /* Parse arguments depending on subcommand */
 
     let matches = app.clone().get_matches();
 
     if let Some(matches) = matches.subcommand_matches("vb") {
-        // Value Barrier Command
+
+        /* Value Barrier Command */
 
         let arg1 = matches.value_of("PAR").unwrap();
         let arg2 = matches.value_of("VAL_RATE").unwrap();
@@ -102,6 +110,9 @@ fn main() {
         }
     }
     else if let Some(_matches) = matches.subcommand_matches("vbe1") {
+
+        /* Value Barrier Experiment 1 */
+
         let mut params = VBExperimentParams {
             parallelism: 0, // will be set
             val_rate_per_milli: 0, // will be set
@@ -127,6 +138,7 @@ fn main() {
             }
         }
     }
+    // TODO: pageview command, pageview experiment 1
     else {
         unreachable!();
     }

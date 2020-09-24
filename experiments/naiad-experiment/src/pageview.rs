@@ -60,6 +60,16 @@ where
     pageview_source_twopages(scope, page_0_prob, update_prob, frequency, exp_duration)
 }
 
+fn pv_dataflow<G>(
+    input: &Stream<G, PVItem>
+) -> Stream<G, PVItem>
+where
+    G: Scope<Timestamp = u128>,
+{
+    // TODO
+    input.inspect(|_x| println!("NOT IMPLEMENTED YET"))
+}
+
 /* Exposed experiments */
 
 #[derive(Abomonation, Copy, Clone, Debug)]
@@ -74,5 +84,29 @@ impl LatencyThroughputExperiment<
         let input = pv_datagen(params, scope);
         let output = input.inspect(|x| println!("event generated: {:?}", x));
         (input, output)
+    }
+}
+
+#[derive(Abomonation, Copy, Clone, Debug)]
+pub struct PVExperiment;
+impl LatencyThroughputExperiment<
+    PVExperimentParams, PVItem, PVItem
+> for PVExperiment {
+    fn get_name(&self) -> String { "PV".to_owned() }
+    fn build_dataflow<G: Scope<Timestamp = u128>>(
+        &self, params: PVExperimentParams, scope: &G, _worker_index: usize,
+    ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
+        let input = pv_datagen(params, scope);
+        let output = pv_dataflow(&input);
+        (input, output)
+    }
+}
+
+impl PVExperimentParams {
+    pub fn run_pv_experiment_main(self, output_filename: &'static str) {
+        PVExperiment.run(self, output_filename);
+    }
+    pub fn run_pv_experiment_gen_only(self, output_filename: &'static str) {
+        PVGenExperiment.run(self, output_filename);
     }
 }
