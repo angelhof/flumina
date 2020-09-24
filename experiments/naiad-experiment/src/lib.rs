@@ -1,6 +1,7 @@
 // General infrastructure
 pub mod common;
 pub mod either;
+pub mod experiment;
 pub mod generators;
 pub mod operators;
 pub mod perf;
