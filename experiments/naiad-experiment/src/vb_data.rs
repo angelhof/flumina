@@ -1,5 +1,5 @@
 /*
-Timely code for the data used in the Value Barrier example.
+    Timely code for the data used in the Value Barrier example.
 */
 
 use abomonation_derive::Abomonation;
