@@ -63,7 +63,7 @@ pub fn volume_meter<G, D>(
     stream: &Stream<G, D>,
 ) -> Stream<G, usize>
 where
-    D: timely::Data + timely::ExchangeData + Debug,
+    D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
 {
     let stream = window_all_parallel(
@@ -95,7 +95,7 @@ pub fn completion_meter<G, D>(
     stream: &Stream<G, D>,
 ) -> Stream<G, f64>
 where
-    D: timely::Data + timely::ExchangeData + Debug,
+    D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
 {
     let start_timestamp = nanos_timestamp(SystemTime::now());
@@ -129,8 +129,8 @@ pub fn throughput_meter<D1, D2, G>(
     out_stream: &Stream<G, D2>,
 ) -> Stream<G, f64>
 where
-    D1: timely::Data + timely::ExchangeData + Debug,
-    D2: timely::Data + timely::ExchangeData + Debug,
+    D1: timely::Data + Debug,
+    D2: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
 {
     let volume = volume_meter(in_stream);
@@ -151,8 +151,8 @@ pub fn latency_throughput_meter<D1, D2, G>(
     out_stream: &Stream<G, D2>,
 ) -> Stream<G, (f64, f64)>
 where
-    D1: timely::Data + timely::ExchangeData + Debug,
-    D2: timely::Data + timely::ExchangeData + Debug,
+    D1: timely::Data + Debug,
+    D2: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
 {
     let latency = latency_meter(out_stream);
