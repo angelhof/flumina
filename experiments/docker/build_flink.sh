@@ -2,7 +2,7 @@
 
 # Should be run from the root directory of the repo
 
-FLINK_VERSION="1.10.1"
+FLINK_VERSION="1.10.2"
 SCALA_VERSION="2.12"
 FLUMINA_EXPERIMENT_JAR="experiments/flink-experiment/target/flink-experiment-1.0-SNAPSHOT.jar"
 
