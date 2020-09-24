@@ -120,7 +120,7 @@ class ValueBarrierExperiment:
                         '/opt/flink/bin/flink',
                         'run',
                         '/job.jar',
-                        '--experiment', 'value-barrier'
+                        '--experiment', 'value-barrier',
                         '--valueNodes', f'{self.total_value_nodes}',
                         '--totalValues', f'{self.total_values}',
                         '--valueRate', f'{self.value_rate:.1f}',
@@ -221,10 +221,10 @@ class PageViewEC2:
 
     def __str__(self):
         return 'PageViewEC2(' \
-            f'total_pageviews={self.total_pageviews}, ' \
-            f'total_users={self.total_users}, ' \
-            f'pageview_parallelism={self.pageview_parallelism}, ' \
-            f'pageview_rate={self.pageview_rate:.1f})'
+               f'total_pageviews={self.total_pageviews}, ' \
+               f'total_users={self.total_users}, ' \
+               f'pageview_parallelism={self.pageview_parallelism}, ' \
+               f'pageview_rate={self.pageview_rate:.1f})'
 
     def run(self, args):
         if not args.flink_workers:

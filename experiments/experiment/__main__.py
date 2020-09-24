@@ -23,6 +23,9 @@ def main():
     parser.add_argument('--total-users', type=int, default=2)
     parser.add_argument('--pageview-parallelism', type=int)
     parser.add_argument('--pageview-rate', type=float)
+    parser.add_argument('-m', '--manual', help='Run Flink with a manually implemented Flumina-like synchronization',
+                        action='store_true')
+    parser.add_argument('--rmi-host', help='Host that is running the Java RMI registry')
     args = parser.parse_args()
 
     if args.list:
