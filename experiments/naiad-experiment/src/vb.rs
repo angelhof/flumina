@@ -49,7 +49,7 @@ impl VBExperimentData {
 
 /* Core computation */
 
-fn vb_dataflow<G>(
+fn vb_dataflow_main<G>(
     value_stream: &Stream<G, VBItem>,
     barrier_stream: &Stream<G, VBItem>,
 ) -> Stream<G, usize>
@@ -83,7 +83,7 @@ where
         // .inspect(move |x| println!("total: {:?}", x))
 }
 
-fn vb_gen_only<G>(
+fn vb_dataflow_gen_only<G>(
     value_stream: &Stream<G, VBItem>,
     barrier_stream: &Stream<G, VBItem>,
 ) -> Stream<G, VBItem>
@@ -157,7 +157,7 @@ pub fn vb_experiment_main(
         worker.dataflow(move |scope| {
             vb_experiment_core(
                 params, scope,
-                |s1, s2| vb_dataflow(s1, s2),
+                |s1, s2| vb_dataflow_main(s1, s2),
                 worker_index, output_filename
             );
             println!("[worker {}] setup complete", worker_index);
@@ -175,7 +175,7 @@ pub fn vb_experiment_gen_only(
         worker.dataflow(move |scope| {
             vb_experiment_core(
                 params, scope,
-                |s1, s2| vb_gen_only(s1, s2),
+                |s1, s2| vb_dataflow_gen_only(s1, s2),
                 worker_index, output_filename,
             );
             println!("[worker {}] setup complete", worker_index);

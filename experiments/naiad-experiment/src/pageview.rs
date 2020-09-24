@@ -51,7 +51,7 @@ impl PVExperimentData {
 
 /* Core computation */
 
-fn pv_gen_only<G>(
+fn pv_dataflow_gen_only<G>(
     pv_stream: &Stream<G, PVItem>,
 ) -> Stream<G, PVItem>
 where
@@ -115,7 +115,7 @@ pub fn pv_experiment_gen_only(
         worker.dataflow(move |scope| {
             pv_experiment_core(
                 params, scope,
-                |s| pv_gen_only(s),
+                |s| pv_dataflow_gen_only(s),
                 output_filename,
             );
             println!("[worker {}] setup complete", worker_index);
