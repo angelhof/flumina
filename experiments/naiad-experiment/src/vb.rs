@@ -25,7 +25,7 @@ use std::string::String;
 pub struct VBExperimentParams {
     pub parallelism: u64,
     pub val_rate_per_milli: u64,
-    pub vals_per_hb_per_worker: f64,
+    pub vals_per_hb_per_worker: u64,
     pub hbs_per_bar: u64,
     pub exp_duration_secs: u64,
 }
@@ -61,7 +61,7 @@ where
         // Only generate barriers at worker 0
         bar_total = Duration::from_secs(0);
     }
-    let hb_frequency = val_frequency.mul_f64(params.vals_per_hb_per_worker);
+    let hb_frequency = val_frequency.mul_f64(params.vals_per_hb_per_worker as f64);
     // Return the two source streams
     let bars = barrier_source(
         scope, worker_index, hb_frequency, params.hbs_per_bar, bar_total

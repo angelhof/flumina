@@ -71,7 +71,7 @@ fn main() {
         let params = VBExperimentParams {
             parallelism: arg1.parse::<u64>().expect("expected u64"),
             val_rate_per_milli: arg2.parse::<u64>().expect("expected u64 (events/ms)"),
-            vals_per_hb_per_worker: arg3.parse::<f64>().expect("expected f64"),
+            vals_per_hb_per_worker: arg3.parse::<u64>().expect("expected u64"),
             hbs_per_bar: arg4.parse::<u64>().expect("expected u64"),
             exp_duration_secs: arg5.parse::<u64>().expect("expected u64 (secs)"),
         };
@@ -99,7 +99,7 @@ fn main() {
         let mut params = VBExperimentParams {
             parallelism: 0, // will be set
             val_rate_per_milli: 0, // will be set
-            vals_per_hb_per_worker: 100.0,
+            vals_per_hb_per_worker: 100,
             hbs_per_bar: 100,
             exp_duration_secs: 5,
         };
