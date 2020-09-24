@@ -7,14 +7,12 @@ use super::common::{Duration, Scope, Stream};
 use super::generators::fixed_rate_source;
 use super::vb_data::{VBData, VBItem};
 
-type Item = VBItem<u128>;
-
 pub fn value_source<G>(
     scope: &G,
     loc: usize,
     frequency: Duration,
     total: Duration,
-) -> Stream<G, Item>
+) -> Stream<G, VBItem>
 where
     G: Scope<Timestamp = u128>,
 {
@@ -30,7 +28,7 @@ pub fn barrier_source<G>(
     heartbeat_frequency: Duration,
     heartbeats_per_barrier: u64,
     total: Duration,
-) -> Stream<G, Item>
+) -> Stream<G, VBItem>
 where
     G: Scope<Timestamp = u128>,
 {

@@ -17,11 +17,9 @@ use timely::dataflow::operators::{Accumulate, Broadcast, Exchange, Filter,
 
 use std::string::String;
 
-type Item = VBItem<u128>;
-
 fn vb_dataflow<G>(
-    value_stream: &Stream<G, Item>,
-    barrier_stream: &Stream<G, Item>,
+    value_stream: &Stream<G, VBItem>,
+    barrier_stream: &Stream<G, VBItem>,
 ) -> Stream<G, usize>
 where
     G: Scope<Timestamp = u128>,
@@ -54,9 +52,9 @@ where
 }
 
 fn vb_gen_only<G>(
-    value_stream: &Stream<G, Item>,
-    barrier_stream: &Stream<G, Item>,
-) -> Stream<G, Item>
+    value_stream: &Stream<G, VBItem>,
+    barrier_stream: &Stream<G, VBItem>,
+) -> Stream<G, VBItem>
 where
     G: Scope<Timestamp = u128>,
 {
@@ -80,7 +78,7 @@ fn vb_experiment_core<G, O, F>(
 where
     G: Scope<Timestamp = u128>,
     O: std::fmt::Debug + Clone + timely::Data + timely::ExchangeData,
-    F: FnOnce(&Stream<G, Item>, &Stream<G, Item>) -> Stream<G, O> + 'static,
+    F: FnOnce(&Stream<G, VBItem>, &Stream<G, VBItem>) -> Stream<G, O> + 'static,
 {
     /* 1. Initialize */
 
