@@ -11,12 +11,16 @@ public class Config {
     private static final String STATS_FILE = Path.CUR_DIR + Path.SEPARATOR + "stats.txt";
 
     private final String experiment;
+    private final boolean manual;
+    private final String rmiHost;
     private final long initSyncDelay;
     private final String outFile;
     private final String statsFile;
 
     protected Config(final ParameterTool parameterTool) {
         this.experiment = parameterTool.get("experiment");
+        this.manual = parameterTool.getBoolean("manual", false);
+        this.rmiHost = parameterTool.get("rmiHost", "localhost");
         this.initSyncDelay = parameterTool.getLong("initSyncDelay", INIT_SYNC_DELAY);
         this.outFile = parameterTool.get("outFile", OUT_FILE);
         this.statsFile = parameterTool.get("statsFile", STATS_FILE);
@@ -24,6 +28,14 @@ public class Config {
 
     public String getExperiment() {
         return experiment;
+    }
+
+    public boolean isManual() {
+        return manual;
+    }
+
+    public String getRmiHost() {
+        return rmiHost;
     }
 
     /**

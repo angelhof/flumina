@@ -4,6 +4,7 @@ import edu.upenn.flumina.config.*;
 import edu.upenn.flumina.frauds.FraudDetectionSeq;
 import edu.upenn.flumina.pageview.PageViewExperiment;
 import edu.upenn.flumina.valuebarrier.ValueBarrierExperiment;
+import edu.upenn.flumina.valuebarrier.ValueBarrierManualExperiment;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.slf4j.Logger;
@@ -57,8 +58,9 @@ public class Main {
                 final FraudDetectionSeq fraudDetectionSeq = new FraudDetectionSeq(fraudDetectionConf);
                 run(fraudDetectionSeq, conf);
             } else if (conf instanceof ValueBarrierConfig) {
-                final ValueBarrierConfig valueBarrierConf = (ValueBarrierConfig) conf;
-                final ValueBarrierExperiment valueBarrierExperiment = new ValueBarrierExperiment(valueBarrierConf);
+                final var valueBarrierConf = (ValueBarrierConfig) conf;
+                final var valueBarrierExperiment = conf.isManual() ?
+                        new ValueBarrierManualExperiment(valueBarrierConf) : new ValueBarrierExperiment(valueBarrierConf);
                 run(valueBarrierExperiment, conf);
             } else if (conf instanceof PageViewConfig) {
                 final PageViewConfig pageViewConf = (PageViewConfig) conf;
