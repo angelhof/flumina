@@ -7,8 +7,23 @@ use naiad_experiment::vb::{VBExperimentParams};
 
 use clap::{Arg, App, AppSettings, SubCommand};
 
+/* Results filenames */
+
 const RESULTS_DIR: &str = "results/";
 const RESULTS_EXT: &str = ".out";
+
+fn make_results_path(
+    exp_name: &str,
+    args: &[&str],
+) -> &'static str {
+    let mut out = RESULTS_DIR.to_owned() + &current_datetime_str() + "_";
+    out += exp_name;
+    for arg in args { out += "_"; out += arg; }
+    out += RESULTS_EXT;
+    string_to_static_str(out)
+}
+
+/* Command line entrypoint */
 
 fn main() {
 
@@ -75,23 +90,14 @@ fn main() {
             hbs_per_bar: arg4.parse::<u64>().expect("expected u64"),
             exp_duration_secs: arg5.parse::<u64>().expect("expected u64 (secs)"),
         };
+        let args = [arg1, arg2, arg3, arg4, arg5];
 
         if matches.is_present("-g") {
-            let results_path = string_to_static_str(
-                RESULTS_DIR.to_owned()
-                + &current_datetime_str()
-                + "_vbgen_" + arg1 + "_" + arg2 + "_" + arg3 + "_" + arg4 + "_" + arg5
-                + RESULTS_EXT
-            );
+            let results_path = make_results_path("vbgen", &args);
             params.run_vb_experiment_gen_only(results_path);
         }
         else {
-            let results_path = string_to_static_str(
-                RESULTS_DIR.to_owned()
-                + &current_datetime_str()
-                + "_vb_" + arg1 + "_" + arg2 + "_" + arg3 + "_" + arg4 + "_" + arg5
-                + RESULTS_EXT
-            );
+            let results_path = make_results_path("vb", &args);
             params.run_vb_experiment_main(results_path);
         }
     }
@@ -109,16 +115,14 @@ fn main() {
         ];
         let parallelisms = &[1, 2, 4, 8];
         for &par in parallelisms {
-            println!("===== Parallelism: {} =====", par);
             params.parallelism = par;
-            let results_path = string_to_static_str(
-                RESULTS_DIR.to_owned()
-                + &current_datetime_str() + "_vbe1_par" + &par.to_string()
-                + RESULTS_EXT
+            println!("===== Parallelism: {} =====", par);
+            let results_path = make_results_path(
+                "vbe1", &[&("par".to_owned() + &par.to_string())]
             );
             for &val_rate in val_rates {
-                println!("=== Value rate (events/ms): {} ===", val_rate);
                 params.val_rate_per_milli = val_rate;
+                println!("=== Value rate (events/ms): {} ===", val_rate);
                 params.run_vb_experiment_main(results_path);
             }
         }
