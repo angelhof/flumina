@@ -34,10 +34,10 @@ where
     fixed_rate_source(item_gen, scope, frequency, total)
 }
 
-pub fn pageview_source_two_pages<G>(
+pub fn pageview_source_twopages<G>(
+    scope: &G,
     page_0_prob: f64,
     update_prob: f64,
-    scope: &G,
     frequency: Duration,
     total: Duration
 ) -> Stream<G, PVItem>
