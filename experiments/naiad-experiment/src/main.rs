@@ -2,8 +2,8 @@
     Command-line entrypoint to run experiments.
 */
 
-use naiad_experiment::util::{current_datetime_str,string_to_static_str};
-use naiad_experiment::vb::{vb_experiment_main,vb_experiment_gen_only};
+use naiad_experiment::util::{current_datetime_str, string_to_static_str};
+use naiad_experiment::vb::{VBExperimentData, vb_experiment_main, vb_experiment_gen_only};
 
 use clap::{Arg, App, AppSettings, SubCommand};
 
@@ -68,12 +68,13 @@ fn main() {
         let arg3 = matches.value_of("VALS_PER_HB").unwrap();
         let arg4 = matches.value_of("HBS_PER_BAR").unwrap();
         let arg5 = matches.value_of("DURATION").unwrap();
-
-        let parallelism = arg1.parse::<u64>().expect("expected u64");
-        let val_rate = arg2.parse::<u64>().expect("expected u64 (events/ms)");
-        let vals_per_hb_per_worker = arg3.parse::<f64>().expect("expected f64");
-        let hbs_per_bar = arg4.parse::<u64>().expect("expected u64");
-        let exp_duration = arg5.parse::<u64>().expect("expected u64 (secs)");
+        let params = VBExperimentData {
+            parallelism: arg1.parse::<u64>().expect("expected u64"),
+            val_rate_per_milli: arg2.parse::<u64>().expect("expected u64 (events/ms)"),
+            vals_per_hb_per_worker: arg3.parse::<f64>().expect("expected f64"),
+            hbs_per_bar: arg4.parse::<u64>().expect("expected u64"),
+            exp_duration_secs: arg5.parse::<u64>().expect("expected u64 (secs)"),
+        };
 
         if matches.is_present("-g") {
             let results_path = string_to_static_str(
@@ -82,10 +83,7 @@ fn main() {
                 + "_vbgen_" + arg1 + "_" + arg2 + "_" + arg3 + "_" + arg4 + "_" + arg5
                 + RESULTS_EXT
             );
-            vb_experiment_gen_only(
-                parallelism, val_rate, vals_per_hb_per_worker,
-                hbs_per_bar, exp_duration, results_path,
-            );
+            vb_experiment_gen_only(params, results_path);
         }
         else {
             let results_path = string_to_static_str(
@@ -94,23 +92,25 @@ fn main() {
                 + "_vb_" + arg1 + "_" + arg2 + "_" + arg3 + "_" + arg4 + "_" + arg5
                 + RESULTS_EXT
             );
-            vb_experiment_main(
-                parallelism, val_rate, vals_per_hb_per_worker,
-                hbs_per_bar, exp_duration, results_path,
-            );
+            vb_experiment_main(params, results_path);
         }
     }
     else if let Some(_matches) = matches.subcommand_matches("vbe1") {
+        let mut params = VBExperimentData {
+            parallelism: 0, // will be set
+            val_rate_per_milli: 0, // will be set
+            vals_per_hb_per_worker: 100.0,
+            hbs_per_bar: 100,
+            exp_duration_secs: 5,
+        };
         let val_rates = &[
             1, 5, 10, 50, 100,
             150, 200, 250, 300, 350, 400,
         ];
-        let parallelism = &[1, 2, 4, 8];
-        let vals_per_hb_per_worker = 100.0;
-        let hbs_per_bar = 100;
-        let exp_duration = 5;
-        for &par in parallelism {
+        let parallelisms = &[1, 2, 4, 8];
+        for &par in parallelisms {
             println!("===== Parallelism: {} =====", par);
+            params.parallelism = par;
             let results_path = string_to_static_str(
                 RESULTS_DIR.to_owned()
                 + &current_datetime_str() + "_vbe1_par" + &par.to_string()
@@ -118,10 +118,8 @@ fn main() {
             );
             for &val_rate in val_rates {
                 println!("=== Value rate (events/ms): {} ===", val_rate);
-                vb_experiment_main(
-                    par, val_rate, vals_per_hb_per_worker,
-                    hbs_per_bar, exp_duration, results_path,
-                );
+                params.val_rate_per_milli = val_rate;
+                vb_experiment_main(params, results_path);
             }
         }
     }

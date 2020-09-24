@@ -17,6 +17,38 @@ use timely::dataflow::operators::{Accumulate, Broadcast, Exchange, Filter,
 
 use std::string::String;
 
+/* Experiment data */
+
+#[derive(Debug, Copy, Clone)]
+pub struct VBExperimentData {
+    pub parallelism: u64,
+    pub val_rate_per_milli: u64,
+    pub vals_per_hb_per_worker: f64,
+    pub hbs_per_bar: u64,
+    pub exp_duration_secs: u64,
+}
+impl VBExperimentData {
+    pub fn to_csv(&self) -> String {
+        format!(
+            "{} wkrs, {} vals/ms, {} val/hb/wkr, {} hb/bar, {} s",
+            self.parallelism,
+            self.val_rate_per_milli,
+            self.vals_per_hb_per_worker,
+            self.hbs_per_bar,
+            self.exp_duration_secs,
+        )
+    }
+    pub fn timely_args(&self) -> Vec<String>
+    {
+        let mut vec : Vec<String> = Vec::new();
+        vec.push("-w".to_string());
+        vec.push(self.parallelism.to_string());
+        vec
+    }
+}
+
+/* Core computation */
+
 fn vb_dataflow<G>(
     value_stream: &Stream<G, VBItem>,
     barrier_stream: &Stream<G, VBItem>,
@@ -66,10 +98,7 @@ where
 }
 
 fn vb_experiment_core<G, O, F>(
-    val_rate_per_milli: u64,
-    vals_per_hb_per_worker: f64,
-    hbs_per_bar: u64,
-    exp_duration_secs: u64,
+    params: VBExperimentData,
     scope: &G,
     computation: F,
     worker_index: usize,
@@ -82,18 +111,20 @@ where
 {
     /* 1. Initialize */
 
-    let val_frequency = Duration::from_nanos(1000000 / val_rate_per_milli);
-    let val_total = Duration::from_secs(exp_duration_secs);
+    let val_frequency = Duration::from_nanos(1000000 / params.val_rate_per_milli);
+    let val_total = Duration::from_secs(params.exp_duration_secs);
     let mut bar_total = val_total.clone();
     if worker_index != 0 {
         // Only generate barriers at worker 0
         bar_total = Duration::from_secs(0);
     }
-    let hb_frequency = val_frequency.mul_f64(vals_per_hb_per_worker);
+    let hb_frequency = val_frequency.mul_f64(params.vals_per_hb_per_worker);
 
     /* 2. Create the Dataflow */
 
-    let bars = barrier_source(scope, worker_index, hb_frequency, hbs_per_bar, bar_total);
+    let bars = barrier_source(
+        scope, worker_index, hb_frequency, params.hbs_per_bar, bar_total
+    );
     let vals = value_source(scope, worker_index, val_frequency, val_total);
     let output = computation(&vals, &bars);
 
@@ -108,89 +139,46 @@ where
         &latency_throughput,
         &output_filename,
         move |(latency, throughput)| { format!(
-            "{} events/ms, {} val/hb/wkr, {} hb/bar, {} s, {} ms, {} events/ms",
-            val_rate_per_milli,
-            vals_per_hb_per_worker,
-            hbs_per_bar,
-            exp_duration_secs,
-            latency,
-            throughput,
+            "{}, {} ms, {} events/ms",
+            params.to_csv(), latency, throughput,
         )}
     );
-
-    println!("[worker {}] setup complete", worker_index);
 }
 
+/* Exposed experiments */
+
 pub fn vb_experiment_main(
-    parallelism: u64,
-    val_rate_per_milli: u64,
-    vals_per_hb_per_worker: f64,
-    hbs_per_bar: u64,
-    exp_duration_secs: u64,
+    params: VBExperimentData,
     output_filename: &'static str,
 ) {
-    println!(
-        "VB Experiment Parameters: \
-         {} wkrs, {} events/ms, {} vals/hb/wkr, {} hbs/bar, {} s",
-        parallelism, val_rate_per_milli, vals_per_hb_per_worker,
-        hbs_per_bar, exp_duration_secs
-    );
-    // Vector args to pass to timely
-    let mut timely_args : Vec<String> = Vec::new();
-    timely_args.push("-w".to_string());
-    timely_args.push(parallelism.to_string());
-    let args_iter = timely_args.drain(0..);
-    // Execute the dataflow
-    timely::execute_from_args(args_iter, move |worker| {
+    println!("VB Experiment Parameters: {}", params.to_csv());
+    timely::execute_from_args(params.timely_args().drain(0..), move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
-                val_rate_per_milli,
-                vals_per_hb_per_worker,
-                hbs_per_bar,
-                exp_duration_secs,
-                scope,
+                params, scope,
                 |s1, s2| vb_dataflow(s1, s2),
-                worker_index,
-                output_filename
+                worker_index, output_filename
             );
+            println!("[worker {}] setup complete", worker_index);
         });
     }).unwrap();
 }
 
 pub fn vb_experiment_gen_only(
-    parallelism: u64,
-    val_rate_per_milli: u64,
-    vals_per_hb_per_worker: f64,
-    hbs_per_bar: u64,
-    exp_duration_secs: u64,
+    params: VBExperimentData,
     output_filename: &'static str,
 ) {
-    println!(
-        "VBgen Experiment Parameters: \
-         {} wkrs, {} events/ms, {} vals/hb/wkr, {} hbs/bar, {} s",
-        parallelism, val_rate_per_milli, vals_per_hb_per_worker,
-        hbs_per_bar, exp_duration_secs
-    );
-    // Vector args to pass to timely
-    let mut timely_args : Vec<String> = Vec::new();
-    timely_args.push("-w".to_string());
-    timely_args.push(parallelism.to_string());
-    let args_iter = timely_args.drain(0..);
-    // Execute the dataflow
-    timely::execute_from_args(args_iter, move |worker| {
+    println!("VBgen Experiment Parameters: {}", params.to_csv());
+    timely::execute_from_args(params.timely_args().drain(0..), move |worker| {
         let worker_index = worker.index();
         worker.dataflow(move |scope| {
             vb_experiment_core(
-                val_rate_per_milli,
-                vals_per_hb_per_worker,
-                hbs_per_bar,
-                exp_duration_secs,
-                scope,
+                params, scope,
                 |s1, s2| vb_gen_only(s1, s2),
-                worker_index,
-                output_filename
+                worker_index, output_filename,
             );
+            println!("[worker {}] setup complete", worker_index);
         });
     }).unwrap();
 }
