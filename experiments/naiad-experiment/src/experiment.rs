@@ -9,7 +9,7 @@ use super::perf::{latency_throughput_meter};
 use std::string::String;
 use std::vec::Vec;
 
-trait ExperimentParams {
+pub trait ExperimentParams {
     /* Getters */
     fn get_parallelism(&self) -> u64;
     // fn get_filestring(&self) -> String;
@@ -30,7 +30,7 @@ trait ExperimentParams {
 // which is instead generic in the build_dataflow method. This is necessary
 // because Rust generics are weird -- see
 // https://stackoverflow.com/questions/37606035/pass-generic-function-as-argument
-trait LatencyThroughputExperiment<P, I, O>: timely::ExchangeData
+pub trait LatencyThroughputExperiment<P, I, O>: timely::ExchangeData
 where
     P: ExperimentParams + Copy + timely::ExchangeData,
     I: std::fmt::Debug + Clone + timely::Data,
@@ -44,6 +44,11 @@ where
         &self, params: P, scope: &G, output_filename: &'static str,
     ) {
         let (input, output) = self.build_dataflow(params, scope);
+        // Optional other meters, uncomment for testing
+        // volume_meter(&input);
+        // completion_meter(&output);
+        // latency_meter(&output);
+        // throughput_meter(&input, &output);
         let latency_throughput = latency_throughput_meter(&input, &output);
         let params_csv = params.to_csv().to_owned();
         save_to_file(
