@@ -9,6 +9,7 @@ edition = "2018"
 [dependencies]
 abomonation="*"
 abomonation_derive = "0.5.0"
-clap = "2.33.3"
 chrono = "0.4.15"
+clap = "2.33.3"
+rand = "0.7.3"
 timely="*"

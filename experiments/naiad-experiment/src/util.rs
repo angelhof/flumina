@@ -3,6 +3,8 @@
 */
 
 use chrono;
+use rand::Rng;
+
 use std::boxed::Box;
 use std::fmt::Debug;
 use std::fs::OpenOptions;
@@ -71,4 +73,14 @@ where T: std::fmt::Debug {
 // Only use for e.g. command line arguments where it won't happen repeatedly.
 pub fn string_to_static_str(s: String) -> &'static str {
     Box::leak(s.into_boxed_str())
+}
+
+/*
+    Random number generation
+*/
+pub fn rand_range(a: u64, b: u64) -> u64 {
+    rand::thread_rng().gen_range(a, b)
+}
+pub fn rand_bool(p: f64) -> bool {
+    rand::thread_rng().gen::<f64>() < p
 }
