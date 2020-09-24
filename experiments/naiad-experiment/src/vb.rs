@@ -6,9 +6,11 @@
     are defined in the other vb_* modules.
 */
 
+use abomonation_derive::Abomonation;
+
 use super::common::{Duration, Scope, Stream};
-use super::operators::{save_to_file, Sum};
-use super::perf::{latency_throughput_meter};
+use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
+use super::operators::{Sum};
 use super::vb_data::{VBData, VBItem};
 use super::vb_generators::{barrier_source, value_source};
 
@@ -19,16 +21,17 @@ use std::string::String;
 
 /* Experiment data */
 
-#[derive(Debug, Copy, Clone)]
-pub struct VBExperimentData {
+#[derive(Abomonation, Copy, Clone, Debug)]
+pub struct VBExperimentParams {
     pub parallelism: u64,
     pub val_rate_per_milli: u64,
     pub vals_per_hb_per_worker: f64,
     pub hbs_per_bar: u64,
     pub exp_duration_secs: u64,
 }
-impl VBExperimentData {
-    pub fn to_csv(&self) -> String {
+impl ExperimentParams for VBExperimentParams {
+    fn get_parallelism(&self) -> u64 { self.parallelism }
+    fn to_csv(&self) -> String {
         format!(
             "{} wkrs, {} vals/ms, {} val/hb/wkr, {} hb/bar, {} s",
             self.parallelism,
@@ -38,18 +41,36 @@ impl VBExperimentData {
             self.exp_duration_secs,
         )
     }
-    pub fn timely_args(&self) -> Vec<String>
-    {
-        let mut vec : Vec<String> = Vec::new();
-        vec.push("-w".to_string());
-        vec.push(self.parallelism.to_string());
-        vec
-    }
 }
 
 /* Core computation */
 
-fn vb_dataflow_main<G>(
+fn vb_datagen<G>(
+    params: VBExperimentParams,
+    scope: &G,
+    worker_index: usize,
+) -> (Stream<G, VBItem>, Stream<G, VBItem>)
+where
+    G: Scope<Timestamp = u128>,
+{
+    // Calculate parameters
+    let val_frequency = Duration::from_nanos(1000000 / params.val_rate_per_milli);
+    let val_total = Duration::from_secs(params.exp_duration_secs);
+    let mut bar_total = val_total.clone();
+    if worker_index != 0 {
+        // Only generate barriers at worker 0
+        bar_total = Duration::from_secs(0);
+    }
+    let hb_frequency = val_frequency.mul_f64(params.vals_per_hb_per_worker);
+    // Return the two source streams
+    let bars = barrier_source(
+        scope, worker_index, hb_frequency, params.hbs_per_bar, bar_total
+    );
+    let vals = value_source(scope, worker_index, val_frequency, val_total);
+    (bars, vals)
+}
+
+fn vb_dataflow<G>(
     value_stream: &Stream<G, VBItem>,
     barrier_stream: &Stream<G, VBItem>,
 ) -> Stream<G, usize>
@@ -83,102 +104,44 @@ where
         // .inspect(move |x| println!("total: {:?}", x))
 }
 
-fn vb_dataflow_gen_only<G>(
-    value_stream: &Stream<G, VBItem>,
-    barrier_stream: &Stream<G, VBItem>,
-) -> Stream<G, VBItem>
-where
-    G: Scope<Timestamp = u128>,
-{
-    barrier_stream
-    .inspect(|x| println!("barrier generated: {:?}", x));
-    value_stream
-    // .inspect(|_x| {})
-    .inspect(|x| println!("value generated: {:?}", x))
-}
-
-fn vb_experiment_core<G, O, F>(
-    params: VBExperimentData,
-    scope: &G,
-    computation: F,
-    worker_index: usize,
-    output_filename: &'static str,
-)
-where
-    G: Scope<Timestamp = u128>,
-    O: std::fmt::Debug + Clone + timely::Data + timely::ExchangeData,
-    F: FnOnce(&Stream<G, VBItem>, &Stream<G, VBItem>) -> Stream<G, O> + 'static,
-{
-    /* 1. Initialize */
-
-    let val_frequency = Duration::from_nanos(1000000 / params.val_rate_per_milli);
-    let val_total = Duration::from_secs(params.exp_duration_secs);
-    let mut bar_total = val_total.clone();
-    if worker_index != 0 {
-        // Only generate barriers at worker 0
-        bar_total = Duration::from_secs(0);
-    }
-    let hb_frequency = val_frequency.mul_f64(params.vals_per_hb_per_worker);
-
-    /* 2. Create the Dataflow */
-
-    let bars = barrier_source(
-        scope, worker_index, hb_frequency, params.hbs_per_bar, bar_total
-    );
-    let vals = value_source(scope, worker_index, val_frequency, val_total);
-    let output = computation(&vals, &bars);
-
-    /* 3. Monitor the Performance */
-
-    // volume_meter(&vals);
-    // completion_meter(&output);
-    // latency_meter(&output);
-    // throughput_meter(&vals, &output);
-    let latency_throughput = latency_throughput_meter(&vals, &output);
-    save_to_file(
-        &latency_throughput,
-        &output_filename,
-        move |(latency, throughput)| { format!(
-            "{}, {} ms, {} events/ms",
-            params.to_csv(), latency, throughput,
-        )}
-    );
-}
-
 /* Exposed experiments */
 
-pub fn vb_experiment_main(
-    params: VBExperimentData,
-    output_filename: &'static str,
-) {
-    println!("VB Experiment Parameters: {}", params.to_csv());
-    timely::execute_from_args(params.timely_args().drain(0..), move |worker| {
-        let worker_index = worker.index();
-        worker.dataflow(move |scope| {
-            vb_experiment_core(
-                params, scope,
-                |s1, s2| vb_dataflow_main(s1, s2),
-                worker_index, output_filename
-            );
-            println!("[worker {}] setup complete", worker_index);
-        });
-    }).unwrap();
+#[derive(Abomonation, Copy, Clone, Debug)]
+struct VBGenExperiment;
+impl LatencyThroughputExperiment<
+    VBExperimentParams, VBItem, VBItem
+> for VBGenExperiment {
+    fn get_name(&self) -> String { "VBgen".to_owned() }
+    fn build_dataflow<G: Scope<Timestamp = u128>>(
+        &self, params: VBExperimentParams, scope: &G, worker_index: usize,
+    ) -> (Stream<G, VBItem>, Stream<G, VBItem>) {
+        let (vals, bars) = vb_datagen(params, scope, worker_index);
+        let output = vals.inspect(|x| println!("event generated: {:?}", x));
+        bars.inspect(|x| println!("event generated: {:?}", x));
+        (vals, output)
+    }
 }
 
-pub fn vb_experiment_gen_only(
-    params: VBExperimentData,
-    output_filename: &'static str,
-) {
-    println!("VBgen Experiment Parameters: {}", params.to_csv());
-    timely::execute_from_args(params.timely_args().drain(0..), move |worker| {
-        let worker_index = worker.index();
-        worker.dataflow(move |scope| {
-            vb_experiment_core(
-                params, scope,
-                |s1, s2| vb_dataflow_gen_only(s1, s2),
-                worker_index, output_filename,
-            );
-            println!("[worker {}] setup complete", worker_index);
-        });
-    }).unwrap();
+#[derive(Abomonation, Copy, Clone, Debug)]
+struct VBExperiment;
+impl LatencyThroughputExperiment<
+    VBExperimentParams, VBItem, usize
+> for VBExperiment {
+    fn get_name(&self) -> String { "VB".to_owned() }
+    fn build_dataflow<G: Scope<Timestamp = u128>>(
+        &self, params: VBExperimentParams, scope: &G, worker_index: usize,
+    ) -> (Stream<G, VBItem>, Stream<G, usize>) {
+        let (vals, bars) = vb_datagen(params, scope, worker_index);
+        let output = vb_dataflow(&vals, &bars);
+        (vals, output)
+    }
+}
+
+impl VBExperimentParams {
+    pub fn run_vb_experiment_main(self, output_filename: &'static str) {
+        VBExperiment.run(self, output_filename);
+    }
+    pub fn run_vb_experiment_gen_only(self, output_filename: &'static str) {
+        VBGenExperiment.run(self, output_filename);
+    }
 }

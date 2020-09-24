@@ -38,12 +38,13 @@ where
 {
     fn get_name(&self) -> String;
     fn build_dataflow<G: Scope<Timestamp = u128>>(
-        &self, params: P, scope: &G
+        &self, params: P, scope: &G, worker_index: usize,
     ) -> (Stream<G, I>, Stream<G, O>);
     fn run_core<G: Scope<Timestamp = u128>>(
-        &self, params: P, scope: &G, output_filename: &'static str,
+        &self, params: P, scope: &G, worker_index: usize,
+        output_filename: &'static str,
     ) {
-        let (input, output) = self.build_dataflow(params, scope);
+        let (input, output) = self.build_dataflow(params, scope, worker_index);
         // Optional other meters, uncomment for testing
         // volume_meter(&input);
         // completion_meter(&output);
@@ -67,7 +68,7 @@ where
         timely::execute_from_args(params.timely_args().drain(0..), move |worker| {
             let worker_index = worker.index();
             worker.dataflow(move |scope| {
-                self.run_core(params, scope, output_filename);
+                self.run_core(params, scope, worker_index, output_filename);
                 println!("[worker {}] setup complete", worker_index);
             });
         }).unwrap();

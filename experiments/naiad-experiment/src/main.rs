@@ -3,7 +3,7 @@
 */
 
 use naiad_experiment::util::{current_datetime_str, string_to_static_str};
-use naiad_experiment::vb::{VBExperimentData, vb_experiment_main, vb_experiment_gen_only};
+use naiad_experiment::vb::{VBExperimentParams};
 
 use clap::{Arg, App, AppSettings, SubCommand};
 
@@ -68,7 +68,7 @@ fn main() {
         let arg3 = matches.value_of("VALS_PER_HB").unwrap();
         let arg4 = matches.value_of("HBS_PER_BAR").unwrap();
         let arg5 = matches.value_of("DURATION").unwrap();
-        let params = VBExperimentData {
+        let params = VBExperimentParams {
             parallelism: arg1.parse::<u64>().expect("expected u64"),
             val_rate_per_milli: arg2.parse::<u64>().expect("expected u64 (events/ms)"),
             vals_per_hb_per_worker: arg3.parse::<f64>().expect("expected f64"),
@@ -83,7 +83,7 @@ fn main() {
                 + "_vbgen_" + arg1 + "_" + arg2 + "_" + arg3 + "_" + arg4 + "_" + arg5
                 + RESULTS_EXT
             );
-            vb_experiment_gen_only(params, results_path);
+            params.run_vb_experiment_gen_only(results_path);
         }
         else {
             let results_path = string_to_static_str(
@@ -92,11 +92,11 @@ fn main() {
                 + "_vb_" + arg1 + "_" + arg2 + "_" + arg3 + "_" + arg4 + "_" + arg5
                 + RESULTS_EXT
             );
-            vb_experiment_main(params, results_path);
+            params.run_vb_experiment_main(results_path);
         }
     }
     else if let Some(_matches) = matches.subcommand_matches("vbe1") {
-        let mut params = VBExperimentData {
+        let mut params = VBExperimentParams {
             parallelism: 0, // will be set
             val_rate_per_milli: 0, // will be set
             vals_per_hb_per_worker: 100.0,
@@ -119,7 +119,7 @@ fn main() {
             for &val_rate in val_rates {
                 println!("=== Value rate (events/ms): {} ===", val_rate);
                 params.val_rate_per_milli = val_rate;
-                vb_experiment_main(params, results_path);
+                params.run_vb_experiment_main(results_path);
             }
         }
     }

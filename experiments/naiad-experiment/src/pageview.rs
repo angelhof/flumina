@@ -45,7 +45,7 @@ impl ExperimentParams for PVExperimentParams {
 
 /* Core computation */
 
-fn pv_data_gen<G>(
+fn pv_datagen<G>(
     params: PVExperimentParams,
     scope: &G,
 ) -> Stream<G, PVItem>
@@ -69,9 +69,9 @@ impl LatencyThroughputExperiment<
 > for PVGenExperiment {
     fn get_name(&self) -> String { "PVgen".to_owned() }
     fn build_dataflow<G: Scope<Timestamp = u128>>(
-        &self, params: PVExperimentParams, scope: &G
+        &self, params: PVExperimentParams, scope: &G, _worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
-        let input = pv_data_gen(params, scope);
+        let input = pv_datagen(params, scope);
         let output = input.inspect(|x| println!("event generated: {:?}", x));
         (input, output)
     }
