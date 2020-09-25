@@ -24,9 +24,9 @@ use std::string::String;
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperimentParams {
     pub parallelism: u64,
+    pub events_per_milli: u64,
     pub page0_per_page1: u64,
     pub views_per_update: u64,
-    pub events_per_milli: u64,
     pub exp_duration_secs: u64,
 }
 impl ExperimentParams for PVExperimentParams {

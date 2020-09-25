@@ -50,12 +50,12 @@ fn main() {
         .about("Custom pageview experiment")
         .arg(Arg::with_name("PAR").index(1).required(true)
             .help("parallelism (1 = sequential)"))
-        .arg(Arg::with_name("PAGE_RATIO").index(2).required(true)
-            .help("ratio of page #0 to page #1"))
-        .arg(Arg::with_name("VIEW_RATIO").index(3).required(true)
-            .help("ratio of views to updates"))
-        .arg(Arg::with_name("RATE").index(4).required(true)
+        .arg(Arg::with_name("RATE").index(2).required(true)
             .help("events per ms overall"))
+        .arg(Arg::with_name("PAGE_RATIO").index(3).required(true)
+            .help("ratio of page #0 to page #1"))
+        .arg(Arg::with_name("VIEW_RATIO").index(4).required(true)
+            .help("ratio of views to updates"))
         .arg(Arg::with_name("DURATION").index(5).required(true)
             .help("experiment duration in seconds"))
         .arg(Arg::with_name("gen-only").short("g")
@@ -139,15 +139,15 @@ fn main() {
         /* Pageview Command */
 
         let arg1 = matches.value_of("PAR").unwrap();
-        let arg2 = matches.value_of("PAGE_RATIO").unwrap();
-        let arg3 = matches.value_of("VIEW_RATIO").unwrap();
-        let arg4 = matches.value_of("RATE").unwrap();
+        let arg2 = matches.value_of("RATE").unwrap();
+        let arg3 = matches.value_of("PAGE_RATIO").unwrap();
+        let arg4 = matches.value_of("VIEW_RATIO").unwrap();
         let arg5 = matches.value_of("DURATION").unwrap();
         let params = PVExperimentParams {
             parallelism: arg1.parse().expect("expected u64"),
-            page0_per_page1: arg2.parse().expect("expected u64"),
-            views_per_update: arg3.parse().expect("expected u64"),
-            events_per_milli: arg4.parse().expect("expected u64 (events/ms)"),
+            events_per_milli: arg2.parse().expect("expected u64 (events/ms)"),
+            page0_per_page1: arg3.parse().expect("expected u64"),
+            views_per_update: arg4.parse().expect("expected u64"),
             exp_duration_secs: arg5.parse().expect("expected u64 (secs)"),
         };
         let args = [arg1, arg2, arg3, arg4, arg5];
@@ -167,9 +167,9 @@ fn main() {
 
         let mut params = PVExperimentParams {
             parallelism: 0, // will be set
+            events_per_milli: 0, // will be set
             page0_per_page1: 100,
             views_per_update: 100,
-            events_per_milli: 0, // will be set
             exp_duration_secs: 5,
         };
         let rates = &[1, 5, 10, 50, 100, 150, 200, 250, 300, 350, 400];
