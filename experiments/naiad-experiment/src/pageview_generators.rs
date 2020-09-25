@@ -8,7 +8,7 @@ use super::generators::fixed_rate_source;
 use super::pageview_data::{PageName, PageData, PVData, PVItem};
 use super::util::{rand_bool, rand_range};
 
-fn pageview_source<F1, F2, G>(
+fn pv_source<F1, F2, G>(
     mut name_gen: F1,
     mut data_gen: F2,
     update_prob: f64,
@@ -34,7 +34,7 @@ where
     fixed_rate_source(item_gen, scope, frequency, total)
 }
 
-pub fn pageview_source_twopages<G>(
+pub fn pv_source_twopages<G>(
     scope: &G,
     page_0_prob: f64,
     update_prob: f64,
@@ -46,5 +46,5 @@ where
 {
     let name_gen = move || { if rand_bool(page_0_prob) { 0 } else { 1 }};
     let data_gen = move || { rand_range(0, 100) };
-    pageview_source(name_gen, data_gen, update_prob, scope, frequency, total)
+    pv_source(name_gen, data_gen, update_prob, scope, frequency, total)
 }

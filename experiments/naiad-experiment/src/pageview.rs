@@ -11,7 +11,7 @@ use abomonation_derive::Abomonation;
 use super::common::{Duration, Scope, Stream};
 use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
 use super::pageview_data::{PVItem};
-use super::pageview_generators::{pageview_source_twopages};
+use super::pageview_generators::{pv_source_twopages};
 
 use timely::dataflow::operators::{Inspect};
 // use timely::dataflow::operators::{Accumulate, Broadcast, Exchange, Filter,
@@ -23,11 +23,11 @@ use std::string::String;
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperimentParams {
-    parallelism: u64,
-    page0_per_page1: u64,
-    views_per_update: u64,
-    events_per_milli: u64,
-    exp_duration_secs: u64,
+    pub parallelism: u64,
+    pub page0_per_page1: u64,
+    pub views_per_update: u64,
+    pub events_per_milli: u64,
+    pub exp_duration_secs: u64,
 }
 impl ExperimentParams for PVExperimentParams {
     fn get_parallelism(&self) -> u64 { self.parallelism }
@@ -57,7 +57,7 @@ where
     let frequency = Duration::from_nanos(1000000 / params.events_per_milli);
     let exp_duration = Duration::from_secs(params.exp_duration_secs);
 
-    pageview_source_twopages(scope, page_0_prob, update_prob, frequency, exp_duration)
+    pv_source_twopages(scope, page_0_prob, update_prob, frequency, exp_duration)
 }
 
 fn pv_dataflow<G>(
