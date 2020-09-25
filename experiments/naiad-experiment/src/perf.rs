@@ -49,6 +49,7 @@ where
             }
         },
         |latencies| {
+            // println!("latencies: {:?}", latencies);
             let sum : u128 = Iterator::sum(latencies.iter());
             (sum as f64) / (1000000.0 * (latencies.len() as f64))
         }

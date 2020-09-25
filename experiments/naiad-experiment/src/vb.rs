@@ -55,19 +55,19 @@ where
 {
     // Calculate parameters
     let val_frequency = Duration::from_nanos(1000000 / params.val_rate_per_milli);
-    let val_total = Duration::from_secs(params.exp_duration_secs);
-    let mut bar_total = val_total.clone();
+    let val_duration = Duration::from_secs(params.exp_duration_secs);
+    let mut bar_duration = val_duration.clone();
     if worker_index != 0 {
         // Only generate barriers at worker 0
-        bar_total = Duration::from_secs(0);
+        bar_duration = Duration::from_secs(0);
     }
-    let hb_frequency = val_frequency.mul_f64(params.vals_per_hb_per_worker as f64);
+    let hb_frequency = val_frequency * (params.vals_per_hb_per_worker as u32);
     // Return the two source streams
     let bars = barrier_source(
-        scope, worker_index, hb_frequency, params.hbs_per_bar, bar_total
+        scope, worker_index, hb_frequency, params.hbs_per_bar, bar_duration
     );
-    let vals = value_source(scope, worker_index, val_frequency, val_total);
-    (bars, vals)
+    let vals = value_source(scope, worker_index, val_frequency, val_duration);
+    (vals, bars)
 }
 
 fn vb_dataflow<G>(
