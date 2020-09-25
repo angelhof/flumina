@@ -82,7 +82,8 @@ impl LatencyThroughputExperiment<
         &self, params: PVExperimentParams, scope: &G, _worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let input = pv_datagen(params, scope);
-        let output = input.inspect(|x| println!("event generated: {:?}", x));
+        let output = input.clone();
+        // let output = input.inspect(|x| println!("event generated: {:?}", x));
         (input, output)
     }
 }

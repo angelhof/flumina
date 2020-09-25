@@ -116,7 +116,8 @@ impl LatencyThroughputExperiment<
         &self, params: VBExperimentParams, scope: &G, worker_index: usize,
     ) -> (Stream<G, VBItem>, Stream<G, VBItem>) {
         let (vals, bars) = vb_datagen(params, scope, worker_index);
-        let output = vals.inspect(|x| println!("event generated: {:?}", x));
+        let output = vals.clone();
+        // let output = vals.inspect(|x| println!("event generated: {:?}", x));
         bars.inspect(|x| println!("event generated: {:?}", x));
         (vals, output)
     }

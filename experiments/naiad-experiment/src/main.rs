@@ -31,7 +31,7 @@ fn main() {
     /* Create experiment-specific subcommands */
 
     let command_vb = SubCommand::with_name("vb")
-        .about("Value-barrier experiment")
+        .about("Custom value-barrier experiment")
         .arg(Arg::with_name("PAR").index(1).required(true)
             .help("parallelism (1 = sequential)"))
         .arg(Arg::with_name("VAL_RATE").index(2).required(true)
@@ -45,9 +45,9 @@ fn main() {
         .arg(Arg::with_name("gen-only").short("g")
             .help("data generation only (no processing)"));
     let command_vb_exp1 = SubCommand::with_name("vbe1")
-        .about("Value-barrier experiment 1: vary the parallelism and rate");
+        .about("Value-barrier experiment 1: vary the parallelism and input rate");
     let command_pv = SubCommand::with_name("pv")
-        .about("Pageview experiment")
+        .about("Custom pageview experiment")
         .arg(Arg::with_name("PAR").index(1).required(true)
             .help("parallelism (1 = sequential)"))
         .arg(Arg::with_name("PAGE_RATIO").index(2).required(true)
@@ -61,7 +61,7 @@ fn main() {
         .arg(Arg::with_name("gen-only").short("g")
             .help("data generation only (no processing)"));
     let command_pv_exp1 = SubCommand::with_name("pve1")
-        .about("Pageview experiment 1: vary the parallelism and rate");
+        .about("Pageview experiment 1: vary the parallelism and input rate");
 
     /* Create application */
 
@@ -96,7 +96,7 @@ fn main() {
         };
         let args = [arg1, arg2, arg3, arg4, arg5];
 
-        if matches.is_present("-g") {
+        if matches.is_present("gen-only") {
             let results_path = make_results_path("vbgen", &args);
             params.run_vb_experiment_gen_only(results_path);
         }
@@ -152,7 +152,7 @@ fn main() {
         };
         let args = [arg1, arg2, arg3, arg4, arg5];
 
-        if matches.is_present("-g") {
+        if matches.is_present("gen-only") {
             let results_path = make_results_path("pvgen", &args);
             params.run_pv_experiment_gen_only(results_path);
         }
