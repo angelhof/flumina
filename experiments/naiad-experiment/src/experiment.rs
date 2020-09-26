@@ -49,7 +49,7 @@ where
         // latency_meter(&output);
         // throughput_meter(&input, &output);
         let latency_throughput = latency_throughput_meter(&input, &output);
-        let params_csv = params.to_csv().to_owned();
+        let params_csv = params.to_csv();
         save_to_file(
             &latency_throughput,
             &output_filename,

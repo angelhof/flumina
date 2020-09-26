@@ -165,8 +165,8 @@ where
     T: Timestamp + Copy,
     G: Scope<Timestamp = T>,
 {
-    let stream1 = in_stream1.map(|x| Either::Left(x));
-    let stream2 = in_stream2.map(|x| Either::Right(x));
+    let stream1 = in_stream1.map(Either::Left);
+    let stream2 = in_stream2.map(Either::Right);
     let stream = stream1.concat(&stream2);
 
     window_all(
@@ -200,7 +200,7 @@ where
     Returns the input stream (unchanged as output).
     Panics if file handling fails.
 */
-pub fn save_to_file<'a, D, F, T, G>(
+pub fn save_to_file<D, F, T, G>(
     in_stream: &Stream<G, D>,
     filename: &str,
     format: F,

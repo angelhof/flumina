@@ -27,8 +27,7 @@ where
 {
     let stream = window_all_parallel(
         "Latency Meter",
-        stream,
-        || Vec::new(),
+        stream, Vec::new,
         |latencies, time, data| {
             let num_inputs = data.len();
             let timestamp_now = nanos_timestamp(SystemTime::now());
@@ -41,8 +40,7 @@ where
     );
     let stream = window_all(
         "Latency Meter Collect",
-        &stream,
-        || Vec::new(),
+        &stream, Vec::new,
         |latencies, _time, data| {
             for latencies_other in data {
                 latencies.append(&mut latencies_other.clone());
@@ -72,7 +70,7 @@ where
         stream,
         || 0,
         |count, _time, data| { *count += data.len(); },
-        |count| count.clone(),
+        |count| *count,
     );
     let stream = window_all(
         "Volume Meter Collect",
@@ -83,7 +81,7 @@ where
                 *count += count_other;
             }
         },
-        |count| count.clone(),
+        |count| *count,
     );
     stream.inspect(|count| println!("Volume (events): {:?}", count))
 }

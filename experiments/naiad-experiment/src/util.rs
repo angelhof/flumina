@@ -2,7 +2,7 @@
     Utility functions
 */
 
-use chrono;
+use chrono::offset::Local;
 use rand::Rng;
 
 use std::boxed::Box;
@@ -30,7 +30,7 @@ pub fn nanos_timestamp(t: SystemTime) -> u128 {
     t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()
 }
 pub fn current_datetime_str() -> String {
-    let out = chrono::offset::Local::now().format("%Y-%m-%d-%H%M%S").to_string();
+    let out = Local::now().format("%Y-%m-%d-%H%M%S").to_string();
     println!("Current Datetime: {:?}", out);
     out
 }
@@ -54,7 +54,7 @@ where
 /*
     File handling
 */
-pub fn vec_to_file<T>(v: Vec<T>, filename: &str) -> ()
+pub fn vec_to_file<T>(v: Vec<T>, filename: &str)
 where T: std::fmt::Debug {
     // This function may panic due to multiple reasons
     let mut file = OpenOptions::new()

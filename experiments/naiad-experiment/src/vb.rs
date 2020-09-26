@@ -56,11 +56,10 @@ where
     // Calculate parameters
     let val_frequency = Duration::from_nanos(1000000 / params.val_rate_per_milli);
     let val_duration = Duration::from_secs(params.exp_duration_secs);
-    let mut bar_duration = val_duration.clone();
-    if worker_index != 0 {
+    let bar_duration = if worker_index != 0 {
         // Only generate barriers at worker 0
-        bar_duration = Duration::from_secs(0);
-    }
+        Duration::from_secs(0)
+    } else { val_duration };
     let hb_frequency = val_frequency * (params.vals_per_hb_per_worker as u32);
     // Return the two source streams
     let bars = barrier_source(
