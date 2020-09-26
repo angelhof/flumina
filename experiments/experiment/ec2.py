@@ -13,5 +13,5 @@ def run_job(args, manual=False, rmi_host=None):
                   'run', artifact,
                   '--manual', f'{manual}'] +\
                  args +\
-                 ['--rmiHost', f'{rmi_host}'] if manual else []
+                 (['--rmiHost', f'{rmi_host}'] if manual else [])
     subprocess.run(total_args)
