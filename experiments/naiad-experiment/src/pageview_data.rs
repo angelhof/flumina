@@ -4,8 +4,6 @@
 
 use abomonation_derive::Abomonation;
 
-use std::collections::HashMap;
-
 pub type PVTimestamp = u128;
 pub type PageName = u64;
 pub type PageData = u64;
