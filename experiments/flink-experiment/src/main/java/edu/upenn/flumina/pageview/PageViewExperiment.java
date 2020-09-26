@@ -44,9 +44,10 @@ public class PageViewExperiment implements Experiment {
         env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        final var getOrUpdateSource = new GetOrUpdateSource(conf.getTotalPageViews(), conf.getTotalUsers(),
-                conf.getPageViewRate(), startTime);
-        final var getOrUpdateStream = env.addSource(getOrUpdateSource).slotSharingGroup("getOrUpdate");
+        final var getOrUpdateSource = new GetOrUpdateSource(conf.getTotalPageViews(), conf.getPageViewRate(), startTime);
+        final var getOrUpdateStream = env.addSource(getOrUpdateSource)
+                .setParallelism(conf.getTotalUsers())
+                .slotSharingGroup("getOrUpdate");
         final var pageViewSource =
                 new PageViewSource(conf.getTotalPageViews(), conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var pageViewStream = env.addSource(pageViewSource)

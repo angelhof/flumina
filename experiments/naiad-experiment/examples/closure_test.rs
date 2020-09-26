@@ -1,6 +1,6 @@
-use std::vec::Vec;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::vec::Vec;
 
 // Useful for debugging
 fn print_type_of<T>(_: &T) {
@@ -32,5 +32,4 @@ fn main() {
 
     do_something(3);
     do_something(1);
-
 }

@@ -10,10 +10,10 @@ use abomonation_derive::Abomonation;
 
 use super::common::{Duration, Scope, Stream};
 use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
-use super::pageview_data::{PVItem};
-use super::pageview_generators::{pv_source_twopages};
+use super::pageview_data::PVItem;
+use super::pageview_generators::pv_source_twopages;
 
-use timely::dataflow::operators::{Inspect};
+use timely::dataflow::operators::Inspect;
 // use timely::dataflow::operators::{Accumulate, Broadcast, Exchange, Filter,
 //                                   Inspect, Map, Reclock};
 
@@ -30,7 +30,9 @@ pub struct PVExperimentParams {
     pub exp_duration_secs: u64,
 }
 impl ExperimentParams for PVExperimentParams {
-    fn get_parallelism(&self) -> u64 { self.parallelism }
+    fn get_parallelism(&self) -> u64 {
+        self.parallelism
+    }
     fn to_csv(&self) -> String {
         format!(
             "{} wkrs, {} page0/page1, {} views/update, {} events/ms, {} s",
@@ -45,10 +47,7 @@ impl ExperimentParams for PVExperimentParams {
 
 /* Core computation */
 
-fn pv_datagen<G>(
-    params: PVExperimentParams,
-    scope: &G,
-) -> Stream<G, PVItem>
+fn pv_datagen<G>(params: PVExperimentParams, scope: &G) -> Stream<G, PVItem>
 where
     G: Scope<Timestamp = u128>,
 {
@@ -60,9 +59,7 @@ where
     pv_source_twopages(scope, page_0_prob, update_prob, frequency, exp_duration)
 }
 
-fn pv_dataflow<G>(
-    input: &Stream<G, PVItem>
-) -> Stream<G, PVItem>
+fn pv_dataflow<G>(input: &Stream<G, PVItem>) -> Stream<G, PVItem>
 where
     G: Scope<Timestamp = u128>,
 {
@@ -74,12 +71,17 @@ where
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVGenExperiment;
-impl LatencyThroughputExperiment<
-    PVExperimentParams, PVItem, PVItem
-> for PVGenExperiment {
-    fn get_name(&self) -> String { "PVgen".to_owned() }
+impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
+    for PVGenExperiment
+{
+    fn get_name(&self) -> String {
+        "PVgen".to_owned()
+    }
     fn build_dataflow<G: Scope<Timestamp = u128>>(
-        &self, params: PVExperimentParams, scope: &G, _worker_index: usize,
+        &self,
+        params: PVExperimentParams,
+        scope: &G,
+        _worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let input = pv_datagen(params, scope);
         let output = input.clone();
@@ -90,12 +92,17 @@ impl LatencyThroughputExperiment<
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperiment;
-impl LatencyThroughputExperiment<
-    PVExperimentParams, PVItem, PVItem
-> for PVExperiment {
-    fn get_name(&self) -> String { "PV".to_owned() }
+impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
+    for PVExperiment
+{
+    fn get_name(&self) -> String {
+        "PV".to_owned()
+    }
     fn build_dataflow<G: Scope<Timestamp = u128>>(
-        &self, params: PVExperimentParams, scope: &G, _worker_index: usize,
+        &self,
+        params: PVExperimentParams,
+        scope: &G,
+        _worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let input = pv_datagen(params, scope);
         let output = pv_dataflow(&input);

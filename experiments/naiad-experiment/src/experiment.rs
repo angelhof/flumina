@@ -3,8 +3,8 @@
 */
 
 use super::common::{Scope, Stream};
-use super::operators::{save_to_file};
-use super::perf::{latency_throughput_meter};
+use super::operators::save_to_file;
+use super::perf::latency_throughput_meter;
 
 use std::string::String;
 use std::vec::Vec;
@@ -15,7 +15,7 @@ pub trait ExperimentParams {
     /* Functionality */
     fn to_csv(&self) -> String;
     fn timely_args(&self) -> Vec<String> {
-        let mut vec : Vec<String> = Vec::new();
+        let mut vec: Vec<String> = Vec::new();
         vec.push("-w".to_string());
         vec.push(self.get_parallelism().to_string());
         vec
@@ -36,10 +36,16 @@ where
 {
     fn get_name(&self) -> String;
     fn build_dataflow<G: Scope<Timestamp = u128>>(
-        &self, params: P, scope: &G, worker_index: usize,
+        &self,
+        params: P,
+        scope: &G,
+        worker_index: usize,
     ) -> (Stream<G, I>, Stream<G, O>);
     fn run_core<G: Scope<Timestamp = u128>>(
-        &self, params: P, scope: &G, worker_index: usize,
+        &self,
+        params: P,
+        scope: &G,
+        worker_index: usize,
         output_filename: &'static str,
     ) {
         let (input, output) = self.build_dataflow(params, scope, worker_index);
@@ -49,26 +55,34 @@ where
         // latency_meter(&output);
         // throughput_meter(&input, &output);
         let latency_throughput = latency_throughput_meter(&input, &output);
-        let params_csv = params.to_csv().to_owned();
+        let params_csv = params.to_csv();
         save_to_file(
             &latency_throughput,
             &output_filename,
-            move |(latency, throughput)| { format!(
-                "{}, {} ms, {} events/ms",
-                params_csv, latency, throughput
-            )}
+            move |(latency, throughput)| {
+                format!(
+                    "{}, {} ms, {} events/ms",
+                    params_csv, latency, throughput
+                )
+            },
         );
     }
-    fn run(
-        &'static self, params: P, output_filename: &'static str,
-    ) {
-        println!("{} Experiment Parameters: {}", self.get_name(), params.to_csv());
-        timely::execute_from_args(params.timely_args().drain(0..), move |worker| {
-            let worker_index = worker.index();
-            worker.dataflow(move |scope| {
-                self.run_core(params, scope, worker_index, output_filename);
-                println!("[worker {}] setup complete", worker_index);
-            });
-        }).unwrap();
+    fn run(&'static self, params: P, output_filename: &'static str) {
+        println!(
+            "{} Experiment Parameters: {}",
+            self.get_name(),
+            params.to_csv()
+        );
+        timely::execute_from_args(
+            params.timely_args().drain(0..),
+            move |worker| {
+                let worker_index = worker.index();
+                worker.dataflow(move |scope| {
+                    self.run_core(params, scope, worker_index, output_filename);
+                    println!("[worker {}] setup complete", worker_index);
+                });
+            },
+        )
+        .unwrap();
     }
 }

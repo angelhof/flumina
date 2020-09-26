@@ -2,7 +2,7 @@
     Utility functions
 */
 
-use chrono;
+use chrono::offset::Local;
 use rand::Rng;
 
 use std::boxed::Box;
@@ -30,7 +30,7 @@ pub fn nanos_timestamp(t: SystemTime) -> u128 {
     t.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_nanos()
 }
 pub fn current_datetime_str() -> String {
-    let out = chrono::offset::Local::now().format("%Y-%m-%d-%H%M%S").to_string();
+    let out = Local::now().format("%Y-%m-%d-%H%M%S").to_string();
     println!("Current Datetime: {:?}", out);
     out
 }
@@ -45,21 +45,20 @@ where
 {
     println!("{}", msg);
     let mut input_text = String::new();
-    io::stdin()
-        .read_line(&mut input_text)
-        .expect("failed to read from stdin");
+    io::stdin().read_line(&mut input_text).expect("failed to read from stdin");
     input_text.trim().parse::<T>().expect("not an integer")
 }
 
 /*
     File handling
 */
-pub fn vec_to_file<T>(v: Vec<T>, filename: &str) -> ()
-where T: std::fmt::Debug {
+pub fn vec_to_file<T>(v: Vec<T>, filename: &str)
+where
+    T: std::fmt::Debug,
+{
     // This function may panic due to multiple reasons
-    let mut file = OpenOptions::new()
-        .create(true).write(true)
-        .open(filename).unwrap();
+    let mut file =
+        OpenOptions::new().create(true).write(true).open(filename).unwrap();
 
     for item in v {
         writeln!(file, "{:?}", item).unwrap();

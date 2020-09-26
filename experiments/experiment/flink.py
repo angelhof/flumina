@@ -187,7 +187,9 @@ class ValueBarrierEC2:
                  '--totalValues', f'{self.total_values}',
                  '--valueRate', f'{self.value_rate:.1f}',
                  '--vbRatio', f'{self.vb_ratio}',
-                 '--hbRatio', f'{self.hb_ratio}'])
+                 '--hbRatio', f'{self.hb_ratio}'],
+                args.manual,
+                args.rmi_host)
 
     def archive_results(self, to_path):
         exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}'
@@ -235,7 +237,9 @@ class PageViewEC2:
                  '--totalPageViews', f'{self.total_pageviews}',
                  '--totalUsers', f'{self.total_users}',
                  '--pageViewParallelism', f'{self.pageview_parallelism}',
-                 '--pageViewRate', f'{self.pageview_rate:.1f}'])
+                 '--pageViewRate', f'{self.pageview_rate:.1f}'],
+                args.manual,
+                args.rmi_host)
 
     def archive_results(self, to_path):
         exp_dir_name = f'u{self.total_users}_p{self.pageview_parallelism}_r{self.pageview_rate:.0f}'
@@ -286,7 +290,9 @@ class FraudDetectionEC2:
                  '--totalValues', f'{self.total_values}',
                  '--valueRate', f'{self.value_rate:.1f}',
                  '--vbRatio', f'{self.vb_ratio}',
-                 '--hbRatio', f'{self.hb_ratio}'])
+                 '--hbRatio', f'{self.hb_ratio}'],
+                args.manual,
+                args.rmi_host)
 
     def archive_results(self, to_path):
         exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}'

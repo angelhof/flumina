@@ -78,7 +78,7 @@ suites = {
     ),
     'pageview-rates-ec2': ExperimentSuite(
         'pageview-rates-ec2',
-        [PageViewEC2(500_000, 2, 1, r) for r in range(2, 101, 2)]
+        [PageViewEC2(r * 30_000, 2, 1, r) for r in range(2, 201, 2)]
     ),
     'pageview-parallelism-ec2': ExperimentSuite(
         'pageview-parallelism-ec2',
@@ -86,7 +86,7 @@ suites = {
     ),
     'fraud-detection-rates-ec2': ExperimentSuite(
         'fraud-detection-rates-ec2',
-        [FraudDetectionEC2(5, 1_000_000, r, 10_000, 100) for r in range(20, 101, 2)]
+        [FraudDetectionEC2(1, r * 30_000, r, 10_000, 100) for r in range(20, 201, 2)]
     ),
     'fraud-detection-nodes-ec2': ExperimentSuite(
         'fraud-detection-nodes-ec2',

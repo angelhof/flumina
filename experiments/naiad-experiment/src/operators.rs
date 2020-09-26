@@ -8,8 +8,9 @@
 use super::common::{Pipeline, Scope, Stream, Timestamp};
 use super::either::Either;
 
-use timely::dataflow::operators::{Accumulate, Concat, Exchange, Filter,
-                                  Inspect, Map, Operator};
+use timely::dataflow::operators::{
+    Accumulate, Concat, Exchange, Filter, Inspect, Map, Operator,
+};
 
 use std::fmt::Debug;
 use std::fs::OpenOptions;
@@ -48,7 +49,6 @@ where
     G: Scope<Timestamp = T>,
 {
     in_stream.unary_frontier(Pipeline, name, |capability1, _info| {
-
         let mut agg = init();
         let cap_time = *capability1.time();
         let mut maybe_cap = Some(capability1);
@@ -89,8 +89,8 @@ pub fn window_all<D1, D2, D3, I, F, E, T, G>(
 ) -> Stream<G, D3>
 where
     D1: timely::Data + Debug + timely::ExchangeData, // input data
-    D2: timely::Data + Debug, // accumulator
-    D3: timely::Data + Debug, // output data
+    D2: timely::Data + Debug,                        // accumulator
+    D3: timely::Data + Debug,                        // output data
     I: FnOnce() -> D2 + 'static,
     F: Fn(&mut D2, &T, Vec<D1>) + 'static,
     E: Fn(&D2) -> D3 + 'static,
@@ -102,8 +102,17 @@ where
         name,
         &in_stream_single,
         || (init(), false),
-        move |(x, nonempty), time, data| { fold(x, time, data); *nonempty = true; },
-        move |(x, nonempty)| { if *nonempty { Some(emit(x)) } else { None } },
+        move |(x, nonempty), time, data| {
+            fold(x, time, data);
+            *nonempty = true;
+        },
+        move |(x, nonempty)| {
+            if *nonempty {
+                Some(emit(x))
+            } else {
+                None
+            }
+        },
     )
     .filter(|x| x.is_some())
     .map(|x| x.unwrap()) // guaranteed not to panic
@@ -128,7 +137,7 @@ pub fn single_op_unary<D1, D2, F, T, G>(
 ) -> Stream<G, D2>
 where
     D1: timely::Data + Debug + timely::ExchangeData, // input data
-    D2: timely::Data + Debug, // output data
+    D2: timely::Data + Debug,                        // output data
     F: Fn(D1) -> D2 + 'static,
     T: Timestamp + Copy,
     G: Scope<Timestamp = T>,
@@ -143,7 +152,7 @@ where
                 *seen = Some(d);
             }
         },
-        move |seen| { op(seen.clone().unwrap()) },
+        move |seen| op(seen.clone().unwrap()),
     )
 }
 
@@ -160,13 +169,13 @@ pub fn single_op_binary<D1, D2, D3, F, T, G>(
 where
     D1: timely::Data + Debug + timely::ExchangeData, // input data 1
     D2: timely::Data + Debug + timely::ExchangeData, // input data 2
-    D3: timely::Data + Debug, // output data
+    D3: timely::Data + Debug,                        // output data
     F: Fn(D1, D2) -> D3 + 'static,
     T: Timestamp + Copy,
     G: Scope<Timestamp = T>,
 {
-    let stream1 = in_stream1.map(|x| Either::Left(x));
-    let stream2 = in_stream2.map(|x| Either::Right(x));
+    let stream1 = in_stream1.map(Either::Left);
+    let stream2 = in_stream2.map(Either::Right);
     let stream = stream1.concat(&stream2);
 
     window_all(
@@ -179,7 +188,7 @@ where
                     Either::Left(d1) => {
                         assert!(seen1.is_none());
                         *seen1 = Some(d1);
-                    },
+                    }
                     Either::Right(d2) => {
                         assert!(seen2.is_none());
                         *seen2 = Some(d2);
@@ -200,7 +209,7 @@ where
     Returns the input stream (unchanged as output).
     Panics if file handling fails.
 */
-pub fn save_to_file<'a, D, F, T, G>(
+pub fn save_to_file<D, F, T, G>(
     in_stream: &Stream<G, D>,
     filename: &str,
     format: F,
@@ -211,9 +220,8 @@ where
     T: Timestamp,
     G: Scope<Timestamp = T>,
 {
-    let mut file = OpenOptions::new()
-        .create(true).append(true)
-        .open(filename).unwrap();
+    let mut file =
+        OpenOptions::new().create(true).append(true).open(filename).unwrap();
     in_stream.inspect(move |d| {
         writeln!(file, "{}", format(d)).unwrap();
     })
@@ -227,7 +235,11 @@ pub trait Sum<G: Scope> {
     fn sum(&self) -> Stream<G, usize>;
 }
 impl<G: Scope> Sum<G> for Stream<G, usize> {
-    fn sum(&self) -> Stream<G, usize>{
-        self.accumulate(0, |sum, data| { for &x in data.iter() { *sum += x; } })
+    fn sum(&self) -> Stream<G, usize> {
+        self.accumulate(0, |sum, data| {
+            for &x in data.iter() {
+                *sum += x;
+            }
+        })
     }
 }
