@@ -9,6 +9,10 @@ public class ValueHeartbeat extends Heartbeat implements ValueOrHeartbeat {
 
     private static final long serialVersionUID = -4216851981696755420L;
 
+    // Default constructor so that the object is treated like POJO
+    ValueHeartbeat() {
+    }
+
     public ValueHeartbeat(final long logicalTimestamp) {
         super(logicalTimestamp);
     }

@@ -148,10 +148,10 @@ public class FraudDetectionSeq implements Experiment {
                         if (previousSumState.value() == null) {
                             previousSumState.update(0L);
                         }
-                        if (previousSumState.value() % 100L == transaction.getVal() % 100L) {
-                            out.collect(Tuple3.of("Transaction", transaction.getVal(), transaction.getPhysicalTimestamp()));
+                        if (previousSumState.value() % 100L == transaction.val % 100L) {
+                            out.collect(Tuple3.of("Transaction", transaction.val, transaction.getPhysicalTimestamp()));
                         }
-                        sumState.update(sumState.value() + transaction.getVal());
+                        sumState.update(sumState.value() + transaction.val);
                     }
                 })
                 .slotSharingGroup("rules")

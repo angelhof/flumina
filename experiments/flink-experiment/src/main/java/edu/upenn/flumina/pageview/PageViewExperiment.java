@@ -139,7 +139,7 @@ public class PageViewExperiment implements Experiment {
                     }
 
                     private void update(final Update update, final Collector<Update> out) throws IOException {
-                        zipCodeState.update(update.getZipCode());
+                        zipCodeState.update(update.zipCode);
                         out.collect(update);
                     }
 

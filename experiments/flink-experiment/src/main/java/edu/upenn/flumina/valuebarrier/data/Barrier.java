@@ -8,6 +8,10 @@ public class Barrier extends Heartbeat implements BarrierOrHeartbeat {
 
     private static final long serialVersionUID = -168675275747391818L;
 
+    // Default constructor so that the object is treated like POJO
+    public Barrier() {
+    }
+
     public Barrier(final long logicalTimestamp) {
         super(logicalTimestamp);
     }

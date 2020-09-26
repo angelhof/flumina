@@ -8,15 +8,16 @@ public class Value extends Heartbeat implements ValueOrHeartbeat {
 
     private static final long serialVersionUID = -950069087838302251L;
 
-    private final long val;
+    // All fields public so that the object is treated like POJO
+    public long val;
+
+    // Default constructor so that the object is treated like POJO
+    public Value() {
+    }
 
     public Value(final long val, final long logicalTimestamp) {
         super(logicalTimestamp);
         this.val = val;
-    }
-
-    public long getVal() {
-        return val;
     }
 
     @Override
@@ -26,7 +27,7 @@ public class Value extends Heartbeat implements ValueOrHeartbeat {
 
     @Override
     public String toString() {
-        return "Value(" + getVal() + ") @ " + getLogicalTimestamp();
+        return "Value(" + val + ") @ " + getLogicalTimestamp();
     }
 
 }
