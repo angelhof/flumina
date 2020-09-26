@@ -10,12 +10,13 @@ use abomonation_derive::Abomonation;
 
 use super::common::{Duration, Scope, Stream};
 use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
-use super::operators::{Sum};
+use super::operators::Sum;
 use super::vb_data::{VBData, VBItem};
 use super::vb_generators::{barrier_source, value_source};
 
-use timely::dataflow::operators::{Accumulate, Broadcast, Exchange, Filter,
-                                  Inspect, Map, Reclock};
+use timely::dataflow::operators::{
+    Accumulate, Broadcast, Exchange, Filter, Inspect, Map, Reclock,
+};
 
 use std::string::String;
 
@@ -30,7 +31,9 @@ pub struct VBExperimentParams {
     pub exp_duration_secs: u64,
 }
 impl ExperimentParams for VBExperimentParams {
-    fn get_parallelism(&self) -> u64 { self.parallelism }
+    fn get_parallelism(&self) -> u64 {
+        self.parallelism
+    }
     fn to_csv(&self) -> String {
         format!(
             "{} wkrs, {} vals/ms, {} val/hb/wkr, {} hb/bar, {} s",
@@ -54,21 +57,29 @@ where
     G: Scope<Timestamp = u128>,
 {
     // Calculate parameters
-    let val_frequency = Duration::from_nanos(1000000 / params.val_rate_per_milli);
+    let val_frequency =
+        Duration::from_nanos(1000000 / params.val_rate_per_milli);
     let val_duration = Duration::from_secs(params.exp_duration_secs);
     let bar_duration = if worker_index != 0 {
         // Only generate barriers at worker 0
         Duration::from_secs(0)
-    } else { val_duration };
+    } else {
+        val_duration
+    };
     let hb_frequency = val_frequency * (params.vals_per_hb_per_worker as u32);
     // Return the two source streams
     let bars = barrier_source(
-        scope, worker_index, hb_frequency, params.hbs_per_bar, bar_duration
+        scope,
+        worker_index,
+        hb_frequency,
+        params.hbs_per_bar,
+        bar_duration,
     );
     let vals = value_source(scope, worker_index, val_frequency, val_duration);
     (vals, bars)
 }
 
+#[rustfmt::skip]
 fn vb_dataflow<G>(
     value_stream: &Stream<G, VBItem>,
     barrier_stream: &Stream<G, VBItem>,
@@ -78,8 +89,7 @@ where
 {
     // Use barrier stream to create two clocks, one with
     // hearbeats and one without
-    let barrier_broadcast = barrier_stream
-        .broadcast();
+    let barrier_broadcast = barrier_stream.broadcast();
     let barrier_clock_withheartbeats = barrier_broadcast
         // .inspect(move |x| println!("barrier or heartbeat seen: {:?}", x))
         .map(|_| ());
@@ -107,12 +117,17 @@ where
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 struct VBGenExperiment;
-impl LatencyThroughputExperiment<
-    VBExperimentParams, VBItem, VBItem
-> for VBGenExperiment {
-    fn get_name(&self) -> String { "VBgen".to_owned() }
+impl LatencyThroughputExperiment<VBExperimentParams, VBItem, VBItem>
+    for VBGenExperiment
+{
+    fn get_name(&self) -> String {
+        "VBgen".to_owned()
+    }
     fn build_dataflow<G: Scope<Timestamp = u128>>(
-        &self, params: VBExperimentParams, scope: &G, worker_index: usize,
+        &self,
+        params: VBExperimentParams,
+        scope: &G,
+        worker_index: usize,
     ) -> (Stream<G, VBItem>, Stream<G, VBItem>) {
         let (vals, bars) = vb_datagen(params, scope, worker_index);
         let output = vals.clone();
@@ -124,12 +139,17 @@ impl LatencyThroughputExperiment<
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 struct VBExperiment;
-impl LatencyThroughputExperiment<
-    VBExperimentParams, VBItem, usize
-> for VBExperiment {
-    fn get_name(&self) -> String { "VB".to_owned() }
+impl LatencyThroughputExperiment<VBExperimentParams, VBItem, usize>
+    for VBExperiment
+{
+    fn get_name(&self) -> String {
+        "VB".to_owned()
+    }
     fn build_dataflow<G: Scope<Timestamp = u128>>(
-        &self, params: VBExperimentParams, scope: &G, worker_index: usize,
+        &self,
+        params: VBExperimentParams,
+        scope: &G,
+        worker_index: usize,
     ) -> (Stream<G, VBItem>, Stream<G, usize>) {
         let (vals, bars) = vb_datagen(params, scope, worker_index);
         let output = vb_dataflow(&vals, &bars);

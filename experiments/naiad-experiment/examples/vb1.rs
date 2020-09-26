@@ -12,9 +12,10 @@ Notes:
 
 use naiad_experiment::vb_data::{VBData, VBItem};
 
+use timely::dataflow::operators::{
+    Accumulate, Exchange, Input, Inspect, Partition, Probe,
+};
 use timely::dataflow::{InputHandle, ProbeHandle};
-use timely::dataflow::operators::{Accumulate, Input, Inspect, Exchange,
-                                  Partition, Probe};
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -22,7 +23,6 @@ use std::rc::Rc;
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
-
         // Index of this worker and the total number in existence
         let w_index = worker.index();
         let w_total = worker.peers();
@@ -48,7 +48,8 @@ fn main() {
         worker.dataflow(|scope| {
             // Shuffle events (forward barriers to appropriate worker),
             // then separate into values and barriers
-            let streams = scope.input_from(&mut input)
+            let streams = scope
+                .input_from(&mut input)
                 .exchange(|x: &VBItem<i64>| (x.loc as u64))
                 // .inspect(move |x| {
                 //     println!("[worker {}] received: {:?}", w_index, x)
@@ -60,19 +61,23 @@ fn main() {
 
             // Barrier stream: capture barriers, update max/count
             streams[0]
-                .inspect(move |x| println!("[worker {}]\treceived barrier: {:?}",
-                                           w_index, x))
+                .inspect(move |x| {
+                    println!("[worker {}]\treceived barrier: {:?}", w_index, x)
+                })
                 .inspect(move |x| {
                     barriers_copy.borrow_mut().push_back(x.time);
                     *num_barriers_copy.borrow_mut() += 1;
                     // should be in inc order
                     assert!(x.time > *max_barrier_copy.borrow());
                     *max_barrier_copy.borrow_mut() = x.time;
-                    println!("[worker {}]\tmax barrier: {}",
-                             w_index, *max_barrier_copy.borrow())
+                    println!(
+                        "[worker {}]\tmax barrier: {}",
+                        w_index,
+                        *max_barrier_copy.borrow()
+                    )
                 })
                 .probe_with(&mut b_probe);
-        
+
             // Value stream: count and then probe
             streams[1]
                 // .inspect(move |x| println!("[worker {}]\tvalue: {:?}", w_index, x))
@@ -89,7 +94,11 @@ fn main() {
 
         // Each worker has its own input values
         // (but barriers are only at worker 0)
-        println!("[worker {}] [input] initial epoch: {}", w_index, input.epoch());
+        println!(
+            "[worker {}] [input] initial epoch: {}",
+            w_index,
+            input.epoch()
+        );
         let mut epoch = 0; // Initial input.epoch()
         for round in 0..100001 {
             if w_index == 0 {
@@ -101,13 +110,19 @@ fn main() {
                             time: round,
                             loc: w_other,
                         });
-                        println!("[worker {}] sent barrier: {:?}",
-                                 w_index, (0, round, w_other));
+                        println!(
+                            "[worker {}] sent barrier: {:?}",
+                            w_index,
+                            (0, round, w_other)
+                        );
                     }
                     epoch += 1;
                     input.advance_to(epoch);
-                    println!("[worker {}] [input] new epoch: {}",
-                             w_index, input.epoch());
+                    println!(
+                        "[worker {}] [input] new epoch: {}",
+                        w_index,
+                        input.epoch()
+                    );
                 }
                 *max_barrier.borrow_mut() = round
             }
@@ -120,15 +135,18 @@ fn main() {
                 //          w_index, *max_barrier.borrow(), round);
                 worker.step();
             }
-            while !barriers.borrow().is_empty() &&
-                  round >= barriers.borrow()[0] {
+            while !barriers.borrow().is_empty() && round >= barriers.borrow()[0]
+            {
                 // New Epoch
                 barriers.borrow_mut().pop_front();
                 if w_index != 0 {
                     epoch += 1;
                     input.advance_to(epoch);
-                    println!("[worker {}] [input] new epoch: {}",
-                             w_index, input.epoch());
+                    println!(
+                        "[worker {}] [input] new epoch: {}",
+                        w_index,
+                        input.epoch()
+                    );
                 }
             }
 
@@ -144,11 +162,12 @@ fn main() {
         println!("[worker {}] [input] done sending input!", w_index);
 
         // Step any remaining computation
-        while v_probe.less_than(input.time()) ||
-              b_probe.less_than(input.time()) {
+        while v_probe.less_than(input.time()) || b_probe.less_than(input.time())
+        {
             worker.step();
         }
 
         println!("[worker {}] end of code", w_index);
-    }).unwrap();
+    })
+    .unwrap();
 }

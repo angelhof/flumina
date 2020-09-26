@@ -16,9 +16,7 @@ pub fn value_source<G>(
 where
     G: Scope<Timestamp = u128>,
 {
-    let item_gen = move |time| {
-        VBItem { data: VBData::Value, time, loc }
-    };
+    let item_gen = move |time| VBItem { data: VBData::Value, time, loc };
     fixed_rate_source(item_gen, scope, frequency, total)
 }
 
@@ -37,8 +35,7 @@ where
         count += 1;
         if count % heartbeats_per_barrier == 0 {
             VBItem { data: VBData::Barrier, time, loc }
-        }
-        else {
+        } else {
             VBItem { data: VBData::BarrierHeartbeat, time, loc }
         }
     };

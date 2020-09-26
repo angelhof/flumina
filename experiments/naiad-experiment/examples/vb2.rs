@@ -14,16 +14,15 @@ Notes:
 
 use naiad_experiment::vb_data::{VBData, VBItem};
 
-use timely::dataflow::{InputHandle, ProbeHandle};
 use timely::dataflow::channels::pact::Pipeline;
-use timely::dataflow::operators::{Input, Inspect, Exchange, Probe};
 use timely::dataflow::operators::generic::operator::Operator;
+use timely::dataflow::operators::{Exchange, Input, Inspect, Probe};
+use timely::dataflow::{InputHandle, ProbeHandle};
 
 use std::vec::Vec;
 
 fn main() {
     timely::execute_from_args(std::env::args(), |worker| {
-
         // Index of this worker and the total number in existence
         let w_index = worker.index();
         let w_total = worker.peers();
@@ -38,7 +37,8 @@ fn main() {
         /***** 2. Create the dataflow *****/
 
         worker.dataflow(|scope| {
-            scope.input_from(&mut input)
+            scope
+                .input_from(&mut input)
                 // Shuffle events (forward barriers to appropriate worker)
                 .exchange(|x: &VBItem<i64>| (x.loc as u64))
                 // .inspect(move |x| {
@@ -76,7 +76,11 @@ fn main() {
 
         // Each worker has its own input values
         // (but barriers are only at worker 0)
-        println!("[worker {}] [input] initial epoch: {}", w_index, input.epoch());
+        println!(
+            "[worker {}] [input] initial epoch: {}",
+            w_index,
+            input.epoch()
+        );
         let mut epoch = 0; // Initial input.epoch()
         for round in 0..10001 {
             // Send barrier
@@ -88,8 +92,11 @@ fn main() {
                             time: round,
                             loc: w_other,
                         });
-                        println!("[worker {}] sent barrier: {:?}",
-                                 w_index, (0, round, w_other));
+                        println!(
+                            "[worker {}] sent barrier: {:?}",
+                            w_index,
+                            (0, round, w_other)
+                        );
                     }
                 }
             }
@@ -112,6 +119,6 @@ fn main() {
         }
 
         println!("[worker {}] end of code", w_index);
-
-    }).unwrap();
+    })
+    .unwrap();
 }

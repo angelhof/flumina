@@ -7,7 +7,7 @@
 
 use super::common::{Scope, Stream, SystemTime};
 use super::operators::{single_op_binary, window_all, window_all_parallel};
-use super::util::{nanos_timestamp};
+use super::util::nanos_timestamp;
 
 use timely::dataflow::operators::Inspect;
 
@@ -18,16 +18,15 @@ use std::vec::Vec;
 /*
     Meter which computes latency statistics for an output stream.
 */
-pub fn latency_meter<G, D>(
-    stream: &Stream<G, D>,
-) -> Stream<G, f64>
+pub fn latency_meter<G, D>(stream: &Stream<G, D>) -> Stream<G, f64>
 where
     D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
 {
     let stream = window_all_parallel(
         "Latency Meter",
-        stream, Vec::new,
+        stream,
+        Vec::new,
         |latencies, time, data| {
             let num_inputs = data.len();
             let timestamp_now = nanos_timestamp(SystemTime::now());
@@ -40,7 +39,8 @@ where
     );
     let stream = window_all(
         "Latency Meter Collect",
-        &stream, Vec::new,
+        &stream,
+        Vec::new,
         |latencies, _time, data| {
             for latencies_other in data {
                 latencies.append(&mut latencies_other.clone());
@@ -48,9 +48,9 @@ where
         },
         |latencies| {
             // println!("latencies: {:?}", latencies);
-            let sum : u128 = Iterator::sum(latencies.iter());
+            let sum: u128 = Iterator::sum(latencies.iter());
             (sum as f64) / (1000000.0 * (latencies.len() as f64))
-        }
+        },
     );
     stream.inspect(|latency| println!("Avg Latency (ms): {:?}", latency))
 }
@@ -58,9 +58,7 @@ where
 /*
     Meter which computes the total volume on a stream.
 */
-pub fn volume_meter<G, D>(
-    stream: &Stream<G, D>,
-) -> Stream<G, usize>
+pub fn volume_meter<G, D>(stream: &Stream<G, D>) -> Stream<G, usize>
 where
     D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
@@ -69,7 +67,9 @@ where
         "Volume Meter",
         stream,
         || 0,
-        |count, _time, data| { *count += data.len(); },
+        |count, _time, data| {
+            *count += data.len();
+        },
         |count| *count,
     );
     let stream = window_all(
@@ -90,9 +90,7 @@ where
     Meter which computes the total completion time
     (max timestamp - starting timestamp) on a stream.
 */
-pub fn completion_meter<G, D>(
-    stream: &Stream<G, D>,
-) -> Stream<G, f64>
+pub fn completion_meter<G, D>(stream: &Stream<G, D>) -> Stream<G, f64>
 where
     D: timely::Data + Debug,
     G: Scope<Timestamp = u128>,
@@ -103,7 +101,7 @@ where
         stream,
         || (),
         |_agg, _time, _data| {},
-        |_agg| nanos_timestamp(SystemTime::now())
+        |_agg| nanos_timestamp(SystemTime::now()),
     );
     let stream = window_all(
         "Completion Meter Collect",
@@ -116,7 +114,9 @@ where
         },
         move |max_time| (((*max_time - start_timestamp) as f64) / 1000000.0),
     );
-    stream.inspect(|compl_time| println!("Completion Time (ms): {:?}", compl_time))
+    stream.inspect(|compl_time| {
+        println!("Completion Time (ms): {:?}", compl_time)
+    })
 }
 
 /*
@@ -136,10 +136,13 @@ where
     let compl_time = completion_meter(out_stream);
     let throughput = single_op_binary(
         "Throughput Meter Collect",
-        &volume, &compl_time,
-        |volume, compl_time| { (volume as f64) / compl_time }
+        &volume,
+        &compl_time,
+        |volume, compl_time| (volume as f64) / compl_time,
     );
-    throughput.inspect(|throughput| println!("Throughput (events/ms): {:?}", throughput))
+    throughput.inspect(|throughput| {
+        println!("Throughput (events/ms): {:?}", throughput)
+    })
 }
 
 /*
@@ -158,7 +161,8 @@ where
     let throughput = throughput_meter(in_stream, out_stream);
     single_op_binary(
         "Latency-Throughput Meter Collect",
-        &latency, &throughput,
-        |latency, throughput| { (latency, throughput) }
+        &latency,
+        &throughput,
+        |latency, throughput| (latency, throughput),
     )
 }

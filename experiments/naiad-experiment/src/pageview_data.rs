@@ -12,7 +12,7 @@ pub type PageData = u64;
 
 #[derive(Debug, PartialEq, Copy, Clone, Abomonation)]
 pub enum PVData {
-    View, // retrieve page metadata (an int)
+    View,             // retrieve page metadata (an int)
     Update(PageData), // set page metadata (an int)
 }
 
@@ -20,9 +20,7 @@ pub enum PVData {
 pub struct PVItem {
     pub data: PVData,
     pub name: PageName, // page name
-    // pub time: PVTimestamp, // timestamp
-    // pub loc: usize, // node number
 }
-
-// #[derive(Debug, PartialEq, Copy, Clone)]
-pub type PVState = HashMap<PageName, PageData>;
+// Fields that could be added:
+// pub time: PVTimestamp,
+// pub loc: usize, // node number

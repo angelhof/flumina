@@ -5,7 +5,7 @@
 
 use super::common::{Duration, Scope, Stream};
 use super::generators::fixed_rate_source;
-use super::pageview_data::{PageName, PageData, PVData, PVItem};
+use super::pageview_data::{PVData, PVItem, PageData, PageName};
 use super::util::{rand_bool, rand_range};
 
 fn pv_source<F1, F2, G>(
@@ -26,8 +26,7 @@ where
         if rand_bool(update_prob) {
             let page_data = data_gen();
             PVItem { data: PVData::Update(page_data), name: page_name }
-        }
-        else {
+        } else {
             PVItem { data: PVData::View, name: page_name }
         }
     };
@@ -39,12 +38,18 @@ pub fn pv_source_twopages<G>(
     page_0_prob: f64,
     update_prob: f64,
     frequency: Duration,
-    total: Duration
+    total: Duration,
 ) -> Stream<G, PVItem>
 where
     G: Scope<Timestamp = u128>,
 {
-    let name_gen = move || { if rand_bool(page_0_prob) { 0 } else { 1 }};
-    let data_gen = move || { rand_range(0, 100) };
+    let name_gen = move || {
+        if rand_bool(page_0_prob) {
+            0
+        } else {
+            1
+        }
+    };
+    let data_gen = move || rand_range(0, 100);
     pv_source(name_gen, data_gen, update_prob, scope, frequency, total)
 }

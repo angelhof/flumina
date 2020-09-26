@@ -45,9 +45,7 @@ where
 {
     println!("{}", msg);
     let mut input_text = String::new();
-    io::stdin()
-        .read_line(&mut input_text)
-        .expect("failed to read from stdin");
+    io::stdin().read_line(&mut input_text).expect("failed to read from stdin");
     input_text.trim().parse::<T>().expect("not an integer")
 }
 
@@ -55,11 +53,12 @@ where
     File handling
 */
 pub fn vec_to_file<T>(v: Vec<T>, filename: &str)
-where T: std::fmt::Debug {
+where
+    T: std::fmt::Debug,
+{
     // This function may panic due to multiple reasons
-    let mut file = OpenOptions::new()
-        .create(true).write(true)
-        .open(filename).unwrap();
+    let mut file =
+        OpenOptions::new().create(true).write(true).open(filename).unwrap();
 
     for item in v {
         writeln!(file, "{:?}", item).unwrap();
