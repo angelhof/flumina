@@ -22,18 +22,30 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
     private final Random random = new Random();
 
     private final int totalEvents;
-    private final int totalUsers;
     private final double rate;
+    private int userId;
 
-    public GetOrUpdateGenerator(final int totalEvents, final int totalUsers, final double rate) {
+    public GetOrUpdateGenerator(final int totalEvents, final double rate) {
         this.totalEvents = totalEvents;
-        this.totalUsers = totalUsers;
         this.rate = rate;
     }
 
     @Override
     public double getRate() {
         return rate;
+    }
+
+    /**
+     * Instead of setting {@code userId} in {@link GetOrUpdateGenerator#GetOrUpdateGenerator(int, double)},
+     * we provide a setter method. This is because we want user IDs to be indices of parallel
+     * source instances, and the indices are only known after the generator is constructed.
+     *
+     * <p>It is crucial that {@link GetOrUpdateGenerator#getIterator()} is called <b>after</b> the user ID is set.</p>
+     *
+     * @param userId User ID
+     */
+    public void setUserId(final int userId) {
+        this.userId = userId;
     }
 
     @Override
@@ -44,12 +56,8 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
                     final var logicalTimestamp = ts * 100;
                     final var heartbeatStream =
                             Stream.of(new GetOrUpdateHeartbeat(logicalTimestamp));
-                    final var getStream = (logicalTimestamp % 1000 == 0) ?
-                            generateGetStream(logicalTimestamp + 1) :
-                            Stream.<TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat>>empty();
-                    final var updateStream = (logicalTimestamp % 10_000 == 9900) ?
-                            generateUpdateStream(logicalTimestamp + 99) :
-                            Stream.<TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat>>empty();
+                    final var getStream = generateGetStream(logicalTimestamp);
+                    final var updateStream = generateUpdateStream(logicalTimestamp);
                     return Stream.concat(Stream.concat(heartbeatStream, getStream), updateStream);
                 })
                 .flatMap(Function.identity());
@@ -59,15 +67,15 @@ public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate
     }
 
     private Stream<TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat>> generateGetStream(final long logicalTimestamp) {
-        return UserIdHelper.getUserIds(totalUsers).stream()
-                .map(userId -> new Get(userId, logicalTimestamp));
+        return (logicalTimestamp % 1000 == 0) ?
+                Stream.of(new Get(userId, logicalTimestamp + 1)) :
+                Stream.empty();
     }
 
     private Stream<TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat>> generateUpdateStream(final long logicalTimestamp) {
-        return UserIdHelper.getUserIds(totalUsers).stream().map(userId -> {
-            final int zipCode = 10_000 + random.nextInt(90_000);
-            return new Update(userId, zipCode, logicalTimestamp);
-        });
+        return (logicalTimestamp % 10_000 == 9900) ?
+                Stream.of(new Update(userId, 10_000 + random.nextInt(90_000), logicalTimestamp + 99)) :
+                Stream.empty();
     }
 
 }
