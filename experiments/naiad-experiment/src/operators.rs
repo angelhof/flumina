@@ -255,6 +255,7 @@ impl<G: Scope> Sum<G> for Stream<G, usize> {
     Since this is not very efficient about moving data around, requires
     D1 and D2 to implement the 'Copy' trait.
 */
+#[rustfmt::skip]
 pub fn join_by_timestamp<D1, D2, T, G>(
     in_stream1: &Stream<G, D1>,
     in_stream2: &Stream<G, D2>,
