@@ -243,3 +243,52 @@ impl<G: Scope> Sum<G> for Stream<G, usize> {
         })
     }
 }
+
+/*
+    A simple implementation of join-by-timestamp.
+    This is data-parallel (does not re-partition input streams).
+    Note: we could potentially use Differential Dataflow for this,
+    and there are other existing implementations of join out there,
+    but we only need this very simple case which can be done
+    in plain Timely with concat, accumulate, and flat_map.
+
+    Since this is not very efficient about moving data around, requires
+    D1 and D2 to implement the 'Copy' trait.
+*/
+pub fn join_by_timestamp<D1, D2, T, G>(
+    in_stream1: &Stream<G, D1>,
+    in_stream2: &Stream<G, D2>,
+) -> Stream<G, (D1, D2)>
+where
+    D1: timely::Data + Debug + Copy + timely::ExchangeData, // input data 1
+    D2: timely::Data + Debug + Copy + timely::ExchangeData, // input data 2
+    T: Timestamp + Copy,
+    G: Scope<Timestamp = T>,
+{
+    let stream1 = in_stream1.map(Either::Left);
+    let stream2 = in_stream2.map(Either::Right);
+    let combined = stream1.concat(&stream2);
+
+    // Map items at each timestamp to a pair of vectors
+    let collected = combined.accumulate(
+        (Vec::new(), Vec::new()),
+        |(vec1, vec2), items| {
+            for &item in items.iter() {
+                match item {
+                    Either::Left(x) => { vec1.push(x); }
+                    Either::Right(x) => { vec2.push(x); }
+                }
+            };
+        },
+    );
+
+    collected.flat_map(|(vec1, vec2)| {
+        let mut result = Vec::new();
+        for &item1 in vec1.iter() {
+            for &item2 in vec2.iter() {
+                result.push((item1, item2));
+            }
+        }
+        result
+    })
+}
