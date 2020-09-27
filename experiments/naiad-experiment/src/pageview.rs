@@ -12,17 +12,16 @@ use super::common::{Duration, Scope, Stream};
 use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
 use super::pageview_data::PVItem;
 use super::pageview_generators::{
-    partitioned_update_source, partitioned_view_source,
+    page_partition_function, partitioned_update_source, partitioned_view_source,
 };
 
-use timely::dataflow::operators::Inspect;
-// use timely::dataflow::operators::{
-//     Accumulate, Broadcast, Exchange, Filter, Inspect, Map, Reclock
-// };
+use timely::dataflow::operators::{Broadcast, Filter, Inspect, Map, Reclock};
 
 use std::string::String;
 
 /* Experiment data */
+
+const NUM_PAGES: usize = 2;
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperimentParams {
@@ -52,7 +51,7 @@ impl ExperimentParams for PVExperimentParams {
 fn pv_datagen<G>(
     params: PVExperimentParams,
     scope: &G,
-    wkr: usize,
+    w_index: usize,
 ) -> (Stream<G, PVItem>, Stream<G, PVItem>)
 where
     G: Scope<Timestamp = u128>,
@@ -60,21 +59,38 @@ where
     let v_freq = Duration::from_nanos(1000000 / params.views_per_milli);
     let u_freq = v_freq * (params.views_per_update as u32);
     let exp_dur = Duration::from_secs(params.exp_duration_secs);
-    let v_stream = partitioned_view_source(2, v_freq, exp_dur, scope, wkr);
-    let u_stream = partitioned_update_source(2, u_freq, exp_dur, scope, wkr);
+    let v_stream =
+        partitioned_view_source(NUM_PAGES, v_freq, exp_dur, scope, w_index);
+    let u_stream =
+        partitioned_update_source(NUM_PAGES, u_freq, exp_dur, scope, w_index);
     (v_stream, u_stream)
 }
 
 fn pv_dataflow<G>(
     views: &Stream<G, PVItem>,
     updates: &Stream<G, PVItem>,
+    worker_index: usize,
 ) -> Stream<G, PVItem>
 where
     G: Scope<Timestamp = u128>,
 {
-    // TODO
-    views.inspect(|_x| println!("NOT IMPLEMENTED YET"));
-    updates.inspect(|_x| println!("NOT IMPLEMENTED YET"))
+    // broadcast updates then filter to only ones relevant to this partition
+    let partitioned_updates = updates
+        .broadcast()
+        .filter(move |x| {
+            x.name == page_partition_function(NUM_PAGES, worker_index)
+        })
+        .inspect(move |x| {
+            println!("update {:?} at worker {}", x, worker_index)
+        });
+
+    // re-timestamp views using updates
+    let updates_clock = updates.map(|_| ());
+    let clocked_views = views.reclock(&updates_clock);
+
+    // TODO: 'join' each value with the most recent update
+    clocked_views.inspect(|_x| println!("NOT IMPLEMENTED YET"));
+    partitioned_updates.inspect(|_x| println!("NOT IMPLEMENTED YET"))
 }
 
 /* Exposed experiments */
@@ -114,7 +130,7 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
         worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let (views, updates) = pv_datagen(params, scope, worker_index);
-        let output = pv_dataflow(&views, &updates);
+        let output = pv_dataflow(&views, &updates, worker_index);
         (views, output)
     }
 }

@@ -52,6 +52,18 @@ where
 }
 
 /*
+    Function that is used to determine the page name from the worker index.
+    For this experiment, input streams are assumed to partitioned this way
+    at the source level.
+*/
+pub fn page_partition_function(
+    num_pages: usize,
+    worker_index: usize,
+) -> PageName {
+    (worker_index % num_pages) as PageName
+}
+
+/*
     Source for update events where:
     - the page name depends on the worker index
     - the page data is random between 0 and 100
@@ -66,9 +78,8 @@ pub fn partitioned_update_source<G>(
 where
     G: Scope<Timestamp = u128>,
 {
-    let partition = move || (worker_index % num_pages) as PageName;
     update_source_template(
-        partition,
+        move || page_partition_function(num_pages, worker_index),
         || rand_range(0, 100),
         frequency,
         exp_duration,
@@ -90,6 +101,10 @@ pub fn partitioned_view_source<G>(
 where
     G: Scope<Timestamp = u128>,
 {
-    let partition = move || (worker_index % num_pages) as PageName;
-    view_source_template(partition, frequency, exp_duration, scope)
+    view_source_template(
+        move || page_partition_function(num_pages, worker_index),
+        frequency,
+        exp_duration,
+        scope,
+    )
 }
