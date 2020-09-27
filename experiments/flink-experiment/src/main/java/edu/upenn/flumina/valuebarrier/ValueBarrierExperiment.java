@@ -115,7 +115,7 @@ public class ValueBarrierExperiment implements Experiment {
                     }
 
                     private void update(final Value value, final Collector<Tuple3<Long, Long, Instant>> collector) {
-                        sum += value.getVal();
+                        sum += value.val;
                     }
 
                     private void update(final Barrier barrier, final Collector<Tuple3<Long, Long, Instant>> collector) {

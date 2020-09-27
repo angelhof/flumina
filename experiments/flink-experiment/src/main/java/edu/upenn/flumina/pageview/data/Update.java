@@ -9,8 +9,13 @@ public class Update extends Heartbeat implements GetOrUpdate, TimestampedUnion<G
 
     private static final long serialVersionUID = -5650272144418361376L;
 
-    private final int userId;
-    private final int zipCode;
+    // All fields public so that the object is treated like POJO
+    public int userId;
+    public int zipCode;
+
+    // Default constructor so that the object is treated like POJO
+    public Update() {
+    }
 
     public Update(final int userId, final int zipCode, final long logicalTimestamp) {
         super(logicalTimestamp);
@@ -21,10 +26,6 @@ public class Update extends Heartbeat implements GetOrUpdate, TimestampedUnion<G
     @Override
     public int getUserId() {
         return userId;
-    }
-
-    public int getZipCode() {
-        return zipCode;
     }
 
     @Override

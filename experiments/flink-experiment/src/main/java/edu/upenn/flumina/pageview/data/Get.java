@@ -9,7 +9,12 @@ public class Get extends Heartbeat implements GetOrUpdate, TimestampedUnion<GetO
 
     private static final long serialVersionUID = 4186323117708023380L;
 
-    private final int userId;
+    // All fields public so that the object is treated like POJO
+    public int userId;
+
+    // Default constructor so that the object is treated like POJO
+    public Get() {
+    }
 
     public Get(final int userId, final long logicalTimestamp) {
         super(logicalTimestamp);

@@ -10,6 +10,10 @@ public class GetOrUpdateHeartbeat extends Heartbeat implements TimestampedUnion<
 
     private static final long serialVersionUID = -1206413969654177135L;
 
+    // Default constructor so that the object is treated like POJO
+    public GetOrUpdateHeartbeat() {
+    }
+
     public GetOrUpdateHeartbeat(final long logicalTimestamp) {
         super(logicalTimestamp);
     }

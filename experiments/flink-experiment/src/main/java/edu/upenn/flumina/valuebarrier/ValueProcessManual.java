@@ -94,7 +94,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
     }
 
     private void update(final Value value) {
-        sum += value.getVal();
+        sum += value.val;
     }
 
     private void join(final Barrier barrier) throws RemoteException {

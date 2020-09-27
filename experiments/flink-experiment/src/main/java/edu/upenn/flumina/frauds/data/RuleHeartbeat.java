@@ -10,6 +10,11 @@ public class RuleHeartbeat extends Heartbeat implements TimestampedUnion<Rule, R
 
     private static final long serialVersionUID = 3962416182988836041L;
 
+    // Default constructor so that the object is treated like POJO
+    public RuleHeartbeat() {
+
+    }
+
     public RuleHeartbeat(final long logicalTimestamp) {
         super(logicalTimestamp);
     }

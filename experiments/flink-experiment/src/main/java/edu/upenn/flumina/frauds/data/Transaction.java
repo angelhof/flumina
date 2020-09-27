@@ -9,15 +9,17 @@ public class Transaction extends Heartbeat implements TimestampedUnion<Transacti
 
     private static final long serialVersionUID = -7232554583381690665L;
 
-    private final long val;
+    // All fields public so that the object is treated like POJO
+    public long val;
+
+    // Default constructor so that the object is treated like POJO
+    public Transaction() {
+
+    }
 
     public Transaction(final long val, final long logicalTimestamp) {
         super(logicalTimestamp);
         this.val = val;
-    }
-
-    public long getVal() {
-        return val;
     }
 
     @Override

@@ -10,6 +10,10 @@ public class PageViewHeartbeat extends Heartbeat implements TimestampedUnion<Pag
 
     private static final long serialVersionUID = -705084696418455909L;
 
+    // Default constructor so that the object is treated like POJO
+    public PageViewHeartbeat() {
+    }
+
     public PageViewHeartbeat(final long logicalTimestamp) {
         super(logicalTimestamp);
     }

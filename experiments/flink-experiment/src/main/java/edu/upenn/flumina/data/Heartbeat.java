@@ -6,10 +6,15 @@ public class Heartbeat implements Timestamped {
 
     private static final long serialVersionUID = -8445219260831559864L;
 
-    private final long logicalTimestamp;
+    // All fields public so that the object is treated like POJO
+    public long logicalTimestamp;
+    public Instant physicalTimestamp;
+    public boolean hasPhysicalTimestamp;
 
-    private Instant physicalTimestamp;
-    private boolean hasPhysicalTimestamp;
+    // Default constructor so that the object is treated like POJO
+    public Heartbeat() {
+
+    }
 
     public Heartbeat(final long logicalTimestamp) {
         this.logicalTimestamp = logicalTimestamp;

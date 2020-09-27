@@ -188,7 +188,7 @@ public class ValueBarrierExperimentTest {
                                 collector.collect(Tuple2.of(sum, barrier.getLogicalTimestamp()));
                                 sum = 0;
                             }
-                            sum += value.getVal();
+                            sum += value.val;
                         }
                         while (!unprocessedBarriers.isEmpty() &&
                                 unprocessedBarriers.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {

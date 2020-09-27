@@ -26,86 +26,39 @@ fn make_results_path(exp_name: &str, args: &[&str]) -> &'static str {
 
 /* Command line entrypoint */
 
+#[rustfmt::skip]
 fn main() {
     /* Create experiment-specific subcommands */
 
     let command_vb = SubCommand::with_name("vb")
         .about("Custom value-barrier experiment")
-        .arg(
-            Arg::with_name("PAR")
-                .index(1)
-                .required(true)
-                .help("parallelism (1 = sequential)"),
-        )
-        .arg(
-            Arg::with_name("VAL_RATE")
-                .index(2)
-                .required(true)
-                .help("rate of values in events/ms"),
-        )
-        .arg(
-            Arg::with_name("VALS_PER_HB")
-                .index(3)
-                .required(true)
-                .help("values per heartbeat (per worker)"),
-        )
-        .arg(
-            Arg::with_name("HBS_PER_BAR")
-                .index(4)
-                .required(true)
-                .help("heartbeats per barrier"),
-        )
-        .arg(
-            Arg::with_name("DURATION")
-                .index(5)
-                .required(true)
-                .help("experiment duration in seconds"),
-        )
-        .arg(
-            Arg::with_name("gen-only")
-                .short("g")
-                .help("data generation only (no processing)"),
-        );
+        .arg(Arg::with_name("PAR").index(1).required(true)
+            .help("parallelism (1 = sequential)"))
+        .arg(Arg::with_name("VAL_RATE").index(2).required(true)
+            .help("rate of values in events/ms"))
+        .arg(Arg::with_name("VALS_PER_HB").index(3).required(true)
+            .help("values per heartbeat (per worker)"))
+        .arg(Arg::with_name("HBS_PER_BAR").index(4).required(true)
+            .help("heartbeats per barrier"))
+        .arg(Arg::with_name("DURATION").index(5).required(true)
+            .help("experiment duration in seconds"))
+        .arg(Arg::with_name("gen-only").short("g")
+            .help("data generation only (no processing)"));
     let command_vb_exp1 = SubCommand::with_name("vbe1").about(
         "Value-barrier experiment 1: vary the parallelism and input rate",
     );
     let command_pv = SubCommand::with_name("pv")
         .about("Custom pageview experiment")
-        .arg(
-            Arg::with_name("PAR")
-                .index(1)
-                .required(true)
-                .help("parallelism (1 = sequential)"),
-        )
-        .arg(
-            Arg::with_name("RATE")
-                .index(2)
-                .required(true)
-                .help("events per ms overall"),
-        )
-        .arg(
-            Arg::with_name("PAGE_RATIO")
-                .index(3)
-                .required(true)
-                .help("ratio of page #0 to page #1"),
-        )
-        .arg(
-            Arg::with_name("VIEW_RATIO")
-                .index(4)
-                .required(true)
-                .help("ratio of views to updates"),
-        )
-        .arg(
-            Arg::with_name("DURATION")
-                .index(5)
-                .required(true)
-                .help("experiment duration in seconds"),
-        )
-        .arg(
-            Arg::with_name("gen-only")
-                .short("g")
-                .help("data generation only (no processing)"),
-        );
+        .arg(Arg::with_name("PAR").index(1).required(true)
+            .help("parallelism (1 = sequential)"))
+        .arg(Arg::with_name("RATE").index(2).required(true)
+            .help("events per ms overall"))
+        .arg(Arg::with_name("VIEW_RATIO").index(3).required(true)
+            .help("ratio of views to updates"))
+        .arg(Arg::with_name("DURATION").index(4).required(true)
+            .help("experiment duration in seconds"))
+        .arg(Arg::with_name("gen-only").short("g")
+            .help("data generation only (no processing)"));
     let command_pv_exp1 = SubCommand::with_name("pve1")
         .about("Pageview experiment 1: vary the parallelism and input rate");
 
@@ -178,17 +131,15 @@ fn main() {
 
         let arg1 = matches.value_of("PAR").unwrap();
         let arg2 = matches.value_of("RATE").unwrap();
-        let arg3 = matches.value_of("PAGE_RATIO").unwrap();
-        let arg4 = matches.value_of("VIEW_RATIO").unwrap();
-        let arg5 = matches.value_of("DURATION").unwrap();
+        let arg3 = matches.value_of("VIEW_RATIO").unwrap();
+        let arg4 = matches.value_of("DURATION").unwrap();
         let params = PVExperimentParams {
             parallelism: arg1.parse().expect("expected u64"),
-            events_per_milli: arg2.parse().expect("expected u64 (events/ms)"),
-            page0_per_page1: arg3.parse().expect("expected u64"),
-            views_per_update: arg4.parse().expect("expected u64"),
-            exp_duration_secs: arg5.parse().expect("expected u64 (secs)"),
+            views_per_milli: arg2.parse().expect("expected u64 (events/ms)"),
+            views_per_update: arg3.parse().expect("expected u64"),
+            exp_duration_secs: arg4.parse().expect("expected u64 (secs)"),
         };
-        let args = [arg1, arg2, arg3, arg4, arg5];
+        let args = [arg1, arg2, arg3, arg4];
 
         if matches.is_present("gen-only") {
             let results_path = make_results_path("pvgen", &args);
@@ -202,9 +153,8 @@ fn main() {
 
         let mut params = PVExperimentParams {
             parallelism: 0,      // will be set
-            events_per_milli: 0, // will be set
-            page0_per_page1: 100,
-            views_per_update: 100,
+            views_per_milli: 0, // will be set
+            views_per_update: 10000,
             exp_duration_secs: 5,
         };
         let rates = &[1, 5, 10, 50, 100, 150, 200, 250, 300, 350, 400];
@@ -217,7 +167,7 @@ fn main() {
                 &[&("par".to_owned() + &par.to_string())],
             );
             for &rate in rates {
-                params.events_per_milli = rate;
+                params.views_per_milli = rate;
                 println!("=== Input rate (events/ms): {} ===", rate);
                 params.run_pv_experiment_main(results_path);
             }
