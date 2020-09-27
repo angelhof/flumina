@@ -11,11 +11,14 @@ use abomonation_derive::Abomonation;
 use super::common::{Duration, Scope, Stream};
 use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
 use super::pageview_data::PVItem;
-use super::pageview_generators::pv_source_twopages;
+use super::pageview_generators::{
+    partitioned_update_source, partitioned_view_source,
+};
 
 use timely::dataflow::operators::Inspect;
-// use timely::dataflow::operators::{Accumulate, Broadcast, Exchange, Filter,
-//                                   Inspect, Map, Reclock};
+// use timely::dataflow::operators::{
+//     Accumulate, Broadcast, Exchange, Filter, Inspect, Map, Reclock
+// };
 
 use std::string::String;
 
@@ -24,8 +27,7 @@ use std::string::String;
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperimentParams {
     pub parallelism: u64,
-    pub events_per_milli: u64,
-    pub page0_per_page1: u64,
+    pub views_per_milli: u64,
     pub views_per_update: u64,
     pub exp_duration_secs: u64,
 }
@@ -35,11 +37,10 @@ impl ExperimentParams for PVExperimentParams {
     }
     fn to_csv(&self) -> String {
         format!(
-            "{} wkrs, {} page0/page1, {} views/update, {} events/ms, {} s",
+            "{} wkrs, {} views/ms, {} views/update, {} s",
             self.parallelism,
-            self.page0_per_page1,
+            self.views_per_milli,
             self.views_per_update,
-            self.events_per_milli,
             self.exp_duration_secs,
         )
     }
@@ -47,24 +48,33 @@ impl ExperimentParams for PVExperimentParams {
 
 /* Core computation */
 
-fn pv_datagen<G>(params: PVExperimentParams, scope: &G) -> Stream<G, PVItem>
+// Data source with 2 pages
+fn pv_datagen<G>(
+    params: PVExperimentParams,
+    scope: &G,
+    wkr: usize,
+) -> (Stream<G, PVItem>, Stream<G, PVItem>)
 where
     G: Scope<Timestamp = u128>,
 {
-    let page_0_prob = 1.0 / (params.page0_per_page1 as f64 + 1.0);
-    let update_prob = 1.0 / (params.views_per_update as f64 + 1.0);
-    let frequency = Duration::from_nanos(1000000 / params.events_per_milli);
-    let exp_duration = Duration::from_secs(params.exp_duration_secs);
-
-    pv_source_twopages(scope, page_0_prob, update_prob, frequency, exp_duration)
+    let v_freq = Duration::from_nanos(1000000 / params.views_per_milli);
+    let u_freq = v_freq * (params.views_per_update as u32);
+    let exp_dur = Duration::from_secs(params.exp_duration_secs);
+    let v_stream = partitioned_view_source(2, v_freq, exp_dur, scope, wkr);
+    let u_stream = partitioned_update_source(2, u_freq, exp_dur, scope, wkr);
+    (v_stream, u_stream)
 }
 
-fn pv_dataflow<G>(input: &Stream<G, PVItem>) -> Stream<G, PVItem>
+fn pv_dataflow<G>(
+    views: &Stream<G, PVItem>,
+    updates: &Stream<G, PVItem>,
+) -> Stream<G, PVItem>
 where
     G: Scope<Timestamp = u128>,
 {
     // TODO
-    input.inspect(|_x| println!("NOT IMPLEMENTED YET"))
+    views.inspect(|_x| println!("NOT IMPLEMENTED YET"));
+    updates.inspect(|_x| println!("NOT IMPLEMENTED YET"))
 }
 
 /* Exposed experiments */
@@ -81,12 +91,11 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
         &self,
         params: PVExperimentParams,
         scope: &G,
-        _worker_index: usize,
+        worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
-        let input = pv_datagen(params, scope);
-        let output = input.clone();
+        let (views, updates) = pv_datagen(params, scope, worker_index);
         // let output = input.inspect(|x| println!("event generated: {:?}", x));
-        (input, output)
+        (views, updates)
     }
 }
 
@@ -102,11 +111,11 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
         &self,
         params: PVExperimentParams,
         scope: &G,
-        _worker_index: usize,
+        worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
-        let input = pv_datagen(params, scope);
-        let output = pv_dataflow(&input);
-        (input, output)
+        let (views, updates) = pv_datagen(params, scope, worker_index);
+        let output = pv_dataflow(&views, &updates);
+        (views, output)
     }
 }
 
