@@ -24,8 +24,8 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Comparator;
-import java.util.Deque;
 import java.util.PriorityQueue;
+import java.util.Queue;
 
 import static edu.upenn.flumina.time.TimeHelper.toEpochMilli;
 
@@ -55,7 +55,7 @@ public class PageViewExperiment implements Experiment {
 
         final var zipCodeDescriptor = new ValueStateDescriptor<>("ZipCode", TypeInformation.of(Integer.class));
         final var updateBufferDescriptor = new ValueStateDescriptor<>("UpdateBuffer",
-                TypeInformation.of(new TypeHint<Deque<Update>>() {
+                TypeInformation.of(new TypeHint<Queue<Update>>() {
                 }));
         final var pageViewBufferDescriptor = new ValueStateDescriptor<>("PageViewBuffer",
                 TypeInformation.of(new TypeHint<PriorityQueue<PageView>>() {
@@ -67,7 +67,7 @@ public class PageViewExperiment implements Experiment {
                 .process(new KeyedCoProcessFunction<Integer, GetOrUpdate, PageView, Update>() {
 
                     private ValueState<Integer> zipCodeState;
-                    private ValueState<Deque<Update>> updateBufferState;
+                    private ValueState<Queue<Update>> updateBufferState;
                     private ValueState<PriorityQueue<PageView>> pageViewBufferState;
 
                     @Override
@@ -81,12 +81,11 @@ public class PageViewExperiment implements Experiment {
                     public void processElement1(final GetOrUpdate getOrUpdate,
                                                 final Context ctx,
                                                 final Collector<Update> out) throws IOException {
-                        initUpdateBuffer();
-                        final var updateBuffer = updateBufferState.value();
+                        final var updateBuffer = getUpdateBuffer();
                         getOrUpdate.match(
                                 get -> null,
                                 update -> {
-                                    updateBuffer.addLast(update);
+                                    updateBuffer.add(update);
                                     ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                                     return null;
                                 }
@@ -97,21 +96,18 @@ public class PageViewExperiment implements Experiment {
                     public void processElement2(final PageView pageView,
                                                 final Context ctx,
                                                 final Collector<Update> out) throws IOException {
-                        initPageViewBuffer();
-                        pageViewBufferState.value().add(pageView);
+                        getPageViewBuffer().add(pageView);
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 
                     @Override
                     public void onTimer(final long timestamp, final OnTimerContext ctx, final Collector<Update> out) throws Exception {
-                        initUpdateBuffer();
-                        final var updateBuffer = updateBufferState.value();
-                        initPageViewBuffer();
-                        final var pageViewBuffer = pageViewBufferState.value();
+                        final var updateBuffer = getUpdateBuffer();
+                        final var pageViewBuffer = getPageViewBuffer();
 
                         while (!updateBuffer.isEmpty() &&
-                                toEpochMilli(updateBuffer.getFirst().getPhysicalTimestamp()) <= timestamp) {
-                            final var update = updateBuffer.removeFirst();
+                                toEpochMilli(updateBuffer.element().getPhysicalTimestamp()) <= timestamp) {
+                            final var update = updateBuffer.remove();
                             while (!pageViewBuffer.isEmpty() &&
                                     pageViewBuffer.element().getPhysicalTimestamp()
                                             .isBefore(update.getPhysicalTimestamp())) {
@@ -125,17 +121,19 @@ public class PageViewExperiment implements Experiment {
                         }
                     }
 
-                    private void initUpdateBuffer() throws IOException {
+                    private Queue<Update> getUpdateBuffer() throws IOException {
                         if (updateBufferState.value() == null) {
                             updateBufferState.update(new ArrayDeque<>());
                         }
+                        return updateBufferState.value();
                     }
 
-                    private void initPageViewBuffer() throws IOException {
+                    private PriorityQueue<PageView> getPageViewBuffer() throws IOException {
                         if (pageViewBufferState.value() == null) {
                             pageViewBufferState.update(new PriorityQueue<>(
                                     Comparator.comparing(Heartbeat::getPhysicalTimestamp)));
                         }
+                        return pageViewBufferState.value();
                     }
 
                     private void update(final Update update, final Collector<Update> out) throws IOException {
