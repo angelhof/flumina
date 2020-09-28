@@ -43,7 +43,10 @@ fn main() {
         .arg(Arg::with_name("DURATION").index(5).required(true)
             .help("experiment duration in seconds"))
         .arg(Arg::with_name("gen-only").short("g")
-            .help("data generation only (no processing)"));
+            .help("data generation only (no processing)"))
+        .arg(Arg::with_name("fraud-detection").short("f")
+            .help("instead of running the simple value-barrier example, run\
+                   the full fraud detection example."));
     let command_vb_exp1 = SubCommand::with_name("vbe1").about(
         "Value-barrier experiment 1: vary the parallelism and input rate",
     );
@@ -97,6 +100,9 @@ fn main() {
         if matches.is_present("gen-only") {
             let results_path = make_results_path("vbgen", &args);
             params.run_vb_experiment_gen_only(results_path);
+        } else if matches.is_present("fraud-detection") {
+            let results_path = make_results_path("fd", &args);
+            params.run_fd_experiment(results_path);
         } else {
             let results_path = make_results_path("vb", &args);
             params.run_vb_experiment_main(results_path);

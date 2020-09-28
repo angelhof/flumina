@@ -18,7 +18,7 @@ where
     G: Scope<Timestamp = u128>,
 {
     let item_gen = move |time| {
-        let value = rand_range(0, 100) as usize;
+        let value = rand_range(0, 1000) as usize;
         VBItem { data: VBData::Value(value), time, loc }
     };
     fixed_rate_source(item_gen, scope, frequency, total)

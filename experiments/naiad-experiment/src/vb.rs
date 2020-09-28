@@ -15,8 +15,8 @@ use super::vb_data::{VBData, VBItem};
 use super::vb_generators::{barrier_source, value_source};
 
 use timely::dataflow::operators::{
-    Accumulate, Broadcast, ConnectLoop, Exchange, Feedback, Filter, Inspect,
-    Map, Reclock,
+    Accumulate, Broadcast, Concat, ConnectLoop, Exchange, Feedback, Filter,
+    Inspect, Map, Reclock, ToStream,
 };
 
 use std::string::String;
@@ -139,8 +139,13 @@ where
 
     // Create cycle / feedback loop with trained model based on the values
     let (handle, model_stream) = scope.feedback(1);
+    // start with a model with value 0
+    let init_model = (0..1).to_stream(scope);
     let model_broadcast = model_stream
+        .concat(&init_model)
+        // "line up" the stream with barrier clock, then broadcast
         .reclock(&barrier_clock_noheartbeats)
+        // .inspect(move |x| println!("model: {:?}", x))
         .broadcast();
 
     // Calculate aggregate of values between windows, but this
@@ -158,14 +163,15 @@ where
         // NB: The following ignores the heartbeats which is a bit inefficient
         //     in terms of latency.
         .reclock(&barrier_clock_noheartbeats);
-        // .inspect(move |x| println!("reclocked: {:?}", x))
+        // .inspect(move |x| println!("reclocked: {:?}", x));
 
     // Use the model to predict
     // Includes core logic for how prediction works in this simplified example.
     let value_labeled = join_by_timestamp(&model_broadcast, &value_reclocked)
+        // .inspect(move |x| println!("joined: {:?}", x))
         .map(|(model, value)| {
             let label = match value.data {
-                VBData::Value(v) => model % 100 == v,
+                VBData::Value(v) => model % 1000 == v,
                 VBData::BarrierHeartbeat => unreachable!(),
                 VBData::Barrier => unreachable!(),
             };
@@ -174,7 +180,7 @@ where
 
     // Aggregate the (labeled) values to calculate the next model
     value_labeled
-        // .inspect(move |x| println!("joined: {:?}", x))
+        // .inspect(move |x| println!("labeled: {:?}", x))
         .count()
         // .inspect(move |x| println!("count per heartbeat: {:?}", x))
         .reclock(&barrier_clock_noheartbeats)
