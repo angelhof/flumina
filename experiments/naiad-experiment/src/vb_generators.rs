@@ -5,6 +5,7 @@
 
 use super::common::{Duration, Scope, Stream};
 use super::generators::fixed_rate_source;
+use super::util::rand_range;
 use super::vb_data::{VBData, VBItem};
 
 pub fn value_source<G>(
@@ -16,7 +17,10 @@ pub fn value_source<G>(
 where
     G: Scope<Timestamp = u128>,
 {
-    let item_gen = move |time| VBItem { data: VBData::Value, time, loc };
+    let item_gen = move |time| {
+        let value = rand_range(0, 1000) as usize;
+        VBItem { data: VBData::Value(value), time, loc }
+    };
     fixed_rate_source(item_gen, scope, frequency, total)
 }
 
