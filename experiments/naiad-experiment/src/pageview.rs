@@ -111,7 +111,7 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
     fn build_dataflow<G: Scope<Timestamp = u128>>(
         &self,
         params: PVExperimentParams,
-        scope: &G,
+        scope: &mut G,
         worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let (views, updates) = pv_datagen(params, scope, worker_index);
@@ -131,7 +131,7 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
     fn build_dataflow<G: Scope<Timestamp = u128>>(
         &self,
         params: PVExperimentParams,
-        scope: &G,
+        scope: &mut G,
         worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let (views, updates) = pv_datagen(params, scope, worker_index);

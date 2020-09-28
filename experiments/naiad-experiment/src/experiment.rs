@@ -38,13 +38,13 @@ where
     fn build_dataflow<G: Scope<Timestamp = u128>>(
         &self,
         params: P,
-        scope: &G,
+        scope: &mut G,
         worker_index: usize,
     ) -> (Stream<G, I>, Stream<G, O>);
     fn run_core<G: Scope<Timestamp = u128>>(
         &self,
         params: P,
-        scope: &G,
+        scope: &mut G,
         worker_index: usize,
         output_filename: &'static str,
     ) {
