@@ -179,6 +179,10 @@ where
         });
 
     // Aggregate the (labeled) values to calculate the next model
+    // In order to avoid a bug when there are no values in between
+    // two barriers, we also need to insert a 0 for each barrier.
+    let barrier_zeros = barrier_clock_noheartbeats
+        .map(|()| 0);
     value_labeled
         // .inspect(move |x| println!("labeled: {:?}", x))
         .count()
@@ -187,6 +191,7 @@ where
         // .inspect(move |x| println!("reclocked: {:?}", x))
         .sum()
         // .inspect(move |x| println!("count: {:?}", x))
+        .concat(&barrier_zeros)
         .exchange(|_x| 0)
         .sum()
         // .inspect(move |x| println!("total: {:?}", x))
@@ -196,7 +201,7 @@ where
     value_labeled
         .filter(|(_value, label)| *label)
         .map(|(value, _label)| value)
-        .inspect(|value| println!("Fraudulent: {:?}", value))
+        // .inspect(|value| println!("Fraudulent: {:?}", value))
 }
 
 /* Exposed experiments */
