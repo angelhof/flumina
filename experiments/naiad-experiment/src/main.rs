@@ -47,9 +47,6 @@ fn main() {
         .arg(Arg::with_name("fraud-detection").short("f")
             .help("instead of running the simple value-barrier example, run\
                    the full fraud detection example."));
-    let command_vb_exp1 = SubCommand::with_name("vbe1").about(
-        "Value-barrier experiment 1: vary the parallelism and input rate",
-    );
     let command_pv = SubCommand::with_name("pv")
         .about("Custom pageview experiment")
         .arg(Arg::with_name("PAR").index(1).required(true)
@@ -62,8 +59,16 @@ fn main() {
             .help("experiment duration in seconds"))
         .arg(Arg::with_name("gen-only").short("g")
             .help("data generation only (no processing)"));
-    let command_pv_exp1 = SubCommand::with_name("pve1")
-        .about("Pageview experiment 1: vary the parallelism and input rate");
+    let command_exp1 = SubCommand::with_name("exp1")
+        .about("Experiment 1: \
+                For value-barrier, vary the parallelism and input rate");
+    let command_exp2 = SubCommand::with_name("exp2")
+        .about("Experiment 2: \
+                For page-view, vary the parallelism and input rate");
+    let command_exp3 = SubCommand::with_name("exp3")
+        .about("Experiment 3: \
+                For the fraud-detection variant of value-barrier, \
+                vary the parallelism and input rate");
 
     /* Create application */
 
@@ -72,9 +77,10 @@ fn main() {
         .about("Command line for running Naiad (Timely Dataflow) experiments")
         .setting(AppSettings::SubcommandRequired)
         .subcommand(command_vb)
-        .subcommand(command_vb_exp1)
         .subcommand(command_pv)
-        .subcommand(command_pv_exp1);
+        .subcommand(command_exp1)
+        .subcommand(command_exp2)
+        .subcommand(command_exp3);
 
     /* Parse arguments depending on subcommand */
 
@@ -82,7 +88,6 @@ fn main() {
 
     if let Some(matches) = matches.subcommand_matches("vb") {
         /* Value Barrier Command */
-
         let arg1 = matches.value_of("PAR").unwrap();
         let arg2 = matches.value_of("VAL_RATE").unwrap();
         let arg3 = matches.value_of("VALS_PER_HB").unwrap();
@@ -107,34 +112,8 @@ fn main() {
             let results_path = make_results_path("vb", &args);
             params.run_vb_experiment_main(results_path);
         }
-    } else if let Some(_matches) = matches.subcommand_matches("vbe1") {
-        /* Value Barrier Experiment 1 */
-
-        let mut params = VBExperimentParams {
-            parallelism: 0,        // will be set
-            val_rate_per_milli: 0, // will be set
-            vals_per_hb_per_worker: 100,
-            hbs_per_bar: 100,
-            exp_duration_secs: 5,
-        };
-        let val_rates = &[1, 5, 10, 50, 100, 150, 200, 250, 300, 350, 400];
-        let parallelisms = &[1, 2, 4, 8];
-        for &par in parallelisms {
-            params.parallelism = par;
-            println!("===== Parallelism: {} =====", par);
-            let results_path = make_results_path(
-                "vbe1",
-                &[&("par".to_owned() + &par.to_string())],
-            );
-            for &val_rate in val_rates {
-                params.val_rate_per_milli = val_rate;
-                println!("=== Value rate (events/ms): {} ===", val_rate);
-                params.run_vb_experiment_main(results_path);
-            }
-        }
     } else if let Some(matches) = matches.subcommand_matches("pv") {
         /* Pageview Command */
-
         let arg1 = matches.value_of("PAR").unwrap();
         let arg2 = matches.value_of("RATE").unwrap();
         let arg3 = matches.value_of("VIEW_RATIO").unwrap();
@@ -154,9 +133,32 @@ fn main() {
             let results_path = make_results_path("pv", &args);
             params.run_pv_experiment_main(results_path);
         }
-    } else if let Some(_matches) = matches.subcommand_matches("pve1") {
-        /* Pageview Experiment 1 */
-
+    } else if let Some(_matches) = matches.subcommand_matches("exp1") {
+        /* Experiment 1: Value Barrier */
+        let mut params = VBExperimentParams {
+            parallelism: 0,        // will be set
+            val_rate_per_milli: 0, // will be set
+            vals_per_hb_per_worker: 100,
+            hbs_per_bar: 100,
+            exp_duration_secs: 5,
+        };
+        let val_rates = &[1, 5, 10, 50, 100, 150, 200, 250, 300, 350, 400];
+        let parallelisms = &[1, 2, 4, 8];
+        for &par in parallelisms {
+            params.parallelism = par;
+            println!("===== Parallelism: {} =====", par);
+            let results_path = make_results_path(
+                "exp1_vb",
+                &[&("par".to_owned() + &par.to_string())],
+            );
+            for &val_rate in val_rates {
+                params.val_rate_per_milli = val_rate;
+                println!("=== Value rate (events/ms): {} ===", val_rate);
+                params.run_vb_experiment_main(results_path);
+            }
+        }
+    } else if let Some(_matches) = matches.subcommand_matches("exp2") {
+        /* Experiment 2: Pageview */
         let mut params = PVExperimentParams {
             parallelism: 0,      // will be set
             views_per_milli: 0, // will be set
@@ -169,13 +171,37 @@ fn main() {
             params.parallelism = par;
             println!("===== Parallelism: {} =====", par);
             let results_path = make_results_path(
-                "pve1",
+                "exp2_pv",
                 &[&("par".to_owned() + &par.to_string())],
             );
             for &rate in rates {
                 params.views_per_milli = rate;
                 println!("=== Input rate (events/ms): {} ===", rate);
                 params.run_pv_experiment_main(results_path);
+            }
+        }
+    } else if let Some(_matches) = matches.subcommand_matches("exp3") {
+        /*  Experiment 3: Fraud Detection */
+        let mut params = VBExperimentParams {
+            parallelism: 0,        // will be set
+            val_rate_per_milli: 0, // will be set
+            vals_per_hb_per_worker: 100,
+            hbs_per_bar: 100,
+            exp_duration_secs: 5,
+        };
+        let val_rates = &[1, 5, 10, 50, 100, 150, 200, 250, 300, 350, 400];
+        let parallelisms = &[1, 2, 4, 8];
+        for &par in parallelisms {
+            params.parallelism = par;
+            println!("===== Parallelism: {} =====", par);
+            let results_path = make_results_path(
+                "exp3_fd",
+                &[&("par".to_owned() + &par.to_string())],
+            );
+            for &val_rate in val_rates {
+                params.val_rate_per_milli = val_rate;
+                println!("=== Value rate (events/ms): {} ===", val_rate);
+                params.run_fd_experiment(results_path);
             }
         }
     } else {
