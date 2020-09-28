@@ -42,11 +42,11 @@ public class ValueBarrierManualExperiment implements Experiment {
         final var registry = LocateRegistry.getRegistry(conf.getRmiHost());
         registry.rebind(valueBarrierServiceName, valueBarrierServiceStub);
 
-        final var valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
+        final var valueSource = new ValueOrHeartbeatSource(conf.getTotalValues(), conf.getValueRate(), startTime);
         final var valueStream = env.addSource(valueSource)
                 .setParallelism(conf.getValueNodes())
                 .slotSharingGroup("values");
-        final var barrierSource = new BarrierSource(
+        final var barrierSource = new BarrierOrHeartbeatSource(
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
         final var barrierStream = env.addSource(barrierSource)

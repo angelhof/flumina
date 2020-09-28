@@ -25,11 +25,11 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
 
     private volatile boolean isRunning = true;
 
-    private final GeneratorWithHeartbeats<T, H> generator;
+    private final Generator<? extends TimestampedUnion<T, H>> generator;
 
     private final Instant startTime;
 
-    public GeneratorWithHeartbeatsBasedSource(final GeneratorWithHeartbeats<T, H> generator,
+    public GeneratorWithHeartbeatsBasedSource(final Generator<? extends TimestampedUnion<T, H>> generator,
                                               final Instant startTime) {
         this.generator = generator;
         this.startTime = startTime;
@@ -38,7 +38,7 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
     @Override
     public void run(final SourceContext<T> ctx) {
         final double rate = generator.getRate();
-        final Iterator<TimestampedUnion<T, H>> iterator = generator.getIterator();
+        final Iterator<? extends TimestampedUnion<T, H>> iterator = generator.getIterator();
         TimestampedUnion<T, H> obj = iterator.next();
 
         // Future time is relative to startTime.
@@ -67,6 +67,7 @@ public class GeneratorWithHeartbeatsBasedSource<T extends Timestamped, H extends
                 }
                 obj.match(
                         event -> {
+                            event.setSourceIndex(getRuntimeContext().getIndexOfThisSubtask());
                             ctx.collectWithTimestamp(event, toEpochMilli(physicalTimestamp));
                             return null;
                         },

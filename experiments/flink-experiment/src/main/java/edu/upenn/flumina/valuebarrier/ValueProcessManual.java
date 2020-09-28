@@ -14,6 +14,8 @@ import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.List;
 import java.util.Queue;
 
 import static edu.upenn.flumina.time.TimeHelper.max;
@@ -50,13 +52,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
     public void processElement(final ValueOrHeartbeat valueOrHeartbeat,
                                final ReadOnlyContext ctx,
                                final Collector<Void> out) throws RemoteException {
-        valueOrHeartbeat.match(
-                value -> {
-                    unprocessedValues.add(value);
-                    return null;
-                },
-                heartbeat -> null
-        );
+        unprocessedValues.addAll(valueOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
         valuePhysicalTimestamp = max(valuePhysicalTimestamp, valueOrHeartbeat.getPhysicalTimestamp());
         makeProgress();
     }
@@ -65,13 +61,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
     public void processBroadcastElement(final BarrierOrHeartbeat barrierOrHeartbeat,
                                         final Context ctx,
                                         final Collector<Void> out) throws RemoteException {
-        barrierOrHeartbeat.match(
-                barrier -> {
-                    unprocessedBarriers.add(barrier);
-                    return null;
-                },
-                heartbeat -> null
-        );
+        unprocessedBarriers.addAll(barrierOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
         barrierPhysicalTimestamp = max(barrierPhysicalTimestamp, barrierOrHeartbeat.getPhysicalTimestamp());
         makeProgress();
     }

@@ -160,7 +160,7 @@ class ValueBarrierExperiment:
 
 class ValueBarrierEC2:
     def __init__(self, total_value_nodes, total_values, value_rate, vb_ratio, hb_ratio,
-                 out_file='out.txt', stats_file='stats.txt'):
+                 out_file='out.txt', stats_file='stats.txt', sequential=False):
         self.total_value_nodes = total_value_nodes
         self.total_values = total_values
         self.value_rate = value_rate
@@ -168,6 +168,7 @@ class ValueBarrierEC2:
         self.hb_ratio = hb_ratio
         self.out_file = out_file
         self.stats_file = stats_file
+        self.sequential = sequential
 
     def __str__(self):
         return 'ValueBarrierEC2(' \
@@ -182,7 +183,7 @@ class ValueBarrierEC2:
             print('A file containing a list of Flink worker hostnames hasn\'t been provided')
             exit(1)
         self.flink_workers = args.flink_workers
-        run_job(['--experiment', 'value-barrier',
+        run_job(['--experiment', 'value-barrier' + ('-seq' if self.sequential else ''),
                  '--valueNodes', f'{self.total_value_nodes}',
                  '--totalValues', f'{self.total_values}',
                  '--valueRate', f'{self.value_rate:.1f}',
@@ -263,7 +264,7 @@ class PageViewEC2:
 
 class FraudDetectionEC2:
     def __init__(self, total_value_nodes, total_values, value_rate, vb_ratio, hb_ratio,
-                 out_file='out.txt', stats_file='stats.txt'):
+                 out_file='out.txt', stats_file='stats.txt', trans_file='trans.txt'):
         self.total_value_nodes = total_value_nodes
         self.total_values = total_values
         self.value_rate = value_rate
@@ -271,6 +272,7 @@ class FraudDetectionEC2:
         self.hb_ratio = hb_ratio
         self.out_file = out_file
         self.stats_file = stats_file
+        self.trans_file = trans_file
 
     def __str__(self):
         return 'FraudDetectionEC2(' \
@@ -308,7 +310,11 @@ class FraudDetectionEC2:
                 subprocess.run(['scp',
                                 host.rstrip() + ':' + self.out_file,
                                 exp_path])
+                subprocess.run(['scp', '-r',
+                                host.rstrip() + ':' + self.trans_file,
+                                exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
                 # shutil.move(self.out_file, exp_path)
+                # shutil.move(self.trans_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')

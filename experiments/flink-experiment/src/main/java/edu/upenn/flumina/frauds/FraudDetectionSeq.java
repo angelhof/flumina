@@ -20,7 +20,10 @@ import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import java.util.Queue;
 
 import static edu.upenn.flumina.time.TimeHelper.toEpochMilli;
 
@@ -76,7 +79,7 @@ public class FraudDetectionSeq implements Experiment {
                     public void processElement1(final Rule rule,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        getRules().addAll(rule.match(List::of, hb -> Collections.emptyList()));
+                        getRules().add(rule);
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 
@@ -84,7 +87,7 @@ public class FraudDetectionSeq implements Experiment {
                     public void processElement2(final Transaction transaction,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        getTransactions().addAll(transaction.match(List::of, hb -> Collections.emptyList()));
+                        getTransactions().add(transaction);
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 

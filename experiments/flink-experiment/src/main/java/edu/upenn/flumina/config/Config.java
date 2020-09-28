@@ -60,6 +60,7 @@ public class Config {
         final String experiment = parameterTool.get("experiment", "");
         switch (experiment) {
             case "value-barrier":
+            case "value-barrier-seq":
                 return new ValueBarrierConfig(parameterTool);
             case "pageview":
                 return new PageViewConfig(parameterTool);

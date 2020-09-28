@@ -1,7 +1,5 @@
-package edu.upenn.flumina;
+package edu.upenn.flumina.valuebarrier;
 
-import edu.upenn.flumina.valuebarrier.BarrierSource;
-import edu.upenn.flumina.valuebarrier.ValueSource;
 import edu.upenn.flumina.valuebarrier.data.Barrier;
 import edu.upenn.flumina.valuebarrier.data.BarrierOrHeartbeat;
 import edu.upenn.flumina.valuebarrier.data.Value;
@@ -70,7 +68,7 @@ public class ValueBarrierExperimentTest {
         final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
         env.setParallelism(4);
-        env.addSource(new ValueSource(10_000, 10.0, Instant.now()))
+        env.addSource(new ValueOrHeartbeatSource(10_000, 10.0, Instant.now()))
                 .assignTimestampsAndWatermarks(new AssignerWithPunctuatedWatermarks<ValueOrHeartbeat>() {
                     @Override
                     public Watermark checkAndGetNextWatermark(final ValueOrHeartbeat valueOrHeartbeat, final long l) {
@@ -129,9 +127,9 @@ public class ValueBarrierExperimentTest {
 
         final Instant startTime = Instant.now().plusMillis(500L);
         final DataStream<ValueOrHeartbeat> valueStream =
-                env.addSource(new ValueSource(totalValues, valueRate, startTime)).setParallelism(valueNodes);
+                env.addSource(new ValueOrHeartbeatSource(totalValues, valueRate, startTime)).setParallelism(valueNodes);
         final DataStream<BarrierOrHeartbeat> barrierStream =
-                env.addSource(new BarrierSource(totalValues, valueRate, vbRatio, hbRatio, startTime)).setParallelism(1);
+                env.addSource(new BarrierOrHeartbeatSource(totalValues, valueRate, vbRatio, hbRatio, startTime)).setParallelism(1);
 
         final MapStateDescriptor<Void, Void> stateDescriptor =
                 new MapStateDescriptor<>("BroadcastState", Void.class, Void.class);

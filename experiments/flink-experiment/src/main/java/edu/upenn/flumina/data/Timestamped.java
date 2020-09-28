@@ -13,4 +13,13 @@ public interface Timestamped extends Serializable {
 
     boolean hasPhysicalTimestamp();
 
+    /**
+     * The index of the parallel subtask that produced this event.
+     *
+     * @return Index
+     */
+    int getSourceIndex();
+
+    void setSourceIndex(int sourceIndex);
+
 }

@@ -1,16 +1,16 @@
 package edu.upenn.flumina.frauds;
 
-import edu.upenn.flumina.data.TimestampedUnion;
 import edu.upenn.flumina.frauds.data.Rule;
 import edu.upenn.flumina.frauds.data.RuleHeartbeat;
-import edu.upenn.flumina.source.GeneratorWithHeartbeats;
+import edu.upenn.flumina.frauds.data.RuleOrHeartbeat;
+import edu.upenn.flumina.source.Generator;
 
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-public class RuleGenerator implements GeneratorWithHeartbeats<Rule, RuleHeartbeat> {
+public class RuleGenerator implements Generator<RuleOrHeartbeat> {
 
     private static final long serialVersionUID = -6359817358408850880L;
 
@@ -32,7 +32,7 @@ public class RuleGenerator implements GeneratorWithHeartbeats<Rule, RuleHeartbea
     }
 
     @Override
-    public Iterator<TimestampedUnion<Rule, RuleHeartbeat>> getIterator() {
+    public Iterator<RuleOrHeartbeat> getIterator() {
         // There should be one rule for every batch of (totalTransactions / trRatio) transactions.
         // Furthermore, for every rule there are (hbRatio-1) heartbeats, i.e., for every
         // rule there are hbRatio rules or heartbeats.
@@ -47,8 +47,8 @@ public class RuleGenerator implements GeneratorWithHeartbeats<Rule, RuleHeartbea
         //
         // We add one heartbeat with timestamp totalTransactions at the end.
         final int totalRulesOrHeartbeats = totalTransactions / trRatio * hbRatio;
-        final Stream<TimestampedUnion<Rule, RuleHeartbeat>> rules = LongStream.rangeClosed(1, totalRulesOrHeartbeats)
-                .mapToObj(i -> {
+        final var rules = LongStream.rangeClosed(1, totalRulesOrHeartbeats)
+                .<RuleOrHeartbeat>mapToObj(i -> {
                     if (i % hbRatio == 0) {
                         // Multiply trRatio / hbRatio first to avoid potential overflow.
                         // Assumes that hbRatio divides trRatio.

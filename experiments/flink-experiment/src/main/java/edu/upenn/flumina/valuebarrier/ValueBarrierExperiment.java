@@ -22,7 +22,9 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 import java.util.ArrayDeque;
-import java.util.Deque;
+import java.util.Collections;
+import java.util.List;
+import java.util.Queue;
 
 import static edu.upenn.flumina.time.TimeHelper.max;
 import static edu.upenn.flumina.time.TimeHelper.min;
@@ -42,11 +44,11 @@ public class ValueBarrierExperiment implements Experiment {
         env.setParallelism(1);
         env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        final var valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
+        final var valueSource = new ValueOrHeartbeatSource(conf.getTotalValues(), conf.getValueRate(), startTime);
         final var valueStream = env.addSource(valueSource)
                 .setParallelism(conf.getValueNodes())
                 .slotSharingGroup("values");
-        final var barrierSource = new BarrierSource(
+        final var barrierSource = new BarrierOrHeartbeatSource(
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
         final var barrierStream = env.addSource(barrierSource)
@@ -64,20 +66,14 @@ public class ValueBarrierExperiment implements Experiment {
                     private Instant barrierPhysicalTimestamp = Instant.MIN;
                     private long sum = 0;
 
-                    private final Deque<Value> unprocessedValues = new ArrayDeque<>();
-                    private final Deque<Barrier> unprocessedBarriers = new ArrayDeque<>();
+                    private final Queue<Value> unprocessedValues = new ArrayDeque<>();
+                    private final Queue<Barrier> unprocessedBarriers = new ArrayDeque<>();
 
                     @Override
                     public void processElement(final ValueOrHeartbeat valueOrHeartbeat,
                                                final ReadOnlyContext ctx,
                                                final Collector<Tuple3<Long, Long, Instant>> collector) {
-                        valueOrHeartbeat.<Void>match(
-                                value -> {
-                                    unprocessedValues.addLast(value);
-                                    return null;
-                                },
-                                heartbeat -> null
-                        );
+                        unprocessedValues.addAll(valueOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
                         valuePhysicalTimestamp = max(valuePhysicalTimestamp, valueOrHeartbeat.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
@@ -86,13 +82,7 @@ public class ValueBarrierExperiment implements Experiment {
                     public void processBroadcastElement(final BarrierOrHeartbeat barrierOrHeartbeat,
                                                         final Context ctx,
                                                         final Collector<Tuple3<Long, Long, Instant>> collector) {
-                        barrierOrHeartbeat.<Void>match(
-                                barrier -> {
-                                    unprocessedBarriers.addLast(barrier);
-                                    return null;
-                                },
-                                heartbeat -> null
-                        );
+                        unprocessedBarriers.addAll(barrierOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
                         barrierPhysicalTimestamp = max(barrierPhysicalTimestamp, barrierOrHeartbeat.getPhysicalTimestamp());
                         makeProgress(collector);
                     }
@@ -100,17 +90,17 @@ public class ValueBarrierExperiment implements Experiment {
                     private void makeProgress(final Collector<Tuple3<Long, Long, Instant>> collector) {
                         final var currentTime = min(valuePhysicalTimestamp, barrierPhysicalTimestamp);
                         while (!unprocessedValues.isEmpty() &&
-                                unprocessedValues.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
-                            final var value = unprocessedValues.removeFirst();
+                                unprocessedValues.element().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
+                            final var value = unprocessedValues.remove();
                             while (!unprocessedBarriers.isEmpty() &&
-                                    unprocessedBarriers.getFirst().getPhysicalTimestamp().isBefore(value.getPhysicalTimestamp())) {
-                                update(unprocessedBarriers.removeFirst(), collector);
+                                    unprocessedBarriers.element().getPhysicalTimestamp().isBefore(value.getPhysicalTimestamp())) {
+                                update(unprocessedBarriers.remove(), collector);
                             }
                             update(value, collector);
                         }
                         while (!unprocessedBarriers.isEmpty() &&
-                                unprocessedBarriers.getFirst().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
-                            update(unprocessedBarriers.removeFirst(), collector);
+                                unprocessedBarriers.element().getPhysicalTimestamp().compareTo(currentTime) <= 0) {
+                            update(unprocessedBarriers.remove(), collector);
                         }
                     }
 
@@ -144,7 +134,6 @@ public class ValueBarrierExperiment implements Experiment {
                     return x;
                 })
                 .slotSharingGroup("barriers")
-                .startNewChain()
                 .map(new TimestampMapper())
                 .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 

@@ -3,6 +3,7 @@ package edu.upenn.flumina.pageview;
 import edu.upenn.flumina.pageview.data.GetOrUpdate;
 import edu.upenn.flumina.pageview.data.GetOrUpdateHeartbeat;
 import edu.upenn.flumina.source.GeneratorWithHeartbeatsBasedSource;
+import edu.upenn.flumina.util.FlinkHashInverter;
 import org.apache.flink.configuration.Configuration;
 
 import java.time.Instant;
@@ -24,8 +25,8 @@ public class GetOrUpdateSource extends GeneratorWithHeartbeatsBasedSource<GetOrU
 
     @Override
     public void open(final Configuration parameters) {
-        final var userIds = UserIdHelper.getUserIds(getRuntimeContext().getNumberOfParallelSubtasks());
-        final int userId = userIds.get(getRuntimeContext().getIndexOfThisSubtask());
+        final int userId = FlinkHashInverter.invert(getRuntimeContext().getIndexOfThisSubtask(),
+                getRuntimeContext().getNumberOfParallelSubtasks());
         generator.setUserId(userId);
     }
 

@@ -31,8 +31,8 @@ public class ValueGenerator implements Generator<ValueOrHeartbeat> {
     public Iterator<ValueOrHeartbeat> getIterator() {
         // Prepare a stream of Value objects with timestamps ranging from 0 to totalValues-1.
         // Add one heartbeat with timestamp totalValues at the end.
-        final Stream<Value> values = LongStream.range(0, totalValues).mapToObj(t -> new Value(t + 1, t));
-        final Stream<ValueOrHeartbeat> withFinalHeartbeat =
+        final var values = LongStream.range(0, totalValues).<ValueOrHeartbeat>mapToObj(t -> new Value(t + 1, t));
+        final var withFinalHeartbeat =
                 Stream.concat(values, Stream.of(new ValueHeartbeat(totalValues, Instant.MAX)));
         return withFinalHeartbeat.iterator();
     }

@@ -5,7 +5,7 @@ import edu.upenn.flumina.pageview.data.Get;
 import edu.upenn.flumina.pageview.data.GetOrUpdate;
 import edu.upenn.flumina.pageview.data.GetOrUpdateHeartbeat;
 import edu.upenn.flumina.pageview.data.Update;
-import edu.upenn.flumina.source.GeneratorWithHeartbeats;
+import edu.upenn.flumina.source.Generator;
 
 import java.time.Instant;
 import java.util.Iterator;
@@ -14,7 +14,7 @@ import java.util.function.Function;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-public class GetOrUpdateGenerator implements GeneratorWithHeartbeats<GetOrUpdate, GetOrUpdateHeartbeat> {
+public class GetOrUpdateGenerator implements Generator<TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat>> {
 
     private static final long serialVersionUID = -8569916206087877650L;
 

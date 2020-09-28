@@ -66,7 +66,7 @@ suites = {
     ),
     'value-barrier-rates-ec2': ExperimentSuite(
         'value-barrier-rates-ec2',
-        [ValueBarrierEC2(1, r * 30_000, r, 1_000, 10) for r in range(40, 281, 2)]
+        [ValueBarrierEC2(1, r * 30_000, r, 10_000, 100, sequential=True) for r in range(50, 401, 10)]
     ),
     'value-barrier-nodes-ec2': ExperimentSuite(
         'value-barrier-nodes-ec2',
@@ -78,7 +78,7 @@ suites = {
     ),
     'pageview-rates-ec2': ExperimentSuite(
         'pageview-rates-ec2',
-        [PageViewEC2(r * 30_000, 2, 1, r) for r in range(2, 201, 2)]
+        [PageViewEC2(r * 30_000, 2, 1, r) for r in range(20, 211, 10)]
     ),
     'pageview-parallelism-ec2': ExperimentSuite(
         'pageview-parallelism-ec2',
@@ -86,7 +86,7 @@ suites = {
     ),
     'fraud-detection-rates-ec2': ExperimentSuite(
         'fraud-detection-rates-ec2',
-        [FraudDetectionEC2(1, r * 30_000, r, 10_000, 100) for r in range(20, 201, 2)]
+        [FraudDetectionEC2(1, r * 30_000, r, 10_000, 100) for r in range(50, 401, 2)]
     ),
     'fraud-detection-nodes-ec2': ExperimentSuite(
         'fraud-detection-nodes-ec2',
