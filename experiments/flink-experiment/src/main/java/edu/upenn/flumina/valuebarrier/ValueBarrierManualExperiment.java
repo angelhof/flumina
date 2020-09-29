@@ -37,7 +37,7 @@ public class ValueBarrierManualExperiment implements Experiment {
         // Set up the remote ForkJoin service
         final var valueBarrierService = new ValueBarrierService(conf.getValueNodes());
         @SuppressWarnings("unchecked") final var valueBarrierServiceStub =
-                (ForkJoinService<Long>) UnicastRemoteObject.exportObject(valueBarrierService, 0);
+                (ForkJoinService<Long, Long>) UnicastRemoteObject.exportObject(valueBarrierService, 0);
         final var valueBarrierServiceName = UUID.randomUUID().toString();
         final var registry = LocateRegistry.getRegistry(conf.getRmiHost());
         registry.rebind(valueBarrierServiceName, valueBarrierServiceStub);

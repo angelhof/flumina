@@ -6,7 +6,6 @@ import edu.upenn.flumina.data.Heartbeat;
 import edu.upenn.flumina.pageview.data.GetOrUpdate;
 import edu.upenn.flumina.pageview.data.PageView;
 import edu.upenn.flumina.pageview.data.Update;
-import edu.upenn.flumina.util.FlinkHashInverter;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -23,20 +22,17 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayDeque;
-import java.util.Comparator;
-import java.util.PriorityQueue;
-import java.util.Queue;
+import java.util.*;
 
 import static edu.upenn.flumina.time.TimeHelper.toEpochMilli;
 
-public class PageViewExperiment implements Experiment {
+public class PageViewSequentialExperiment implements Experiment {
 
-    private static final Logger LOG = LoggerFactory.getLogger(PageViewExperiment.class);
+    private static final Logger LOG = LoggerFactory.getLogger(PageViewSequentialExperiment.class);
 
     private final PageViewConfig conf;
 
-    public PageViewExperiment(final PageViewConfig conf) {
+    public PageViewSequentialExperiment(final PageViewConfig conf) {
         this.conf = conf;
     }
 
@@ -54,7 +50,9 @@ public class PageViewExperiment implements Experiment {
         final var pageViewStream = env.addSource(pageViewSource)
                 .setParallelism(conf.getPageViewParallelism());
 
-        final var zipCodeDescriptor = new ValueStateDescriptor<>("ZipCode", TypeInformation.of(Integer.class));
+        final var zipCodeDescriptor = new ValueStateDescriptor<>("ZipCode",
+                TypeInformation.of(new TypeHint<List<Integer>>() {
+                }));
         final var updateBufferDescriptor = new ValueStateDescriptor<>("UpdateBuffer",
                 TypeInformation.of(new TypeHint<Queue<Update>>() {
                 }));
@@ -62,14 +60,11 @@ public class PageViewExperiment implements Experiment {
                 TypeInformation.of(new TypeHint<PriorityQueue<PageView>>() {
                 }));
 
-        // Normal low-level join
-        // We invert the key so that each event is routed to a correct parallel processing instance
-        final var invertedUserIds = FlinkHashInverter.getMapping(conf.getTotalUsers());
-        getOrUpdateStream.keyBy(gou -> invertedUserIds.get(gou.getUserId()))
-                .connect(pageViewStream.keyBy(pv -> invertedUserIds.get(pv.getUserId())))
+        getOrUpdateStream.keyBy(gou -> 0)
+                .connect(pageViewStream.keyBy(pv -> 0))
                 .process(new KeyedCoProcessFunction<Integer, GetOrUpdate, PageView, Update>() {
 
-                    private ValueState<Integer> zipCodeState;
+                    private ValueState<List<Integer>> zipCodeState;
                     private ValueState<Queue<Update>> updateBufferState;
                     private ValueState<PriorityQueue<PageView>> pageViewBufferState;
 
@@ -139,20 +134,26 @@ public class PageViewExperiment implements Experiment {
                         return pageViewBufferState.value();
                     }
 
+                    private List<Integer> getZipCodes() throws IOException {
+                        if (zipCodeState.value() == null) {
+                            final List<Integer> zipCodes = new ArrayList<>(conf.getTotalUsers());
+                            for (int i = 0; i < conf.getTotalUsers(); ++i) {
+                                zipCodes.add(10_000);
+                            }
+                            zipCodeState.update(zipCodes);
+                        }
+                        return zipCodeState.value();
+                    }
+
                     private void update(final Update update, final Collector<Update> out) throws IOException {
-                        zipCodeState.update(update.zipCode);
+                        getZipCodes().set(update.getUserId(), update.zipCode);
                         out.collect(update);
                     }
 
-                    private void update(final PageView pageView, final Collector<Update> out) throws IOException {
-                        if (zipCodeState.value() == null) {
-                            // Store some initial value; could be more sophisticated
-                            zipCodeState.update(10_000);
-                        }
-                        // Apart from initializing zip code, this update is a no-op
+                    private void update(final PageView pageView, final Collector<Update> out) {
+                        // This update is a no-op
                     }
                 })
-                .setParallelism(conf.getTotalUsers())
                 .map(new TimestampMapper())
                 .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 

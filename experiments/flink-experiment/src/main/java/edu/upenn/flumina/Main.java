@@ -4,6 +4,8 @@ import edu.upenn.flumina.config.*;
 import edu.upenn.flumina.frauds.FraudDetectionManual;
 import edu.upenn.flumina.frauds.FraudDetectionSeq;
 import edu.upenn.flumina.pageview.PageViewExperiment;
+import edu.upenn.flumina.pageview.PageViewManualExperiment;
+import edu.upenn.flumina.pageview.PageViewSequentialExperiment;
 import edu.upenn.flumina.valuebarrier.ValueBarrierExperiment;
 import edu.upenn.flumina.valuebarrier.ValueBarrierManualExperiment;
 import edu.upenn.flumina.valuebarrier.ValueBarrierSequentialExperiment;
@@ -68,8 +70,11 @@ public class Main {
                                 new ValueBarrierManualExperiment(valueBarrierConf) : new ValueBarrierExperiment(valueBarrierConf);
                 run(valueBarrierExperiment, conf);
             } else if (conf instanceof PageViewConfig) {
-                final PageViewConfig pageViewConf = (PageViewConfig) conf;
-                final PageViewExperiment pageViewExperiment = new PageViewExperiment(pageViewConf);
+                final var pageViewConf = (PageViewConfig) conf;
+                final var pageViewExperiment = conf.getExperiment().equals("pageview-seq") ?
+                        new PageViewSequentialExperiment(pageViewConf) :
+                        conf.isManual() ?
+                                new PageViewManualExperiment(pageViewConf) : new PageViewExperiment(pageViewConf);
                 run(pageViewExperiment, conf);
             }
         } catch (final ConfigException e) {

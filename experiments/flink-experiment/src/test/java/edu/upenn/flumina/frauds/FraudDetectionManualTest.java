@@ -58,8 +58,8 @@ public class FraudDetectionManualTest {
                 .process(new BroadcastProcessFunction<TransactionOrHeartbeat, RuleOrHeartbeat, Void>() {
                     private final Queue<Transaction> transactions = new ArrayDeque<>();
                     private final Queue<Rule> rules = new ArrayDeque<>();
-                    private Instant transPhysicalTimestamp = Instant.MIN;
-                    private Instant rulePhysicalTimestamp = Instant.MIN;
+                    private final Instant transPhysicalTimestamp = Instant.MIN;
+                    private final Instant rulePhysicalTimestamp = Instant.MIN;
 
                     @Override
                     public void processElement(final TransactionOrHeartbeat transOrHeartbeat,

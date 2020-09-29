@@ -17,25 +17,30 @@ public class RuleProcessManual extends ProcessFunction<Rule, Tuple3<String, Long
 
     private final String rmiHost;
     private final String fraudDetectionServiceName;
-    private transient ForkJoinService<Tuple2<Long, Long>> fraudDetectionService;
+    private transient ForkJoinService<Tuple2<Long, Long>, Tuple2<Long, Long>> fraudDetectionService;
+
+    private Tuple2<Long, Long> previousAndCurrentSum;
 
     public RuleProcessManual(final String rmiHost, final String fraudDetectionServiceName) {
         this.rmiHost = rmiHost;
         this.fraudDetectionServiceName = fraudDetectionServiceName;
+        this.previousAndCurrentSum = Tuple2.of(0L, 0L);
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public void open(final Configuration parameters) throws RemoteException, NotBoundException {
         final var registry = LocateRegistry.getRegistry(rmiHost);
-        fraudDetectionService = (ForkJoinService<Tuple2<Long, Long>>) registry.lookup(fraudDetectionServiceName);
+        fraudDetectionService =
+                (ForkJoinService<Tuple2<Long, Long>, Tuple2<Long, Long>>) registry.lookup(fraudDetectionServiceName);
     }
 
     @Override
     public void processElement(final Rule rule,
                                final Context ctx,
                                final Collector<Tuple3<String, Long, Instant>> out) throws RemoteException {
-        final var previousAndCurrentSum = fraudDetectionService.joinParent();
+        previousAndCurrentSum = fraudDetectionService.joinParent(
+                getRuntimeContext().getIndexOfThisSubtask(), previousAndCurrentSum);
         out.collect(Tuple3.of("Rule", previousAndCurrentSum.f1, rule.getPhysicalTimestamp()));
     }
 

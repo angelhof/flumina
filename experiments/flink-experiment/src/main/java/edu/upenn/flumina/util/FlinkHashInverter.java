@@ -12,7 +12,7 @@ import java.util.*;
  */
 public class FlinkHashInverter {
 
-    private static Map<Integer, List<Integer>> cachedMappings = new HashMap<>();
+    private static final Map<Integer, List<Integer>> cachedMappings = new HashMap<>();
 
     /**
      * Precondition: {@code 0 <= key < totalKeys}

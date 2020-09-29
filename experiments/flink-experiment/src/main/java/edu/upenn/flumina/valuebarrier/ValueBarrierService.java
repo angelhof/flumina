@@ -4,13 +4,10 @@ import edu.upenn.flumina.remote.ForkJoinService;
 
 import java.util.List;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ValueBarrierService implements ForkJoinService<Long> {
-
-    private final AtomicInteger idAssigner = new AtomicInteger();
+public class ValueBarrierService implements ForkJoinService<Long, Long> {
 
     private final int valueParallelism;
     private final List<Semaphore> joinSemaphores;
@@ -27,20 +24,15 @@ public class ValueBarrierService implements ForkJoinService<Long> {
     }
 
     @Override
-    public int getChildId() {
-        return idAssigner.getAndIncrement();
+    public Long joinChild(final int subtaskIndex, final Long state) {
+        states[subtaskIndex] = state;
+        joinSemaphores.get(subtaskIndex).release();
+        forkSemaphores.get(subtaskIndex).acquireUninterruptibly();
+        return states[subtaskIndex];
     }
 
     @Override
-    public Long joinChild(final int childId, final Long state) {
-        states[childId] = state;
-        joinSemaphores.get(childId).release();
-        forkSemaphores.get(childId).acquireUninterruptibly();
-        return states[childId];
-    }
-
-    @Override
-    public Long joinParent() {
+    public Long joinParent(final int subtaskIndex, final Long state) {
         long sum = 0L;
         for (int i = 0; i < valueParallelism; ++i) {
             joinSemaphores.get(i).acquireUninterruptibly();

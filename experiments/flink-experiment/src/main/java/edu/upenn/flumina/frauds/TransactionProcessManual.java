@@ -34,8 +34,7 @@ public class TransactionProcessManual extends BroadcastProcessFunction<Transacti
 
     private final String rmiHost;
     private final String fraudDetectionServiceName;
-    private transient ForkJoinService<Tuple2<Long, Long>> fraudDetectionService;
-    private transient int id;
+    private transient ForkJoinService<Tuple2<Long, Long>, Tuple2<Long, Long>> fraudDetectionService;
 
     public TransactionProcessManual(final String rmiHost, final String fraudDetectionServiceName) {
         this.rmiHost = rmiHost;
@@ -46,8 +45,8 @@ public class TransactionProcessManual extends BroadcastProcessFunction<Transacti
     @SuppressWarnings("unchecked")
     public void open(final Configuration parameters) throws RemoteException, NotBoundException {
         final var registry = LocateRegistry.getRegistry(rmiHost);
-        fraudDetectionService = (ForkJoinService<Tuple2<Long, Long>>) registry.lookup(fraudDetectionServiceName);
-        id = fraudDetectionService.getChildId();
+        fraudDetectionService =
+                (ForkJoinService<Tuple2<Long, Long>, Tuple2<Long, Long>>) registry.lookup(fraudDetectionServiceName);
     }
 
     @Override
@@ -94,7 +93,8 @@ public class TransactionProcessManual extends BroadcastProcessFunction<Transacti
     }
 
     private void join(final Rule rule) throws RemoteException {
-        previousAndCurrentSum = fraudDetectionService.joinChild(id, previousAndCurrentSum);
+        previousAndCurrentSum =
+                fraudDetectionService.joinChild(getRuntimeContext().getIndexOfThisSubtask(), previousAndCurrentSum);
     }
 
 }

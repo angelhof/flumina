@@ -8,6 +8,7 @@ import edu.upenn.flumina.remote.ForkJoinService;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.state.MapStateDescriptor;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.util.Collector;
@@ -33,7 +34,7 @@ public class FraudDetectionManual implements Experiment {
         // Set up the remote ForkJoin service
         final var fraudDetectionService = new FraudDetectionService(conf.getValueNodes());
         @SuppressWarnings("unchecked") final var fraudDetectionServiceStub =
-                (ForkJoinService<Long>) UnicastRemoteObject.exportObject(fraudDetectionService, 0);
+                (ForkJoinService<Tuple2<Long, Long>, Tuple2<Long, Long>>) UnicastRemoteObject.exportObject(fraudDetectionService, 0);
         final var fraudDetectionServiceName = UUID.randomUUID().toString();
         final var registry = LocateRegistry.getRegistry(conf.getRmiHost());
         registry.rebind(fraudDetectionServiceName, fraudDetectionServiceStub);

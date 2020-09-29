@@ -32,8 +32,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
 
     private final String rmiHost;
     private final String valueBarrierServiceName;
-    private transient ForkJoinService<Long> valueBarrierService;
-    private transient int id;
+    private transient ForkJoinService<Long, Long> valueBarrierService;
 
     public ValueProcessManual(final String rmiHost, final String valueBarrierServiceName) {
         this.rmiHost = rmiHost;
@@ -44,8 +43,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
     @SuppressWarnings("unchecked")
     public void open(final Configuration parameters) throws RemoteException, NotBoundException {
         final var registry = LocateRegistry.getRegistry(rmiHost);
-        valueBarrierService = (ForkJoinService<Long>) registry.lookup(valueBarrierServiceName);
-        id = valueBarrierService.getChildId();
+        valueBarrierService = (ForkJoinService<Long, Long>) registry.lookup(valueBarrierServiceName);
     }
 
     @Override
@@ -88,7 +86,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
     }
 
     private void join(final Barrier barrier) throws RemoteException {
-        sum = valueBarrierService.joinChild(id, sum);
+        sum = valueBarrierService.joinChild(getRuntimeContext().getIndexOfThisSubtask(), sum);
     }
 
 }
