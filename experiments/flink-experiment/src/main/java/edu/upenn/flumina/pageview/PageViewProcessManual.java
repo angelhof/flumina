@@ -98,7 +98,7 @@ public class PageViewProcessManual extends
     }
 
     private void join(final Update update) throws RemoteException {
-        zipCode = pageViewService.joinChild(getIterationRuntimeContext().getIndexOfThisSubtask(), zipCode);
+        zipCode = pageViewService.joinChild(getRuntimeContext().getIndexOfThisSubtask(), zipCode);
     }
 
 }

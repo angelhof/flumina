@@ -69,9 +69,9 @@ public class PageViewExperiment implements Experiment {
                 .connect(pageViewStream.keyBy(pv -> invertedUserIds.get(pv.getUserId())))
                 .process(new KeyedCoProcessFunction<Integer, GetOrUpdate, PageView, Update>() {
 
-                    private ValueState<Integer> zipCodeState;
-                    private ValueState<Queue<Update>> updateBufferState;
-                    private ValueState<PriorityQueue<PageView>> pageViewBufferState;
+                    private transient ValueState<Integer> zipCodeState;
+                    private transient ValueState<Queue<Update>> updateBufferState;
+                    private transient ValueState<PriorityQueue<PageView>> pageViewBufferState;
 
                     @Override
                     public void open(final Configuration parameters) {

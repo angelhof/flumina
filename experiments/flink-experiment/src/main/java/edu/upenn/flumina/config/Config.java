@@ -63,6 +63,7 @@ public class Config {
             case "value-barrier-seq":
                 return new ValueBarrierConfig(parameterTool);
             case "pageview":
+            case "pageview-seq":
                 return new PageViewConfig(parameterTool);
             case "fraud-detection":
                 return new FraudDetectionConfig(parameterTool);

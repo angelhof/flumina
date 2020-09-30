@@ -36,8 +36,10 @@ public class PageViewManualExperiment implements Experiment {
     public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
         env.setParallelism(1);
 
+        final int pageViewParallelism = conf.getPageViewParallelism();
+
         // Set up the remote ForkJoin service
-        final var pageViewService = new PageViewService(conf.getTotalUsers(), conf.getPageViewParallelism());
+        final var pageViewService = new PageViewService(conf.getTotalUsers(), pageViewParallelism);
         @SuppressWarnings("unchecked") final var pageViewServiceStub =
                 (ForkJoinService<Tuple2<Long, Long>, Tuple2<Long, Long>>) UnicastRemoteObject.exportObject(pageViewService, 0);
         final var pageViewServiceName = UUID.randomUUID().toString();
@@ -51,7 +53,7 @@ public class PageViewManualExperiment implements Experiment {
         final var pageViewSource =
                 new PageViewOrHeartbeatSource(conf.getTotalPageViews(), conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var pageViewStream = env.addSource(pageViewSource)
-                .setParallelism(conf.getPageViewParallelism());
+                .setParallelism(pageViewParallelism);
 
         final var broadcastStateDescriptor = new MapStateDescriptor<>("Dummy", Void.class, Void.class);
         final var broadcastGetOrUpdateStream =
@@ -63,11 +65,11 @@ public class PageViewManualExperiment implements Experiment {
         // with index userId * pageViewParallelism + subtaskIndex. The inverter inverts this index to a
         // key that, once hashed, will map back to the index.
         final var keyInverter =
-                FlinkHashInverter.getMapping(conf.getTotalUsers() * conf.getPageViewParallelism());
-        pageViewStream.keyBy(poh -> keyInverter.get(poh.getUserId() * conf.getPageViewParallelism() + poh.getSourceIndex()))
+                FlinkHashInverter.getMapping(conf.getTotalUsers() * pageViewParallelism);
+        pageViewStream.keyBy(poh -> keyInverter.get(poh.getUserId() * pageViewParallelism + poh.getSourceIndex()))
                 .connect(broadcastGetOrUpdateStream)
-                .process(new PageViewProcessManual(conf.getRmiHost(), pageViewServiceName, conf.getPageViewParallelism()))
-                .setParallelism(conf.getTotalUsers() * conf.getPageViewParallelism());
+                .process(new PageViewProcessManual(conf.getRmiHost(), pageViewServiceName, pageViewParallelism))
+                .setParallelism(conf.getTotalUsers() * pageViewParallelism);
 
         // We again use an inverter to invert user IDs
         final var invertedUserIds = FlinkHashInverter.getMapping(conf.getTotalUsers());

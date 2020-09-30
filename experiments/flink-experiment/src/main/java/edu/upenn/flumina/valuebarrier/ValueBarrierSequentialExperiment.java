@@ -65,9 +65,9 @@ public class ValueBarrierSequentialExperiment implements Experiment {
                 .connect(barrierStream.keyBy(x -> 0))
                 .process(new KeyedCoProcessFunction<Integer, Value, Barrier, Tuple3<Long, Long, Instant>>() {
 
-                    private ValueState<Long> sumState;
-                    private ValueState<PriorityQueue<Value>> unprocessedValuesState;
-                    private ValueState<Queue<Barrier>> unprocessedBarriersState;
+                    private transient ValueState<Long> sumState;
+                    private transient ValueState<PriorityQueue<Value>> unprocessedValuesState;
+                    private transient ValueState<Queue<Barrier>> unprocessedBarriersState;
 
                     @Override
                     public void open(final Configuration parameters) {

@@ -64,9 +64,9 @@ public class FraudDetectionSeq implements Experiment {
                 .connect(transactionStream.keyBy(x -> 0))
                 .process(new KeyedCoProcessFunction<Integer, Rule, Transaction, Tuple3<String, Long, Instant>>() {
 
-                    private ValueState<Tuple2<Long, Long>> previousAndCurrentSumState;
-                    private ValueState<PriorityQueue<Transaction>> transactionsState;
-                    private ValueState<Queue<Rule>> rulesState;
+                    private transient ValueState<Tuple2<Long, Long>> previousAndCurrentSumState;
+                    private transient ValueState<PriorityQueue<Transaction>> transactionsState;
+                    private transient ValueState<Queue<Rule>> rulesState;
 
                     @Override
                     public void open(final Configuration parameters) {
