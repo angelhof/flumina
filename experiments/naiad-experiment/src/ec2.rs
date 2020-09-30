@@ -24,6 +24,12 @@ fn get_ec2_ipv4() -> String {
             "Couldn't get local ipv4 address with curl command; \
              are you running on an EC2 instance?",
         );
+    if output.stdout.is_empty() {
+        panic!(
+            "Couldn't get local ipv4 address with curl command; \
+             are you running on an EC2 instance?",
+        )
+    }
     String::from_utf8_lossy(&output.stdout).to_string()
 }
 
@@ -35,10 +41,10 @@ pub fn get_ec2_host_port_str() -> String {
 
 pub fn get_ec2_node_number() -> u64 {
     match_line_in_file(&get_ec2_host_port_str(), EC2_HOST_FILE).unwrap_or_else(
-        |_| {
+        |err| {
             panic!(
-                "failed to calculate ec2 node number from host file {}",
-                EC2_HOST_FILE
+                "failed to calculate ec2 node number from host file {}: {}",
+                EC2_HOST_FILE, err
             )
         },
     ) as u64
