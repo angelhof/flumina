@@ -20,6 +20,7 @@ for suite in ${SUITES}; do
   python ./experiment/ \
     -s ${suite} \
     --flink-workers flink_workers \
+    --rmi-host ${HOSTNAME} \
     >./${suite}.log 2>&1
 
   # Create the logs directory
