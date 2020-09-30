@@ -33,8 +33,9 @@ pub fn get_ec2_host_port_str() -> String {
 
 pub fn get_ec2_node_number() -> u64 {
     match_line_in_file(&get_ec2_host_port_str(), EC2_HOST_FILE)
-        .expect(&format!(
+        .unwrap_or_else(|_| panic!(
             "failed to calculate ec2 node number from host file {}",
             EC2_HOST_FILE
         ))
+        as u64
 }

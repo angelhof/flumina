@@ -73,13 +73,11 @@ where
     Otherwise, return an error.
     Warning: line numbering starts from 0!
 */
-pub fn match_line_in_file(text: &str, filepath: &str) -> Result<u64> {
+pub fn match_line_in_file(text: &str, filepath: &str) -> Result<usize> {
     let file = File::open(filepath)?;
     let reader = BufReader::new(file);
-    let mut line_number = 0;
-    for line in reader.lines() {
+    for (line_number, line) in reader.lines().enumerate() {
         if line.unwrap() == text { return Result::Ok(line_number); }
-        line_number += 1;
     }
     Result::Err(io::Error::new(
         io::ErrorKind::Other,
