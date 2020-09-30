@@ -205,15 +205,15 @@ class ValueBarrierEC2:
             shutil.rmtree(exp_path)
         os.makedirs(exp_path)
 
-        # with open(self.flink_workers, 'r') as f:
-        #     for host in f:
-        #         # Here we assume that the Flink cluster was started from the home directory,
-        #         # and self.out_file is given relative to home.
-        #         subprocess.run(['scp',
-        #                         host.rstrip() + ':' + self.out_file,
-        #                         exp_path])
-        #         subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
-        shutil.move(self.out_file, exp_path)
+        with open(self.flink_workers, 'r') as f:
+            for host in f:
+                # Here we assume that the Flink cluster was started from the home directory,
+                # and self.out_file is given relative to home.
+                subprocess.run(['scp',
+                                host.rstrip() + ':' + self.out_file,
+                                exp_path])
+                subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+        # shutil.move(self.out_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')
 
@@ -262,15 +262,15 @@ class PageViewEC2:
             shutil.rmtree(exp_path)
         os.makedirs(exp_path)
 
-        # with open(self.flink_workers, 'r') as f:
-        #     for host in f:
-        #         # Here we assume that the Flink cluster was started from the home directory,
-        #         # and self.out_file is given relative to home.
-        #         subprocess.run(['scp',
-        #                         host.rstrip() + ':' + self.out_file,
-        #                         exp_path])
-        #         subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
-        shutil.move(self.out_file, exp_path)
+        with open(self.flink_workers, 'r') as f:
+            for host in f:
+                # Here we assume that the Flink cluster was started from the home directory,
+                # and self.out_file is given relative to home.
+                subprocess.run(['scp',
+                                host.rstrip() + ':' + self.out_file,
+                                exp_path])
+                subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+        # shutil.move(self.out_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')
 
@@ -321,18 +321,18 @@ class FraudDetectionEC2:
             shutil.rmtree(exp_path)
         os.makedirs(exp_path)
 
-        # with open(self.flink_workers, 'r') as f:
-        #     for host in f:
-        #         # Here we assume that the Flink cluster was started from the home directory,
-        #         # and self.out_file is given relative to home.
-        #         subprocess.run(['scp',
-        #                         host.rstrip() + ':' + self.out_file,
-        #                         exp_path])
-        #         subprocess.run(['scp', '-r',
-        #                         host.rstrip() + ':' + self.trans_file,
-        #                         exp_path])
-        #         subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
-        shutil.move(self.out_file, exp_path)
-        shutil.move(self.trans_file, exp_path)
+        with open(self.flink_workers, 'r') as f:
+            for host in f:
+                # Here we assume that the Flink cluster was started from the home directory,
+                # and self.out_file is given relative to home.
+                subprocess.run(['scp',
+                                host.rstrip() + ':' + self.out_file,
+                                exp_path])
+                subprocess.run(['scp', '-r',
+                                host.rstrip() + ':' + self.trans_file,
+                                exp_path])
+                subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+        # shutil.move(self.out_file, exp_path)
+        # shutil.move(self.trans_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')
