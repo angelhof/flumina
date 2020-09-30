@@ -27,11 +27,7 @@ pub struct TimelyParallelism {
 }
 impl TimelyParallelism {
     pub fn new_sequential() -> TimelyParallelism {
-        let result = TimelyParallelism {
-            workers: 1,
-            nodes: 1,
-            this_node: 0,
-        };
+        let result = TimelyParallelism { workers: 1, nodes: 1, this_node: 0 };
         result.validate();
         result
     }
@@ -49,9 +45,9 @@ impl TimelyParallelism {
         }
     }
     pub fn validate(&self) {
-        assert!(self.workers >= 1 &&
-                self.nodes >= 1 &&
-                self.this_node < self.nodes);
+        assert!(
+            self.workers >= 1 && self.nodes >= 1 && self.this_node < self.nodes
+        );
     }
     pub fn to_csv(&self) -> String {
         self.validate();

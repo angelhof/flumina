@@ -8,7 +8,7 @@
 
 use super::common::{Duration, Scope, Stream};
 use super::experiment::{
-    ExperimentParams, LatencyThroughputExperiment, TimelyParallelism
+    ExperimentParams, LatencyThroughputExperiment, TimelyParallelism,
 };
 use super::operators::{join_by_timestamp, Sum};
 use super::vb_data::{VBData, VBItem};

@@ -8,7 +8,7 @@ use rand::Rng;
 use std::boxed::Box;
 use std::fmt::Debug;
 use std::fs::{File, OpenOptions};
-use std::io::{self, BufReader, prelude::*, Result};
+use std::io::{self, prelude::*, BufReader, Result};
 use std::str::FromStr;
 use std::string::String;
 use std::thread;
@@ -77,11 +77,13 @@ pub fn match_line_in_file(text: &str, filepath: &str) -> Result<usize> {
     let file = File::open(filepath)?;
     let reader = BufReader::new(file);
     for (line_number, line) in reader.lines().enumerate() {
-        if line.unwrap() == text { return Result::Ok(line_number); }
+        if line.unwrap() == text {
+            return Result::Ok(line_number);
+        }
     }
     Result::Err(io::Error::new(
         io::ErrorKind::Other,
-        format!("text {} not found in file {}", text, filepath)
+        format!("text {} not found in file {}", text, filepath),
     ))
 }
 

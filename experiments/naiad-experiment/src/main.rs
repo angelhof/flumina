@@ -6,7 +6,7 @@ use naiad_experiment::ec2::get_ec2_node_number;
 use naiad_experiment::experiment::TimelyParallelism;
 use naiad_experiment::pageview::PVExperimentParams;
 use naiad_experiment::util::{
-    current_datetime_str, sleep_for_secs, string_to_static_str
+    current_datetime_str, sleep_for_secs, string_to_static_str,
 };
 use naiad_experiment::vb::VBExperimentParams;
 
