@@ -23,8 +23,10 @@ def main():
     parser.add_argument('--total-users', type=int, default=2)
     parser.add_argument('--pageview-parallelism', type=int)
     parser.add_argument('--pageview-rate', type=float)
-    parser.add_argument('-m', '--manual', help='Run Flink with a manually implemented Flumina-like synchronization',
+    parser.add_argument('--sequential', action='store_true')
+    parser.add_argument('--manual', help='Run Flink with a manually implemented Flumina-like synchronization',
                         action='store_true')
+    parser.add_argument('--attempts', type=int, default=1)
     parser.add_argument('--rmi-host', help='Host that is running the Java RMI registry')
     args = parser.parse_args()
 
@@ -55,12 +57,19 @@ def main():
 
     if args.experiment is not None:
         if args.experiment.startswith("value-barrier"):
-            exp = ValueBarrierEC2(args.value_nodes, args.total_values, args.value_rate, args.vb_ratio, args.hb_ratio)
+            exps = [ValueBarrierEC2(args.value_nodes, args.total_values, args.value_rate, args.vb_ratio, args.hb_ratio,
+                                    manual=args.manual, sequential=args.sequential, attempt=a)
+                    for a in range(1, args.attempts + 1)]
         elif args.experiment.startswith("pageview"):
-            exp = PageViewEC2(args.total_pageviews, args.total_users, args.pageview_parallelism, args.pageview_rate)
+            exps = [PageViewEC2(args.total_pageviews, args.total_users, args.pageview_parallelism, args.pageview_rate,
+                                manual=args.manual, sequential=args.sequential, attempt=a)
+                    for a in range(1, args.attempts + 1)]
         elif args.experiment.startswith("fraud-detection"):
-            exp = FraudDetectionEC2(args.value_nodes, args.total_values, args.value_rate, args.vb_ratio, args.hb_ratio)
-        ExperimentSuite(args.experiment, [exp]).run(args)
+            exps = [
+                FraudDetectionEC2(args.value_nodes, args.total_values, args.value_rate, args.vb_ratio, args.hb_ratio,
+                                  manual=args.manual, attempt=a)
+                for a in range(1, args.attempts + 1)]
+        ExperimentSuite(args.experiment, exps).run(args)
         exit(0)
 
     if args.suite not in suites:
