@@ -8,7 +8,7 @@ type VBTimestamp = u128;
 
 #[derive(Debug, PartialEq, Copy, Clone, Abomonation)]
 pub enum VBData {
-    Value, // alternative: Value(u64)
+    Value(usize),
     Barrier,
     BarrierHeartbeat,
 }

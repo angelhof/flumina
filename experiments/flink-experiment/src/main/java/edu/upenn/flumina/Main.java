@@ -1,10 +1,14 @@
 package edu.upenn.flumina;
 
 import edu.upenn.flumina.config.*;
+import edu.upenn.flumina.frauds.FraudDetectionManual;
 import edu.upenn.flumina.frauds.FraudDetectionSeq;
 import edu.upenn.flumina.pageview.PageViewExperiment;
+import edu.upenn.flumina.pageview.PageViewManualExperiment;
+import edu.upenn.flumina.pageview.PageViewSequentialExperiment;
 import edu.upenn.flumina.valuebarrier.ValueBarrierExperiment;
 import edu.upenn.flumina.valuebarrier.ValueBarrierManualExperiment;
+import edu.upenn.flumina.valuebarrier.ValueBarrierSequentialExperiment;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.slf4j.Logger;
@@ -54,17 +58,23 @@ public class Main {
         try {
             final Config conf = Config.fromArgs(args);
             if (conf instanceof FraudDetectionConfig) {
-                final FraudDetectionConfig fraudDetectionConf = (FraudDetectionConfig) conf;
-                final FraudDetectionSeq fraudDetectionSeq = new FraudDetectionSeq(fraudDetectionConf);
-                run(fraudDetectionSeq, conf);
+                final var fraudDetectionConf = (FraudDetectionConfig) conf;
+                final var fraudDetection = conf.isManual() ?
+                        new FraudDetectionManual(fraudDetectionConf) : new FraudDetectionSeq(fraudDetectionConf);
+                run(fraudDetection, conf);
             } else if (conf instanceof ValueBarrierConfig) {
                 final var valueBarrierConf = (ValueBarrierConfig) conf;
-                final var valueBarrierExperiment = conf.isManual() ?
-                        new ValueBarrierManualExperiment(valueBarrierConf) : new ValueBarrierExperiment(valueBarrierConf);
+                final var valueBarrierExperiment = conf.getExperiment().equals("value-barrier-seq") ?
+                        new ValueBarrierSequentialExperiment(valueBarrierConf) :
+                        conf.isManual() ?
+                                new ValueBarrierManualExperiment(valueBarrierConf) : new ValueBarrierExperiment(valueBarrierConf);
                 run(valueBarrierExperiment, conf);
             } else if (conf instanceof PageViewConfig) {
-                final PageViewConfig pageViewConf = (PageViewConfig) conf;
-                final PageViewExperiment pageViewExperiment = new PageViewExperiment(pageViewConf);
+                final var pageViewConf = (PageViewConfig) conf;
+                final var pageViewExperiment = conf.getExperiment().equals("pageview-seq") ?
+                        new PageViewSequentialExperiment(pageViewConf) :
+                        conf.isManual() ?
+                                new PageViewManualExperiment(pageViewConf) : new PageViewExperiment(pageViewConf);
                 run(pageViewExperiment, conf);
             }
         } catch (final ConfigException e) {

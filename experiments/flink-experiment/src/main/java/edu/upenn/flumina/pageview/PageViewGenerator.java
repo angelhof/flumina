@@ -1,17 +1,18 @@
 package edu.upenn.flumina.pageview;
 
-import edu.upenn.flumina.data.TimestampedUnion;
 import edu.upenn.flumina.pageview.data.PageView;
 import edu.upenn.flumina.pageview.data.PageViewHeartbeat;
-import edu.upenn.flumina.source.GeneratorWithHeartbeats;
+import edu.upenn.flumina.pageview.data.PageViewOrHeartbeat;
+import edu.upenn.flumina.source.Generator;
 
 import java.time.Instant;
 import java.util.Iterator;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
-public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, PageViewHeartbeat> {
+public class PageViewGenerator implements Generator<PageViewOrHeartbeat> {
 
     private static final long serialVersionUID = 2311453754387707501L;
 
@@ -31,18 +32,23 @@ public class PageViewGenerator implements GeneratorWithHeartbeats<PageView, Page
     }
 
     @Override
-    public Iterator<TimestampedUnion<PageView, PageViewHeartbeat>> getIterator() {
+    public Iterator<PageViewOrHeartbeat> getIterator() {
         final var pageViewStream = LongStream.range(0, totalEvents)
                 .mapToObj(this::generatePageViewStream)
                 .flatMap(Function.identity());
-        final var withFinalHeartbeat =
-                Stream.concat(pageViewStream, Stream.of(new PageViewHeartbeat(totalEvents, Instant.MAX)));
-        return withFinalHeartbeat.iterator();
+        final var withFinalHeartbeats =
+                Stream.concat(pageViewStream, generateHeartbeatsStream());
+        return withFinalHeartbeats.iterator();
     }
 
-    private Stream<TimestampedUnion<PageView, PageViewHeartbeat>> generatePageViewStream(final long logicalTimestamp) {
-        return UserIdHelper.getUserIds(totalUsers).stream()
-                .map(userId -> new PageView(userId, logicalTimestamp));
+    private Stream<PageViewOrHeartbeat> generatePageViewStream(final long logicalTimestamp) {
+        return IntStream.range(0, totalUsers)
+                .mapToObj(userId -> new PageView(userId, logicalTimestamp));
+    }
+
+    private Stream<PageViewOrHeartbeat> generateHeartbeatsStream() {
+        return IntStream.range(0, totalUsers)
+                .mapToObj(userId -> new PageViewHeartbeat(userId, totalEvents, Instant.MAX));
     }
 
 }

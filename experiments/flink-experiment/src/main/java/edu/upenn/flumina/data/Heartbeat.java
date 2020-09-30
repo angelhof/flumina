@@ -10,6 +10,7 @@ public class Heartbeat implements Timestamped {
     public long logicalTimestamp;
     public Instant physicalTimestamp;
     public boolean hasPhysicalTimestamp;
+    public int sourceIndex;
 
     // Default constructor so that the object is treated like POJO
     public Heartbeat() {
@@ -46,6 +47,16 @@ public class Heartbeat implements Timestamped {
     @Override
     public boolean hasPhysicalTimestamp() {
         return hasPhysicalTimestamp;
+    }
+
+    @Override
+    public int getSourceIndex() {
+        return sourceIndex;
+    }
+
+    @Override
+    public void setSourceIndex(final int sourceIndex) {
+        this.sourceIndex = sourceIndex;
     }
 
     @Override

@@ -1,12 +1,11 @@
 package edu.upenn.flumina.frauds.data;
 
 import edu.upenn.flumina.data.Heartbeat;
-import edu.upenn.flumina.data.TimestampedUnion;
 
 import java.time.Instant;
 import java.util.function.Function;
 
-public class TransactionHeartbeat extends Heartbeat implements TimestampedUnion<Transaction, TransactionHeartbeat> {
+public class TransactionHeartbeat extends Heartbeat implements TransactionOrHeartbeat {
 
     private static final long serialVersionUID = -9178399979187778858L;
 
@@ -26,6 +25,14 @@ public class TransactionHeartbeat extends Heartbeat implements TimestampedUnion<
     @Override
     public <R> R match(final Function<Transaction, R> fstCase, final Function<TransactionHeartbeat, R> sndCase) {
         return sndCase.apply(this);
+    }
+
+    @Override
+    public String toString() {
+        return "TransactionHeartbeat{" +
+                "logicalTimestamp=" + logicalTimestamp +
+                ", sourceIndex=" + sourceIndex +
+                '}';
     }
 
 }

@@ -47,8 +47,8 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
         //
         // We add one heartbeat with timestamp totalValues at the end.
         final int totalBarrierOrHeartbeats = totalValues / vbRatio * hbRatio;
-        final Stream<BarrierOrHeartbeat> barriers = LongStream.rangeClosed(1, totalBarrierOrHeartbeats)
-                .mapToObj(i -> {
+        final var barriers = LongStream.rangeClosed(1, totalBarrierOrHeartbeats)
+                .<BarrierOrHeartbeat>mapToObj(i -> {
                     if (i % hbRatio == 0) {
                         // Multiply vbRatio / hbRatio first to avoid potential overflow.
                         // Assumes that hbRatio divides vbRatio.
@@ -57,7 +57,7 @@ public class BarrierGenerator implements Generator<BarrierOrHeartbeat> {
                         return new BarrierHeartbeat(i * (vbRatio / hbRatio) - 1);
                     }
                 });
-        final Stream<BarrierOrHeartbeat> withFinalHeartbeat =
+        final var withFinalHeartbeat =
                 Stream.concat(barriers, Stream.of(new BarrierHeartbeat(totalValues, Instant.MAX)));
         return withFinalHeartbeat.iterator();
     }

@@ -70,6 +70,7 @@ public class GeneratorBasedSource<T extends Timestamped> extends RichParallelSou
                 if (!obj.hasPhysicalTimestamp()) {
                     obj.setPhysicalTimestamp(Instant.now());
                 }
+                obj.setSourceIndex(getRuntimeContext().getIndexOfThisSubtask());
                 ctx.collect(obj);
                 if (iterator.hasNext()) {
                     obj = iterator.next();

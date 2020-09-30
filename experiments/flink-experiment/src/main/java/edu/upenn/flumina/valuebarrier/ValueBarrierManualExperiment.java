@@ -37,16 +37,16 @@ public class ValueBarrierManualExperiment implements Experiment {
         // Set up the remote ForkJoin service
         final var valueBarrierService = new ValueBarrierService(conf.getValueNodes());
         @SuppressWarnings("unchecked") final var valueBarrierServiceStub =
-                (ForkJoinService<Long>) UnicastRemoteObject.exportObject(valueBarrierService, 0);
+                (ForkJoinService<Long, Long>) UnicastRemoteObject.exportObject(valueBarrierService, 0);
         final var valueBarrierServiceName = UUID.randomUUID().toString();
         final var registry = LocateRegistry.getRegistry(conf.getRmiHost());
         registry.rebind(valueBarrierServiceName, valueBarrierServiceStub);
 
-        final var valueSource = new ValueSource(conf.getTotalValues(), conf.getValueRate(), startTime);
+        final var valueSource = new ValueOrHeartbeatSource(conf.getTotalValues(), conf.getValueRate(), startTime);
         final var valueStream = env.addSource(valueSource)
                 .setParallelism(conf.getValueNodes())
                 .slotSharingGroup("values");
-        final var barrierSource = new BarrierSource(
+        final var barrierSource = new BarrierOrHeartbeatSource(
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
         final var barrierStream = env.addSource(barrierSource)

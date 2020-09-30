@@ -1,12 +1,11 @@
 package edu.upenn.flumina.pageview.data;
 
 import edu.upenn.flumina.data.Heartbeat;
-import edu.upenn.flumina.data.TimestampedUnion;
 
 import java.time.Instant;
 import java.util.function.Function;
 
-public class GetOrUpdateHeartbeat extends Heartbeat implements TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat> {
+public class GetOrUpdateHeartbeat extends Heartbeat implements GetOrUpdateOrHeartbeat {
 
     private static final long serialVersionUID = -1206413969654177135L;
 

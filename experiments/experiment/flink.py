@@ -159,15 +159,18 @@ class ValueBarrierExperiment:
 
 
 class ValueBarrierEC2:
-    def __init__(self, total_value_nodes, total_values, value_rate, vb_ratio, hb_ratio,
-                 out_file='out.txt', stats_file='stats.txt'):
+    def __init__(self, total_value_nodes, total_values, value_rate, vb_ratio, hb_ratio, attempt=1,
+                 out_file='out.txt', stats_file='stats.txt', manual=False, sequential=False):
         self.total_value_nodes = total_value_nodes
         self.total_values = total_values
         self.value_rate = value_rate
         self.vb_ratio = vb_ratio
         self.hb_ratio = hb_ratio
+        self.attempt = attempt
         self.out_file = out_file
         self.stats_file = stats_file
+        self.manual = manual
+        self.sequential = sequential
 
     def __str__(self):
         return 'ValueBarrierEC2(' \
@@ -175,24 +178,28 @@ class ValueBarrierEC2:
                f'values={self.total_values}, ' \
                f'value_rate={self.value_rate:.1f}, ' \
                f'vb_ratio={self.vb_ratio}, ' \
-               f'hb_ratio={self.hb_ratio})'
+               f'hb_ratio={self.hb_ratio}' \
+               f'attempt={self.attempt}' + \
+               (', sequential' if self.sequential else '') + \
+               (', manual' if self.manual else '') + \
+               ')'
 
     def run(self, args):
         if not args.flink_workers:
             print('A file containing a list of Flink worker hostnames hasn\'t been provided')
             exit(1)
         self.flink_workers = args.flink_workers
-        run_job(['--experiment', 'value-barrier',
+        run_job(['--experiment', 'value-barrier' + ('-seq' if self.sequential else ''),
                  '--valueNodes', f'{self.total_value_nodes}',
                  '--totalValues', f'{self.total_values}',
                  '--valueRate', f'{self.value_rate:.1f}',
                  '--vbRatio', f'{self.vb_ratio}',
                  '--hbRatio', f'{self.hb_ratio}'],
-                args.manual,
+                self.manual,
                 args.rmi_host)
 
     def archive_results(self, to_path):
-        exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}'
+        exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}_a{self.attempt}'
         exp_path = path.join(to_path, exp_dir_name)
         if path.isdir(exp_path):
             shutil.rmtree(exp_path)
@@ -206,43 +213,50 @@ class ValueBarrierEC2:
                                 host.rstrip() + ':' + self.out_file,
                                 exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
-                # shutil.move(self.out_file, exp_path)
+        # shutil.move(self.out_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')
 
 
 class PageViewEC2:
-    def __init__(self, total_pageviews, total_users, pageview_parallelism, pageview_rate,
-                 out_file='out.txt', stats_file='stats.txt'):
+    def __init__(self, total_pageviews, total_users, pageview_parallelism, pageview_rate, attempt=1,
+                 out_file='out.txt', stats_file='stats.txt', manual=False, sequential=False):
         self.total_pageviews = total_pageviews
         self.total_users = total_users
         self.pageview_parallelism = pageview_parallelism
         self.pageview_rate = pageview_rate
+        self.attempt = attempt
         self.out_file = out_file
         self.stats_file = stats_file
+        self.manual = manual
+        self.sequential = sequential
 
     def __str__(self):
         return 'PageViewEC2(' \
                f'total_pageviews={self.total_pageviews}, ' \
                f'total_users={self.total_users}, ' \
                f'pageview_parallelism={self.pageview_parallelism}, ' \
-               f'pageview_rate={self.pageview_rate:.1f})'
+               f'pageview_rate={self.pageview_rate:.1f}' \
+               f'attempt={self.attempt}' + \
+               (', sequential' if self.sequential else '') + \
+               (', manual' if self.manual else '') + \
+               ')'
 
     def run(self, args):
         if not args.flink_workers:
             print('A file containing a list of Flink worker hostnames hasn\'t been provided')
             exit(1)
         self.flink_workers = args.flink_workers
-        run_job(['--experiment', 'pageview',
+        run_job(['--experiment', 'pageview' + ('-seq' if self.sequential else ''),
                  '--totalPageViews', f'{self.total_pageviews}',
                  '--totalUsers', f'{self.total_users}',
                  '--pageViewParallelism', f'{self.pageview_parallelism}',
                  '--pageViewRate', f'{self.pageview_rate:.1f}'],
-                args.manual,
+                self.manual,
                 args.rmi_host)
 
     def archive_results(self, to_path):
-        exp_dir_name = f'u{self.total_users}_p{self.pageview_parallelism}_r{self.pageview_rate:.0f}'
+        exp_dir_name = f'u{self.total_users}_p{self.pageview_parallelism}_r{self.pageview_rate:.0f}_a{self.attempt}'
         exp_path = path.join(to_path, exp_dir_name)
         if path.isdir(exp_path):
             shutil.rmtree(exp_path)
@@ -256,21 +270,24 @@ class PageViewEC2:
                                 host.rstrip() + ':' + self.out_file,
                                 exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
-                # shutil.move(self.out_file, exp_path)
+        # shutil.move(self.out_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')
 
 
 class FraudDetectionEC2:
-    def __init__(self, total_value_nodes, total_values, value_rate, vb_ratio, hb_ratio,
-                 out_file='out.txt', stats_file='stats.txt'):
+    def __init__(self, total_value_nodes, total_values, value_rate, vb_ratio, hb_ratio, attempt=1,
+                 out_file='out.txt', stats_file='stats.txt', trans_file='trans.txt', manual=False):
         self.total_value_nodes = total_value_nodes
         self.total_values = total_values
         self.value_rate = value_rate
         self.vb_ratio = vb_ratio
         self.hb_ratio = hb_ratio
+        self.attempt = attempt
         self.out_file = out_file
         self.stats_file = stats_file
+        self.trans_file = trans_file
+        self.manual = manual
 
     def __str__(self):
         return 'FraudDetectionEC2(' \
@@ -278,7 +295,10 @@ class FraudDetectionEC2:
                f'values={self.total_values}, ' \
                f'value_rate={self.value_rate:.1f}, ' \
                f'vb_ratio={self.vb_ratio}, ' \
-               f'hb_ratio={self.hb_ratio})'
+               f'hb_ratio={self.hb_ratio}' \
+               f'attempt={self.attempt}' + \
+               (', manual' if self.manual else '') + \
+               ')'
 
     def run(self, args):
         if not args.flink_workers:
@@ -291,11 +311,11 @@ class FraudDetectionEC2:
                  '--valueRate', f'{self.value_rate:.1f}',
                  '--vbRatio', f'{self.vb_ratio}',
                  '--hbRatio', f'{self.hb_ratio}'],
-                args.manual,
+                self.manual,
                 args.rmi_host)
 
     def archive_results(self, to_path):
-        exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}'
+        exp_dir_name = f'n{self.total_value_nodes}_r{self.value_rate:.0f}_q{self.vb_ratio}_h{self.hb_ratio}_a{self.attempt}'
         exp_path = path.join(to_path, exp_dir_name)
         if path.isdir(exp_path):
             shutil.rmtree(exp_path)
@@ -308,7 +328,11 @@ class FraudDetectionEC2:
                 subprocess.run(['scp',
                                 host.rstrip() + ':' + self.out_file,
                                 exp_path])
+                subprocess.run(['scp', '-r',
+                                host.rstrip() + ':' + self.trans_file,
+                                exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
-                # shutil.move(self.out_file, exp_path)
+        # shutil.move(self.out_file, exp_path)
+        # shutil.move(self.trans_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')

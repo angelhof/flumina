@@ -10,12 +10,13 @@ use abomonation_derive::Abomonation;
 
 use super::common::{Duration, Scope, Stream};
 use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
+use super::operators::join_by_timestamp;
 use super::pageview_data::PVItem;
 use super::pageview_generators::{
     page_partition_function, partitioned_update_source, partitioned_view_source,
 };
 
-use timely::dataflow::operators::{Broadcast, Filter, Inspect, Map, Reclock};
+use timely::dataflow::operators::{Broadcast, Filter, Map, Reclock};
 
 use std::string::String;
 
@@ -80,17 +81,21 @@ where
         .filter(move |x| {
             x.name == page_partition_function(NUM_PAGES, worker_index)
         })
-        .inspect(move |x| {
-            println!("update {:?} at worker {}", x, worker_index)
-        });
+        // .inspect(move |x| {
+        //     println!("update {:?} at worker {}", x, worker_index)
+        // })
+        ;
 
     // re-timestamp views using updates
     let updates_clock = updates.map(|_| ());
     let clocked_views = views.reclock(&updates_clock);
 
-    // TODO: 'join' each value with the most recent update
-    clocked_views.inspect(|_x| println!("NOT IMPLEMENTED YET"));
-    partitioned_updates.inspect(|_x| println!("NOT IMPLEMENTED YET"))
+    // join each value with the most recent update
+    join_by_timestamp(&partitioned_updates, &clocked_views)
+        // .inspect(move |(x, y)| {
+        //     println!("Result: ({:?}, {:?}) at worker {}", x, y, worker_index)
+        // })
+        .map(|(x, _y)| x)
 }
 
 /* Exposed experiments */
@@ -106,7 +111,7 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
     fn build_dataflow<G: Scope<Timestamp = u128>>(
         &self,
         params: PVExperimentParams,
-        scope: &G,
+        scope: &mut G,
         worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let (views, updates) = pv_datagen(params, scope, worker_index);
@@ -126,7 +131,7 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
     fn build_dataflow<G: Scope<Timestamp = u128>>(
         &self,
         params: PVExperimentParams,
-        scope: &G,
+        scope: &mut G,
         worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let (views, updates) = pv_datagen(params, scope, worker_index);

@@ -25,6 +25,7 @@ cd ${DIR}
 python ./experiment/ \
   -s ${SUITE} \
   --flink-workers flink_workers \
+  --rmi-host ${HOSTNAME} \
   >./exp.log 2>&1 &
 
 echo -e "\nThe experiment is now running. You can detach the process by running"

@@ -9,6 +9,7 @@ import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
 import org.apache.flink.api.common.typeinfo.TypeInformation;
+import org.apache.flink.api.java.tuple.Tuple2;
 import org.apache.flink.api.java.tuple.Tuple3;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.core.fs.FileSystem;
@@ -19,7 +20,10 @@ import org.apache.flink.util.Collector;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Comparator;
+import java.util.PriorityQueue;
+import java.util.Queue;
 
 import static edu.upenn.flumina.time.TimeHelper.toEpochMilli;
 
@@ -50,26 +54,23 @@ public class FraudDetectionSeq implements Experiment {
                 TypeInformation.of(new TypeHint<PriorityQueue<Transaction>>() {
                 }));
         final var rulesDescriptor = new ValueStateDescriptor<>("UnprocessedRules",
-                TypeInformation.of(new TypeHint<Deque<Rule>>() {
+                TypeInformation.of(new TypeHint<Queue<Rule>>() {
                 }));
-        final var sumDescriptor = new ValueStateDescriptor<>("Sum",
-                TypeInformation.of(Long.class));
-        final var previousSumDescriptor = new ValueStateDescriptor<>("PreviousSum",
-                TypeInformation.of(Long.class));
+        final var previousAndCurrentSumDescriptor = new ValueStateDescriptor<>("PreviousAndCurrentSum",
+                TypeInformation.of(new TypeHint<Tuple2<Long, Long>>() {
+                }));
 
         ruleStream.keyBy(x -> 0)
                 .connect(transactionStream.keyBy(x -> 0))
                 .process(new KeyedCoProcessFunction<Integer, Rule, Transaction, Tuple3<String, Long, Instant>>() {
 
-                    private ValueState<Long> sumState;
-                    private ValueState<Long> previousSumState;
-                    private ValueState<PriorityQueue<Transaction>> transactionsState;
-                    private ValueState<Deque<Rule>> rulesState;
+                    private transient ValueState<Tuple2<Long, Long>> previousAndCurrentSumState;
+                    private transient ValueState<PriorityQueue<Transaction>> transactionsState;
+                    private transient ValueState<Queue<Rule>> rulesState;
 
                     @Override
                     public void open(final Configuration parameters) {
-                        sumState = getRuntimeContext().getState(sumDescriptor);
-                        previousSumState = getRuntimeContext().getState(previousSumDescriptor);
+                        previousAndCurrentSumState = getRuntimeContext().getState(previousAndCurrentSumDescriptor);
                         transactionsState = getRuntimeContext().getState(transactionsDescriptor);
                         rulesState = getRuntimeContext().getState(rulesDescriptor);
                     }
@@ -78,8 +79,7 @@ public class FraudDetectionSeq implements Experiment {
                     public void processElement1(final Rule rule,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        initRules();
-                        rulesState.value().addAll(rule.match(List::of, hb -> Collections.emptyList()));
+                        getRules().add(rule);
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 
@@ -87,8 +87,7 @@ public class FraudDetectionSeq implements Experiment {
                     public void processElement2(final Transaction transaction,
                                                 final Context ctx,
                                                 final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        initTransactions();
-                        transactionsState.value().addAll(transaction.match(List::of, hb -> Collections.emptyList()));
+                        getTransactions().add(transaction);
                         ctx.timerService().registerEventTimeTimer(ctx.timestamp());
                     }
 
@@ -96,14 +95,12 @@ public class FraudDetectionSeq implements Experiment {
                     public void onTimer(final long timestamp,
                                         final OnTimerContext ctx,
                                         final Collector<Tuple3<String, Long, Instant>> out) throws Exception {
-                        initRules();
-                        final var rules = rulesState.value();
-                        initTransactions();
-                        final var transactions = transactionsState.value();
+                        final var rules = getRules();
+                        final var transactions = getTransactions();
 
                         while (!rules.isEmpty() &&
-                                toEpochMilli(rules.getFirst().getPhysicalTimestamp()) <= timestamp) {
-                            final var rule = rules.removeFirst();
+                                toEpochMilli(rules.element().getPhysicalTimestamp()) <= timestamp) {
+                            final var rule = rules.remove();
                             while (!transactions.isEmpty() &&
                                     transactions.element().getPhysicalTimestamp()
                                             .isBefore(rule.getPhysicalTimestamp())) {
@@ -117,41 +114,43 @@ public class FraudDetectionSeq implements Experiment {
                         }
                     }
 
-                    private void initRules() throws IOException {
+                    private Queue<Rule> getRules() throws IOException {
                         if (rulesState.value() == null) {
                             rulesState.update(new ArrayDeque<>());
                         }
+                        return rulesState.value();
                     }
 
-                    private void initTransactions() throws IOException {
+                    private PriorityQueue<Transaction> getTransactions() throws IOException {
                         if (transactionsState.value() == null) {
                             transactionsState.update(new PriorityQueue<>(
                                     Comparator.comparing(Transaction::getPhysicalTimestamp)));
                         }
+                        return transactionsState.value();
+                    }
+
+                    private Tuple2<Long, Long> getPreviousAndCurrentSum() throws IOException {
+                        if (previousAndCurrentSumState.value() == null) {
+                            previousAndCurrentSumState.update(Tuple2.of(0L, 0L));
+                        }
+                        return previousAndCurrentSumState.value();
                     }
 
                     private void update(final Rule rule,
                                         final Collector<Tuple3<String, Long, Instant>> out) throws IOException {
-                        if (sumState.value() == null) {
-                            sumState.update(0L);
-                        }
-                        out.collect(Tuple3.of("Rule", sumState.value(), rule.getPhysicalTimestamp()));
-                        previousSumState.update(sumState.value());
-                        sumState.update(0L);
+                        final var previousAndCurrentSum = getPreviousAndCurrentSum();
+                        out.collect(Tuple3.of("Rule", previousAndCurrentSum.f1, rule.getPhysicalTimestamp()));
+                        previousAndCurrentSum.f0 = previousAndCurrentSum.f1;
+                        previousAndCurrentSum.f1 = 0L;
                     }
 
                     private void update(final Transaction transaction,
                                         final Collector<Tuple3<String, Long, Instant>> out) throws IOException {
-                        if (sumState.value() == null) {
-                            sumState.update(0L);
-                        }
-                        if (previousSumState.value() == null) {
-                            previousSumState.update(0L);
-                        }
-                        if (previousSumState.value() % 100L == transaction.val % 100L) {
+                        final var previousAndCurrentSum = getPreviousAndCurrentSum();
+                        if (previousAndCurrentSum.f0 % 100L == transaction.val % 100L) {
                             out.collect(Tuple3.of("Transaction", transaction.val, transaction.getPhysicalTimestamp()));
                         }
-                        sumState.update(sumState.value() + transaction.val);
+                        previousAndCurrentSum.f1 += transaction.val;
                     }
                 })
                 .slotSharingGroup("rules")
