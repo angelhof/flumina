@@ -6,13 +6,15 @@
     are defined in the other vb_* modules.
 */
 
-use abomonation_derive::Abomonation;
-
 use super::common::{Duration, Scope, Stream};
-use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
+use super::experiment::{
+    ExperimentParams, LatencyThroughputExperiment, TimelyParallelism
+};
 use super::operators::{join_by_timestamp, Sum};
 use super::vb_data::{VBData, VBItem};
 use super::vb_generators::{barrier_source, value_source};
+
+use abomonation_derive::Abomonation;
 
 use timely::dataflow::operators::{
     Accumulate, Broadcast, Concat, ConnectLoop, Exchange, Feedback, Filter,
@@ -25,20 +27,20 @@ use std::string::String;
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct VBExperimentParams {
-    pub parallelism: u64,
+    pub parallelism: TimelyParallelism,
     pub val_rate_per_milli: u64,
     pub vals_per_hb_per_worker: u64,
     pub hbs_per_bar: u64,
     pub exp_duration_secs: u64,
 }
 impl ExperimentParams for VBExperimentParams {
-    fn get_parallelism(&self) -> u64 {
+    fn get_parallelism(&self) -> TimelyParallelism {
         self.parallelism
     }
     fn to_csv(&self) -> String {
         format!(
-            "{} wkrs, {} vals/ms, {} val/hb/wkr, {} hb/bar, {} s",
-            self.parallelism,
+            "{}, {} vals/ms, {} val/hb/wkr, {} hb/bar, {} s",
+            self.parallelism.to_csv(),
             self.val_rate_per_milli,
             self.vals_per_hb_per_worker,
             self.hbs_per_bar,
