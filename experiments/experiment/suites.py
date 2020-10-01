@@ -109,17 +109,16 @@ suites = {
     ),
     'pageview': ExperimentSuite(
         'pageview',
-        [PageViewEC2(r * 30_000, 2, p, r, attempt=a)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(120, 201, 10)
-         for a in [1]]
+        [PageViewEC2(320 // p * 30_000, 2, p, 320 // p, attempt=a)
+         for p in [1, 4, 8, 12, 16, 20]
+         for a in [1, 2, 3]]
     ),
     'pageview-manual': ExperimentSuite(
         'pageview-manual',
-        [PageViewEC2(r * 30_000, 2, p, r, attempt=a, manual=True)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(120, 201, 10)
-         for a in [1]]
+        [PageViewEC2(r * 30_000, 2, 12, r, attempt=1, manual=True)
+         for r in range(20, 111, 10)] +
+        [PageViewEC2(r * 30_000, 2, 12, r, attempt=2)
+         for r in range(20, 111, 10)]
     ),
 
     # Fraud detection
