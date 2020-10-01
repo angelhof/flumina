@@ -135,16 +135,15 @@ suites = {
     ),
     'fraud-detection': ExperimentSuite(
         'fraud-detection',
-        [FraudDetectionEC2(p, r * 30_000, r, 10_000, 100, attempt=a)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(360, 441, 10)
-         for a in [1]]
+        [FraudDetectionEC2(p, 380 // p * 30_000, 380 // p, 10_000, 100, attempt=a)
+         for p in [1, 4, 8, 12, 16, 20]
+         for a in [1, 2, 3]]
     ),
     'fraud-detection-manual': ExperimentSuite(
         'fraud-detection-manual',
-        [FraudDetectionEC2(p, r * 30_000, r, 10_000, 100, attempt=a, manual=True)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(360, 441, 10)
-         for a in [1]]
+        [FraudDetectionEC2(12, r * 30_000, r, 10_000, 100, attempt=1, manual=True)
+         for r in range(20, 111, 10)] +
+        [FraudDetectionEC2(12, r * 30_000, r, 10_000, 100, attempt=1)
+         for r in range(20, 111, 10)]
     )
 }
