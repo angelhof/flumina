@@ -78,7 +78,7 @@ public class FraudProcessFunction extends
 
     private void update(final Transaction transaction,
                         final Collector<Tuple3<String, Long, Instant>> out) {
-        if (previousAndCurrentSum.f0 % 100L == transaction.val % 100L) {
+        if (previousAndCurrentSum.f0 % 1000L == transaction.val % 1000L) {
             out.collect(Tuple3.of("Transaction", transaction.val, transaction.getPhysicalTimestamp()));
         }
         previousAndCurrentSum.f1 += transaction.val;
