@@ -84,15 +84,15 @@ suites = {
         'value-barrier',
         [ValueBarrierEC2(p, r * 30_000, r, 10_000, 100, attempt=a)
          for p in chain([1], range(2, 21, 2))
-         for r in range(360, 441, 20)
-         for a in [1, 2]]
+         for r in range(360, 441, 10)
+         for a in [1]]
     ),
     'value-barrier-manual': ExperimentSuite(
         'value-barrier-manual',
         [ValueBarrierEC2(p, r * 30_000, r, 10_000, 100, attempt=a, manual=True)
          for p in chain([1], range(2, 21, 2))
-         for r in range(360, 441, 20)
-         for a in [1, 2]]
+         for r in range(360, 441, 10)
+         for a in [1]]
     ),
 
     # PageView
@@ -111,15 +111,15 @@ suites = {
         'pageview',
         [PageViewEC2(r * 30_000, 2, p, r, attempt=a)
          for p in chain([1], range(2, 21, 2))
-         for r in range(120, 201, 20)
-         for a in [1, 2]]
+         for r in range(120, 201, 10)
+         for a in [1]]
     ),
     'pageview-manual': ExperimentSuite(
         'pageview-manual',
         [PageViewEC2(r * 30_000, 2, p, r, attempt=a, manual=True)
          for p in chain([1], range(2, 21, 2))
-         for r in range(120, 201, 20)
-         for a in [1, 2]]
+         for r in range(120, 201, 10)
+         for a in [1]]
     ),
 
     # Fraud detection
@@ -138,14 +138,14 @@ suites = {
         'fraud-detection',
         [FraudDetectionEC2(p, r * 30_000, r, 10_000, 100, attempt=a)
          for p in chain([1], range(2, 21, 2))
-         for r in range(360, 441, 20)
-         for a in [1, 2]]
+         for r in range(360, 441, 10)
+         for a in [1]]
     ),
     'fraud-detection-manual': ExperimentSuite(
         'fraud-detection-manual',
         [FraudDetectionEC2(p, r * 30_000, r, 10_000, 100, attempt=a, manual=True)
          for p in chain([1], range(2, 21, 2))
-         for r in range(360, 441, 20)
-         for a in [1, 2]]
+         for r in range(360, 441, 10)
+         for a in [1]]
     )
 }
