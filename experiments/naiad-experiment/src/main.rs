@@ -164,7 +164,7 @@ fn main() {
             50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
         ];
         let par_workers = &[1, 2];
-        let par_nodes = &[1, 2, 4, 8, 16];
+        let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
         for &par_w in par_workers {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
@@ -198,7 +198,7 @@ fn main() {
             50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
         ];
         let par_workers = &[1, 2];
-        let par_nodes = &[1, 2, 4, 8, 16];
+        let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
         for &par_w in par_workers {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
@@ -233,7 +233,7 @@ fn main() {
             50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
         ];
         let par_workers = &[1, 2];
-        let par_nodes = &[1, 2, 4, 8, 16];
+        let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
         for &par_w in par_workers {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
