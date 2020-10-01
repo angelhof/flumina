@@ -4,7 +4,6 @@ import edu.upenn.flumina.Experiment;
 import edu.upenn.flumina.config.PageViewConfig;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.core.fs.FileSystem;
-import org.apache.flink.streaming.api.TimeCharacteristic;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,20 +23,18 @@ public class PageViewSequentialExperiment implements Experiment {
     @Override
     public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
         env.setParallelism(1);
-        env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime);
 
-        final var getOrUpdateSource = new GetOrUpdateSource(conf.getTotalPageViews(),
+        final var getOrUpdateSource = new GetOrUpdateOrHeartbeatSource(conf.getTotalPageViews(),
                 conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var getOrUpdateStream = env.addSource(getOrUpdateSource)
                 .slotSharingGroup("getOrUpdate");
-        final var pageViewSource =
-                new PageViewSource(conf.getTotalPageViews(), conf.getTotalUsers(), conf.getPageViewRate(), startTime);
+        final var pageViewSource = new PageViewOrHeartbeatSource(conf.getTotalPageViews(),
+                conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var pageViewStream = env.addSource(pageViewSource)
                 .setParallelism(conf.getPageViewParallelism());
 
-        getOrUpdateStream.keyBy(gou -> 0)
-                .connect(pageViewStream.keyBy(pv -> 0))
-                .process(new PageViewProcessSequential(conf.getTotalUsers()))
+        getOrUpdateStream.connect(pageViewStream)
+                .process(new PageViewProcessSequential(conf.getTotalUsers(), conf.getPageViewParallelism()))
                 .map(new TimestampMapper())
                 .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 

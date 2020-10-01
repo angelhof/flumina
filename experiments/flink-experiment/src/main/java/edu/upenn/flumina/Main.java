@@ -1,8 +1,8 @@
 package edu.upenn.flumina;
 
 import edu.upenn.flumina.config.*;
-import edu.upenn.flumina.frauds.FraudDetectionManual;
-import edu.upenn.flumina.frauds.FraudDetectionSeq;
+import edu.upenn.flumina.frauds.FraudDetectionManualExperiment;
+import edu.upenn.flumina.frauds.FraudDetectionSequentialExperiment;
 import edu.upenn.flumina.pageview.PageViewExperiment;
 import edu.upenn.flumina.pageview.PageViewManualExperiment;
 import edu.upenn.flumina.pageview.PageViewSequentialExperiment;
@@ -60,7 +60,7 @@ public class Main {
             if (conf instanceof FraudDetectionConfig) {
                 final var fraudDetectionConf = (FraudDetectionConfig) conf;
                 final var fraudDetection = conf.isManual() ?
-                        new FraudDetectionManual(fraudDetectionConf) : new FraudDetectionSeq(fraudDetectionConf);
+                        new FraudDetectionManualExperiment(fraudDetectionConf) : new FraudDetectionSequentialExperiment(fraudDetectionConf);
                 run(fraudDetection, conf);
             } else if (conf instanceof ValueBarrierConfig) {
                 final var valueBarrierConf = (ValueBarrierConfig) conf;

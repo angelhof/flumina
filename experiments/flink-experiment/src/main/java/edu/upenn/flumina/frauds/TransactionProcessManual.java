@@ -20,7 +20,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 
-import static edu.upenn.flumina.time.TimeHelper.max;
 import static edu.upenn.flumina.time.TimeHelper.min;
 
 public class TransactionProcessManual extends BroadcastProcessFunction<TransactionOrHeartbeat, RuleOrHeartbeat, Tuple3<String, Long, Instant>> {
@@ -54,8 +53,7 @@ public class TransactionProcessManual extends BroadcastProcessFunction<Transacti
                                final ReadOnlyContext ctx,
                                final Collector<Tuple3<String, Long, Instant>> out) throws RemoteException {
         transactions.addAll(transactionOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-        transactionPhysicalTimestamp =
-                max(transactionPhysicalTimestamp, transactionOrHeartbeat.getPhysicalTimestamp());
+        transactionPhysicalTimestamp = transactionOrHeartbeat.getPhysicalTimestamp();
         makeProgress(out);
     }
 
@@ -64,7 +62,7 @@ public class TransactionProcessManual extends BroadcastProcessFunction<Transacti
                                         final Context ctx,
                                         final Collector<Tuple3<String, Long, Instant>> out) throws RemoteException {
         rules.addAll(ruleOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-        rulePhysicalTimestamp = max(rulePhysicalTimestamp, ruleOrHeartbeat.getPhysicalTimestamp());
+        rulePhysicalTimestamp = ruleOrHeartbeat.getPhysicalTimestamp();
         makeProgress(out);
     }
 

@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 
-import static edu.upenn.flumina.time.TimeHelper.max;
 import static edu.upenn.flumina.time.TimeHelper.min;
 
 public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbeat, BarrierOrHeartbeat, Void> {
@@ -51,7 +50,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
                                final ReadOnlyContext ctx,
                                final Collector<Void> out) throws RemoteException {
         unprocessedValues.addAll(valueOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-        valuePhysicalTimestamp = max(valuePhysicalTimestamp, valueOrHeartbeat.getPhysicalTimestamp());
+        valuePhysicalTimestamp = valueOrHeartbeat.getPhysicalTimestamp();
         makeProgress();
     }
 
@@ -60,7 +59,7 @@ public class ValueProcessManual extends BroadcastProcessFunction<ValueOrHeartbea
                                         final Context ctx,
                                         final Collector<Void> out) throws RemoteException {
         unprocessedBarriers.addAll(barrierOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-        barrierPhysicalTimestamp = max(barrierPhysicalTimestamp, barrierOrHeartbeat.getPhysicalTimestamp());
+        barrierPhysicalTimestamp = barrierOrHeartbeat.getPhysicalTimestamp();
         makeProgress();
     }
 

@@ -50,8 +50,8 @@ public class PageViewManualExperiment implements Experiment {
                 conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var getOrUpdateStream = env.addSource(getOrUpdateSource)
                 .slotSharingGroup("getOrUpdate");
-        final var pageViewSource =
-                new PageViewOrHeartbeatSource(conf.getTotalPageViews(), conf.getTotalUsers(), conf.getPageViewRate(), startTime);
+        final var pageViewSource = new PageViewOrHeartbeatSource(conf.getTotalPageViews(),
+                conf.getTotalUsers(), conf.getPageViewRate(), startTime);
         final var pageViewStream = env.addSource(pageViewSource)
                 .setParallelism(pageViewParallelism);
 

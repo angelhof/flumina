@@ -1,22 +1,18 @@
-package edu.upenn.flumina.valuebarrier;
+package edu.upenn.flumina.frauds;
 
 import edu.upenn.flumina.Experiment;
-import edu.upenn.flumina.config.ValueBarrierConfig;
+import edu.upenn.flumina.config.FraudDetectionConfig;
 import org.apache.flink.api.common.JobExecutionResult;
 import org.apache.flink.core.fs.FileSystem;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.Instant;
 
-public class ValueBarrierSequentialExperiment implements Experiment {
+public class FraudDetectionSequentialExperiment implements Experiment {
 
-    private static final Logger LOG = LoggerFactory.getLogger(ValueBarrierSequentialExperiment.class);
+    private final FraudDetectionConfig conf;
 
-    private final ValueBarrierConfig conf;
-
-    public ValueBarrierSequentialExperiment(final ValueBarrierConfig conf) {
+    public FraudDetectionSequentialExperiment(final FraudDetectionConfig conf) {
         this.conf = conf;
     }
 
@@ -24,23 +20,24 @@ public class ValueBarrierSequentialExperiment implements Experiment {
     public JobExecutionResult run(final StreamExecutionEnvironment env, final Instant startTime) throws Exception {
         env.setParallelism(1);
 
-        final var valueSource = new ValueOrHeartbeatSource(conf.getTotalValues(), conf.getValueRate(), startTime);
-        final var valueStream = env.addSource(valueSource)
+        final var transactionSource = new TransactionOrHeartbeatSource(
+                conf.getTotalValues(), conf.getValueRate(), startTime);
+        final var transactionStream = env.addSource(transactionSource)
                 .setParallelism(conf.getValueNodes())
-                .slotSharingGroup("values");
-        final var barrierSource = new BarrierOrHeartbeatSource(
+                .slotSharingGroup("transactions");
+        final var ruleSource = new RuleOrHeartbeatSource(
                 conf.getTotalValues(), conf.getValueRate(), conf.getValueBarrierRatio(),
                 conf.getHeartbeatRatio(), startTime);
-        final var barrierStream = env.addSource(barrierSource)
-                .slotSharingGroup("barriers");
+        final var ruleStream = env.addSource(ruleSource)
+                .slotSharingGroup("rules");
 
-        valueStream.connect(barrierStream)
-                .process(new ValueBarrierProcessSequential(conf.getValueNodes()))
-                .slotSharingGroup("barriers")
+        ruleStream.connect(transactionStream)
+                .process(new FraudProcessFunction(conf.getValueNodes()))
+                .slotSharingGroup("rules")
                 .map(new TimestampMapper())
                 .writeAsText(conf.getOutFile(), FileSystem.WriteMode.OVERWRITE);
 
-        return env.execute("ValueBarrier Experiment");
+        return env.execute("FraudDetection Experiment");
     }
 
     @Override

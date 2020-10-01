@@ -19,11 +19,11 @@ import java.rmi.server.UnicastRemoteObject;
 import java.time.Instant;
 import java.util.UUID;
 
-public class FraudDetectionManual implements Experiment {
+public class FraudDetectionManualExperiment implements Experiment {
 
     private final FraudDetectionConfig conf;
 
-    public FraudDetectionManual(final FraudDetectionConfig conf) {
+    public FraudDetectionManualExperiment(final FraudDetectionConfig conf) {
         this.conf = conf;
     }
 

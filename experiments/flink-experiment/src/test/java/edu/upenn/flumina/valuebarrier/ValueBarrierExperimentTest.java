@@ -30,7 +30,6 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
 
-import static edu.upenn.flumina.time.TimeHelper.max;
 import static edu.upenn.flumina.time.TimeHelper.min;
 import static org.junit.Assert.assertEquals;
 
@@ -155,7 +154,7 @@ public class ValueBarrierExperimentTest {
                                 },
                                 heartbeat -> null
                         );
-                        valueTimestamp = max(valueTimestamp, item.getPhysicalTimestamp());
+                        valueTimestamp = item.getPhysicalTimestamp();
                         makeProgress(collector);
                     }
 
@@ -170,7 +169,7 @@ public class ValueBarrierExperimentTest {
                                 },
                                 heartbeat -> null
                         );
-                        barrierTimestamp = max(barrierTimestamp, item.getPhysicalTimestamp());
+                        barrierTimestamp = item.getPhysicalTimestamp();
                         makeProgress(collector);
                     }
 
