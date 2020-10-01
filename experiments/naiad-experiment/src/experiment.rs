@@ -26,14 +26,17 @@ pub struct TimelyParallelism {
     this_node: u64,
 }
 impl TimelyParallelism {
-    pub fn new_sequential() -> TimelyParallelism {
-        let result = TimelyParallelism { workers: 1, nodes: 1, this_node: 0 };
+    fn new_single_node(workers: u64) -> TimelyParallelism {
+        let result = TimelyParallelism { workers, nodes: 1, this_node: 0 };
         result.validate();
         result
     }
+    pub fn new_sequential() -> TimelyParallelism {
+        Self::new_single_node(1)
+    }
     pub fn new_for_ec2(workers: u64, nodes: u64) -> TimelyParallelism {
         if nodes == 1 {
-            Self::new_sequential()
+            Self::new_single_node(workers)
         } else {
             let result = TimelyParallelism {
                 workers,
