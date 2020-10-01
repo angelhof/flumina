@@ -105,7 +105,12 @@ where
         // .inspect(move |x| println!("value seen: {:?}", x))
         .reclock(&barrier_clock_withheartbeats)
         // .inspect(move |x| println!("reclocked: {:?}", x))
-        .count()
+        .map(|x| match x.data {
+            VBData::Value(v) => v,
+            VBData::BarrierHeartbeat => unreachable!(),
+            VBData::Barrier => unreachable!(),
+        })
+        .sum()
         // .inspect(move |x| println!("count per heartbeat: {:?}", x))
         .reclock(&barrier_clock_noheartbeats)
         // .inspect(move |x| println!("reclocked: {:?}", x))
