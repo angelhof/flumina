@@ -6,15 +6,17 @@
     are defined in the other pageview_* modules.
 */
 
-use abomonation_derive::Abomonation;
-
 use super::common::{Duration, Scope, Stream};
-use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
+use super::experiment::{
+    ExperimentParams, LatencyThroughputExperiment, TimelyParallelism,
+};
 use super::operators::join_by_timestamp;
 use super::pageview_data::PVItem;
 use super::pageview_generators::{
     page_partition_function, partitioned_update_source, partitioned_view_source,
 };
+
+use abomonation_derive::Abomonation;
 
 use timely::dataflow::operators::{Broadcast, Filter, Map, Reclock};
 
@@ -26,19 +28,19 @@ const NUM_PAGES: usize = 2;
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperimentParams {
-    pub parallelism: u64,
+    pub parallelism: TimelyParallelism,
     pub views_per_milli: u64,
     pub views_per_update: u64,
     pub exp_duration_secs: u64,
 }
 impl ExperimentParams for PVExperimentParams {
-    fn get_parallelism(&self) -> u64 {
+    fn get_parallelism(&self) -> TimelyParallelism {
         self.parallelism
     }
     fn to_csv(&self) -> String {
         format!(
-            "{} wkrs, {} views/ms, {} views/update, {} s",
-            self.parallelism,
+            "{}, {} views/ms, {} views/update, {} s",
+            self.parallelism.to_csv(),
             self.views_per_milli,
             self.views_per_update,
             self.exp_duration_secs,

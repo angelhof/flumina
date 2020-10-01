@@ -1,5 +1,6 @@
 // General infrastructure
 pub mod common;
+pub mod ec2;
 pub mod either;
 pub mod experiment;
 pub mod generators;

@@ -1,2 +1,2 @@
-ec2-3-16-25-170.us-east-2.compute.amazonaws.com:1
-ec2-18-222-203-156.us-east-2.compute.amazonaws.com:1
+ip-172-31-27-62.us-east-2.compute.internal:4000
+ip-172-31-19-240.us-east-2.compute.internal:4000

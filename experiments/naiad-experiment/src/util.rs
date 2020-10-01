@@ -7,11 +7,11 @@ use rand::Rng;
 
 use std::boxed::Box;
 use std::fmt::Debug;
-use std::fs::OpenOptions;
-use std::io;
-use std::io::prelude::*;
+use std::fs::{File, OpenOptions};
+use std::io::{self, prelude::*, BufReader, Result};
 use std::str::FromStr;
 use std::string::String;
+use std::thread;
 use std::time::{Duration, SystemTime};
 use std::vec::Vec;
 
@@ -33,6 +33,9 @@ pub fn current_datetime_str() -> String {
     let out = Local::now().format("%Y-%m-%d-%H%M%S").to_string();
     println!("Current Datetime: {:?}", out);
     out
+}
+pub fn sleep_for_secs(s: u64) {
+    thread::sleep(Duration::from_secs(s));
 }
 
 /*
@@ -63,6 +66,25 @@ where
     for item in v {
         writeln!(file, "{:?}", item).unwrap();
     }
+}
+
+/*
+    Find a line in filepath equal to text and return the line number.
+    Otherwise, return an error.
+    Warning: line numbering starts from 0!
+*/
+pub fn match_line_in_file(text: &str, filepath: &str) -> Result<usize> {
+    let file = File::open(filepath)?;
+    let reader = BufReader::new(file);
+    for (line_number, line) in reader.lines().enumerate() {
+        if line.unwrap() == text {
+            return Result::Ok(line_number);
+        }
+    }
+    Result::Err(io::Error::new(
+        io::ErrorKind::Other,
+        format!("text {} not found in file {}", text, filepath),
+    ))
 }
 
 /*
