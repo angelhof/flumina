@@ -59,8 +59,7 @@ public class FraudDetectionManualExperiment implements Experiment {
                 .slotSharingGroup("transactions")
                 .map(new TimestampMapper())
                 .setParallelism(conf.getValueNodes())
-                .writeAsText(conf.getTransOutFile(), FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(conf.getValueNodes());
+                .writeAsText(conf.getTransOutFile(), FileSystem.WriteMode.OVERWRITE);
 
         ruleStream
                 .flatMap(new FlatMapFunction<RuleOrHeartbeat, Rule>() {
