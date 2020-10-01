@@ -5,6 +5,7 @@
 use super::util::match_line_in_file;
 
 use std::process::Command;
+use std::str;
 use std::string::String;
 
 const EC2_HOST_FILE: &str = "hosts/ec2_hosts.txt";
@@ -16,7 +17,7 @@ pub fn get_ec2_host_file() -> &'static str {
 }
 
 fn get_ec2_ipv4() -> String {
-    // example output: 172-31-27-62
+    // example output: 172.31.27.62
     let output = Command::new("curl")
         .arg("http://169.254.169.254/latest/meta-data/local-ipv4")
         .output()
@@ -35,7 +36,7 @@ fn get_ec2_ipv4() -> String {
 
 pub fn get_ec2_host_port_str() -> String {
     // example output: ip-172-31-27-62.us-east-2.compute.internal:4000
-    let ipv4 = get_ec2_ipv4();
+    let ipv4 = str::replace(&get_ec2_ipv4(), ".", "-");
     format!("ip-{}.{}.compute.internal:{}", ipv4, EC2_REGION, EC2_PORT)
 }
 
