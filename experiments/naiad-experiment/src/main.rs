@@ -169,8 +169,9 @@ fn main() {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
                 if get_ec2_node_number() >= par_n {
-                    println!("Sleeping for {}", params.exp_duration_secs);
-                    sleep_for_secs(params.exp_duration_secs);
+                    let sleep_dur = params.exp_duration_secs * (val_rates.len() as u64);
+                    println!("Sleeping for {}", sleep_dur);
+                    sleep_for_secs(sleep_dur);
                 } else {
                     params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
                     println!("===== Parallelism: {} =====", params.parallelism.to_csv());
@@ -204,8 +205,9 @@ fn main() {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
                 if get_ec2_node_number() >= par_n {
-                    println!("Sleeping for {}", params.exp_duration_secs);
-                    sleep_for_secs(params.exp_duration_secs);
+                    let sleep_dur = params.exp_duration_secs * (rates.len() as u64);
+                    println!("Sleeping for {}", sleep_dur);
+                    sleep_for_secs(sleep_dur);
                 } else {
                     params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
                     println!("===== Parallelism: {} =====", params.parallelism.to_csv());
@@ -240,8 +242,9 @@ fn main() {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
                 if get_ec2_node_number() >= par_n {
-                    println!("Sleeping for {}", params.exp_duration_secs);
-                    sleep_for_secs(params.exp_duration_secs);
+                    let sleep_dur = params.exp_duration_secs * (val_rates.len() as u64);
+                    println!("Sleeping for {}", sleep_dur);
+                    sleep_for_secs(sleep_dur);
                 } else {
                     params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
                     println!("===== Parallelism: {} =====", params.parallelism.to_csv());
