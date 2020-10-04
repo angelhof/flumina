@@ -81,7 +81,6 @@ impl TimelyParallelism {
     pub fn timely_args(&mut self) -> Vec<String> {
         self.validate();
         self.increment_experiment_num();
-        let hostfile = self.prepare_ec2_host_file();
 
         let mut vec: Vec<String> = Vec::new();
         vec.push("-w".to_string());
@@ -89,10 +88,12 @@ impl TimelyParallelism {
         if self.nodes > 1 {
             vec.push("-n".to_string());
             vec.push(self.nodes.to_string());
-            vec.push("-h".to_string());
-            vec.push(hostfile.to_string());
             vec.push("-p".to_string());
             vec.push(self.this_node.to_string());
+
+            let hostfile = self.prepare_ec2_host_file();
+            vec.push("-h".to_string());
+            vec.push(hostfile.to_string());
         }
         vec
     }
@@ -160,8 +161,10 @@ where
             self.get_name(),
             params.to_csv()
         );
+        let mut args = params.timely_args();
+        println!("Timely args: {:?}", args);
         timely::execute_from_args(
-            params.timely_args().drain(0..),
+            args.drain(0..),
             move |worker| {
                 let worker_index = worker.index();
                 worker.dataflow(move |scope| {

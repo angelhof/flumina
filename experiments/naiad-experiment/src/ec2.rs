@@ -9,7 +9,7 @@ use std::str;
 use std::string::String;
 
 const EC2_IP_FILE: &str = "hosts/ec2_local_ips.txt";
-const EC2_HOST_TEMP_FILE: &str = "results/temp_ec2_hosts.txt";
+const EC2_HOST_TEMP_FILE: &str = "hosts/temp_ec2_hosts.txt";
 const EC2_REGION: &str = "us-east-2";
 
 pub fn get_ec2_ipv4() -> String {

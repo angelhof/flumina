@@ -169,6 +169,7 @@ fn main() {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
                 if get_ec2_node_number() >= par_n {
+                    println!("Sleeping for {}", params.exp_duration_secs);
                     sleep_for_secs(params.exp_duration_secs);
                 } else {
                     params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
@@ -203,6 +204,7 @@ fn main() {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
                 if get_ec2_node_number() >= par_n {
+                    println!("Sleeping for {}", params.exp_duration_secs);
                     sleep_for_secs(params.exp_duration_secs);
                 } else {
                     params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
@@ -238,6 +240,7 @@ fn main() {
             for &par_n in par_nodes {
                 // Only run experiment if this node # is used in the experiment
                 if get_ec2_node_number() >= par_n {
+                    println!("Sleeping for {}", params.exp_duration_secs);
                     sleep_for_secs(params.exp_duration_secs);
                 } else {
                     params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
