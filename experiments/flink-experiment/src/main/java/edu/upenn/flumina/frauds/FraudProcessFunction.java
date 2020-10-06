@@ -12,20 +12,55 @@ import org.apache.flink.util.Collector;
 
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static edu.upenn.flumina.time.TimeHelper.min;
 
 public class FraudProcessFunction extends
         CoProcessFunction<RuleOrHeartbeat, TransactionOrHeartbeat, Tuple3<String, Long, Instant>> {
 
-    private final List<Instant> transactionTimestamps = new ArrayList<>();
     private final Tuple2<Long, Long> previousAndCurrentSum = Tuple2.of(0L, 0L);
     private final PriorityQueue<Transaction> transactions = new PriorityQueue<>(new TimestampComparator());
     private final Queue<Rule> rules = new ArrayDeque<>();
+
     private Instant ruleTimestamp = Instant.MIN;
+    private final List<Tuple2<Integer, Instant>> timestampHeap = new ArrayList<>();
+    private final List<Integer> timestampPositions = new ArrayList<>();
+    private final int transactionParallelism;
+    private final int halfTransactionParallelism;
 
     public FraudProcessFunction(final int transactionParallelism) {
-        transactionTimestamps.addAll(Collections.nCopies(transactionParallelism, Instant.MIN));
+        timestampHeap.addAll(IntStream.range(0, transactionParallelism)
+                .mapToObj(i -> Tuple2.of(i, Instant.MIN)).collect(Collectors.toList()));
+        timestampPositions.addAll(IntStream.range(0, transactionParallelism)
+                .boxed().collect(Collectors.toList()));
+        this.transactionParallelism = transactionParallelism;
+        halfTransactionParallelism = transactionParallelism >>> 1;
+    }
+
+    private void updateTimestamp(final int i, final Instant ts) {
+        int tsPos = timestampPositions.get(i);
+        final var tup = timestampHeap.get(tsPos);
+        tup.f1 = ts;
+        while (tsPos < halfTransactionParallelism) {
+            int childPos = (tsPos << 1) + 1;
+            var child = timestampHeap.get(childPos);
+            final int rightChildPos = childPos + 1;
+            if (rightChildPos < transactionParallelism
+                    && child.f1.compareTo(timestampHeap.get(rightChildPos).f1) > 0) {
+                childPos = rightChildPos;
+                child = timestampHeap.get(rightChildPos);
+            }
+            if (ts.compareTo(child.f1) <= 0) {
+                break;
+            }
+            timestampHeap.set(tsPos, child);
+            timestampPositions.set(child.f0, tsPos);
+            tsPos = childPos;
+        }
+        timestampHeap.set(tsPos, tup);
+        timestampPositions.set(i, tsPos);
     }
 
     @Override
@@ -42,14 +77,12 @@ public class FraudProcessFunction extends
                                 final Context ctx,
                                 final Collector<Tuple3<String, Long, Instant>> out) {
         transactions.addAll(transactionOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-        transactionTimestamps.set(transactionOrHeartbeat.getSourceIndex(),
-                transactionOrHeartbeat.getPhysicalTimestamp());
+        updateTimestamp(transactionOrHeartbeat.getSourceIndex(), transactionOrHeartbeat.getPhysicalTimestamp());
         makeProgress(out);
     }
 
     private Instant getCurrentTimestamp() {
-        final var transactionTimestamp = transactionTimestamps.stream().min(Instant::compareTo).get();
-        return min(transactionTimestamp, ruleTimestamp);
+        return min(ruleTimestamp, timestampHeap.get(0).f1);
     }
 
     private void makeProgress(final Collector<Tuple3<String, Long, Instant>> out) {
