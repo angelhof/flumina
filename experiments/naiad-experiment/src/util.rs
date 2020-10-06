@@ -68,11 +68,38 @@ where
     }
 }
 
-/*
-    Find a line in filepath equal to text and return the line number.
-    Otherwise, return an error.
-    Warning: line numbering starts from 0!
-*/
+// Run a closure for each line in a file
+fn for_each_line_do<F>(filepath: &str, mut closure: F) -> Result<()>
+where
+    F: FnMut(usize, &str) -> Result<()>, // line number, line
+{
+    let file = File::open(filepath)?;
+    let reader = BufReader::new(file);
+    for (line_number, line) in reader.lines().enumerate() {
+        closure(line_number, &line.unwrap())?;
+    }
+    Result::Ok(())
+}
+
+// From a file create a new one where each line is replaced using a given function
+pub fn replace_lines_in_file<F>(
+    in_filepath: &str,
+    out_filepath: &str,
+    closure: F,
+) -> Result<()>
+where
+    F: Fn(&str) -> String,
+{
+    let mut out_file =
+        OpenOptions::new().create(true).write(true).open(out_filepath)?;
+    for_each_line_do(in_filepath, move |_line_number, line| {
+        writeln!(out_file, "{}", closure(line))
+    })
+}
+
+// Find a line in filepath equal to text and return the line number.
+// Otherwise, return an error.
+// Warning: line numbering starts from 0!
 pub fn match_line_in_file(text: &str, filepath: &str) -> Result<usize> {
     let file = File::open(filepath)?;
     let reader = BufReader::new(file);
