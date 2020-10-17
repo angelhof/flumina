@@ -14,8 +14,10 @@ use std::vec::Vec;
 
 const EC2_STARTING_PORT: u64 = 4000;
 
-// Parameters to run a Timely dataflow between several
-// parallel workers or nodes
+/*
+    Parameters to run a Timely dataflow between several
+    parallel workers or nodes
+*/
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct TimelyParallelism {
     // Command line -w, should be >= 1
@@ -99,29 +101,36 @@ impl TimelyParallelism {
     }
 }
 
-// Trait for experiment parameters
-pub trait ExperimentParams {
-    /* Getters */
-    fn get_parallelism(&self) -> TimelyParallelism;
-    /* Functionality */
+/*
+    Trait to capture parameters that form the input to a Timely experiment.
+
+    to_csv should output the parameters separated by commas.
+    set_rate should vary one or more of the parameters to set the
+    input throughput (in events / ms), which can be used to test throughput.
+*/
+pub trait ExperimentParams: Copy + timely::ExchangeData {
     fn to_csv(&self) -> String;
-    fn timely_args(&self) -> Vec<String> {
-        self.get_parallelism().timely_args()
-    }
+    // fn set_rate(&mut self, rate_per_milli: u64);
 }
 
-// Trait for experiments
-// To use, implement the "build_dataflow" method.
-// This trait is largely needed in order to hide the generic scope parameter G,
-// which is instead generic in the build_dataflow method. This is necessary
-// because Rust generics are weird -- see
-// https://stackoverflow.com/questions/37606035/pass-generic-function-as-argument
+/*
+    Trait to capture the full executable experiment.
+
+    To use, implement the get_name and build_dataflow methods.
+
+    One reason this trait is needed is in order to hide the top-level scope
+    parameter passed by run_core to build the dataflow, which is instead made
+    generic in the build_dataflow method. This
+    is necessary because Rust generics are weird -- see
+    https://stackoverflow.com/questions/37606035/pass-generic-function-as-argument
+*/
 pub trait LatencyThroughputExperiment<P, I, O>: timely::ExchangeData
 where
-    P: ExperimentParams + Copy + timely::ExchangeData,
+    P: ExperimentParams,
     I: std::fmt::Debug + Clone + timely::Data,
     O: std::fmt::Debug + Clone + timely::Data,
 {
+    // Functionality to implement
     fn get_name(&self) -> String;
     fn build_dataflow<G: Scope<Timestamp = u128>>(
         &self,
@@ -129,10 +138,13 @@ where
         scope: &mut G,
         worker_index: usize,
     ) -> (Stream<G, I>, Stream<G, O>);
+
+    // Functionality provided
     fn run_core<G: Scope<Timestamp = u128>>(
         &self,
-        params: P,
         scope: &mut G,
+        params: P,
+        parallelism: TimelyParallelism,
         worker_index: usize,
         output_filename: &'static str,
     ) {
@@ -143,32 +155,46 @@ where
         // latency_meter(&output);
         // throughput_meter(&input, &output);
         let latency_throughput = latency_throughput_meter(&input, &output);
+        let parallelism_csv = parallelism.to_csv();
         let params_csv = params.to_csv();
         save_to_file(
             &latency_throughput,
             &output_filename,
             move |(latency, throughput)| {
                 format!(
-                    "{}, {} ms, {} events/ms",
-                    params_csv, latency, throughput
+                    "{}, {}, {} ms, {} events/ms",
+                    parallelism_csv, params_csv, latency, throughput
                 )
             },
         );
     }
-    fn run(&'static self, params: P, output_filename: &'static str) {
+    fn run(
+        &'static self,
+        params: P,
+        parallelism: &mut TimelyParallelism,
+        output_filename: &'static str
+    ) {
         println!(
-            "{} Experiment Parameters: {}",
+            "{} Experiment Parameters: {}, Parallelism: {}",
             self.get_name(),
-            params.to_csv()
+            params.to_csv(),
+            parallelism.to_csv(),
         );
-        let mut args = params.timely_args();
+        let mut args = parallelism.timely_args();
+        let parallelism_copy = parallelism.clone();
         println!("Timely args: {:?}", args);
         timely::execute_from_args(
             args.drain(0..),
             move |worker| {
                 let worker_index = worker.index();
                 worker.dataflow(move |scope| {
-                    self.run_core(params, scope, worker_index, output_filename);
+                    self.run_core(
+                        scope,
+                        params,
+                        parallelism_copy,
+                        worker_index,
+                        output_filename,
+                    );
                     println!("[worker {}] setup complete", worker_index);
                 });
             },

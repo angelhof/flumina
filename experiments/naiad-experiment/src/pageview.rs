@@ -7,9 +7,7 @@
 */
 
 use super::common::{Duration, Scope, Stream};
-use super::experiment::{
-    ExperimentParams, LatencyThroughputExperiment, TimelyParallelism,
-};
+use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
 use super::operators::join_by_timestamp;
 use super::pageview_data::PVItem;
 use super::pageview_generators::{
@@ -28,19 +26,14 @@ const NUM_PAGES: usize = 2;
 
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperimentParams {
-    pub parallelism: TimelyParallelism,
     pub views_per_milli: u64,
     pub views_per_update: u64,
     pub exp_duration_secs: u64,
 }
 impl ExperimentParams for PVExperimentParams {
-    fn get_parallelism(&self) -> TimelyParallelism {
-        self.parallelism
-    }
     fn to_csv(&self) -> String {
         format!(
-            "{}, {} views/ms, {} views/update, {} s",
-            self.parallelism.to_csv(),
+            "{} views/ms, {} views/update, {} s",
             self.views_per_milli,
             self.views_per_update,
             self.exp_duration_secs,
@@ -105,7 +98,7 @@ where
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVGenExperiment;
 impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
-    for PVGenExperiment
+for PVGenExperiment
 {
     fn get_name(&self) -> String {
         "PVgen".to_owned()
@@ -125,7 +118,7 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperiment;
 impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
-    for PVExperiment
+for PVExperiment
 {
     fn get_name(&self) -> String {
         "PV".to_owned()
@@ -142,11 +135,19 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
     }
 }
 
-impl PVExperimentParams {
-    pub fn run_pv_experiment_main(self, output_filename: &'static str) {
-        PVExperiment.run(self, output_filename);
-    }
-    pub fn run_pv_experiment_gen_only(self, output_filename: &'static str) {
-        PVGenExperiment.run(self, output_filename);
-    }
-}
+// impl PVExperimentParams {
+//     pub fn run_pv_experiment_main(
+//         self,
+//         par: TimelyParallelism,
+//         output_filename: &'static str
+//     ) {
+//         PVExperiment::from_params(self).run(par, output_filename);
+//     }
+//     pub fn run_pv_experiment_gen_only(
+//         self,
+//         par: TimelyParallelism,
+//         output_filename: &'static str
+//     ) {
+//         PVGenExperiment::from_params(self).run(par, output_filename);
+//     }
+// }

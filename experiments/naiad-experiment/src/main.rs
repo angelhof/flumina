@@ -3,12 +3,16 @@
 */
 
 use naiad_experiment::ec2::get_ec2_node_number;
-use naiad_experiment::experiment::TimelyParallelism;
-use naiad_experiment::pageview::PVExperimentParams;
+use naiad_experiment::experiment::{LatencyThroughputExperiment, TimelyParallelism};
+use naiad_experiment::pageview::{
+    PVExperimentParams, PVGenExperiment, PVExperiment,
+};
 use naiad_experiment::util::{
     current_datetime_str, sleep_for_secs, string_to_static_str,
 };
-use naiad_experiment::vb::VBExperimentParams;
+use naiad_experiment::vb::{
+    VBExperimentParams, VBGenExperiment, VBExperiment, FDExperiment,
+};
 
 use clap::{App, AppSettings, Arg, SubCommand};
 
@@ -104,11 +108,11 @@ fn main() {
         let arg4 = matches.value_of("VALS_PER_HB").unwrap();
         let arg5 = matches.value_of("HBS_PER_BAR").unwrap();
         let arg6 = matches.value_of("DURATION").unwrap();
+        let mut parallelism = TimelyParallelism::new_for_ec2(
+            arg1.parse().expect("expected u64"),
+            arg2.parse().expect("expected u64"),
+        );
         let params = VBExperimentParams {
-            parallelism: TimelyParallelism::new_for_ec2(
-                arg1.parse().expect("expected u64"),
-                arg2.parse().expect("expected u64"),
-            ),
             val_rate_per_milli: arg3.parse().expect("expected u64 (events/ms)"),
             vals_per_hb_per_worker: arg4.parse().expect("expected u64"),
             hbs_per_bar: arg5.parse().expect("expected u64"),
@@ -118,13 +122,13 @@ fn main() {
 
         if matches.is_present("gen-only") {
             let results_path = make_results_path("vbgen", &args);
-            params.run_vb_experiment_gen_only(results_path);
+            VBGenExperiment.run(params, &mut parallelism, results_path);
         } else if matches.is_present("fraud-detection") {
             let results_path = make_results_path("fd", &args);
-            params.run_fd_experiment(results_path);
+            FDExperiment.run(params, &mut parallelism, results_path);
         } else {
             let results_path = make_results_path("vb", &args);
-            params.run_vb_experiment_main(results_path);
+            VBExperiment.run(params, &mut parallelism, results_path);
         }
     } else if let Some(matches) = matches.subcommand_matches("pv") {
         /* Pageview Command */
@@ -133,11 +137,11 @@ fn main() {
         let arg3 = matches.value_of("RATE").unwrap();
         let arg4 = matches.value_of("VIEW_RATIO").unwrap();
         let arg5 = matches.value_of("DURATION").unwrap();
+        let mut parallelism = TimelyParallelism::new_for_ec2(
+            arg1.parse().expect("expected u64"),
+            arg2.parse().expect("expected u64"),
+        );
         let params = PVExperimentParams {
-            parallelism: TimelyParallelism::new_for_ec2(
-                arg1.parse().expect("expected u64"),
-                arg2.parse().expect("expected u64"),
-            ),
             views_per_milli: arg3.parse().expect("expected u64 (events/ms)"),
             views_per_update: arg4.parse().expect("expected u64"),
             exp_duration_secs: arg5.parse().expect("expected u64 (secs)"),
@@ -146,16 +150,15 @@ fn main() {
 
         if matches.is_present("gen-only") {
             let results_path = make_results_path("pvgen", &args);
-            params.run_pv_experiment_gen_only(results_path);
+            PVGenExperiment.run(params, &mut parallelism, results_path);
         } else {
             let results_path = make_results_path("pv", &args);
-            params.run_pv_experiment_main(results_path);
+            PVExperiment.run(params, &mut parallelism, results_path);
         }
     } else if let Some(_matches) = matches.subcommand_matches("exp1") {
         /* Experiment 1: Value Barrier */
         let mut params = VBExperimentParams {
-            parallelism: TimelyParallelism::new_sequential(), // will be set
-            val_rate_per_milli: 0,                            // will be set
+            val_rate_per_milli: 0, // will be set
             vals_per_hb_per_worker: 100,
             hbs_per_bar: 100,
             exp_duration_secs: 5,
@@ -173,8 +176,8 @@ fn main() {
                     println!("Sleeping for {}", sleep_dur);
                     sleep_for_secs(sleep_dur);
                 } else {
-                    params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
-                    println!("===== Parallelism: {} =====", params.parallelism.to_csv());
+                    let mut parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
+                    println!("===== Parallelism: {} =====", parallelism.to_csv());
                     let results_path = make_results_path(
                         "exp1_vb",
                         &[ &("w".to_owned() + &par_w.to_string()),
@@ -183,7 +186,7 @@ fn main() {
                     for &val_rate in val_rates {
                         params.val_rate_per_milli = val_rate;
                         println!("=== Value rate (events/ms): {} ===", val_rate);
-                        params.run_vb_experiment_main(results_path);
+                        VBExperiment.run(params, &mut parallelism, results_path);
                     }
                 }
             }
@@ -191,8 +194,7 @@ fn main() {
     } else if let Some(_matches) = matches.subcommand_matches("exp2") {
         /* Experiment 2: Pageview */
         let mut params = PVExperimentParams {
-            parallelism: TimelyParallelism::new_sequential(), // will be set
-            views_per_milli: 0,                               // will be set
+            views_per_milli: 0, // will be set
             views_per_update: 10000,
             exp_duration_secs: 5,
         };
@@ -209,8 +211,8 @@ fn main() {
                     println!("Sleeping for {}", sleep_dur);
                     sleep_for_secs(sleep_dur);
                 } else {
-                    params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
-                    println!("===== Parallelism: {} =====", params.parallelism.to_csv());
+                    let mut parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
+                    println!("===== Parallelism: {} =====", parallelism.to_csv());
                     let results_path = make_results_path(
                         "exp2_pv",
                         &[ &("w".to_owned() + &par_w.to_string()),
@@ -219,7 +221,7 @@ fn main() {
                     for &rate in rates {
                         params.views_per_milli = rate;
                         println!("=== Input rate (events/ms): {} ===", rate);
-                        params.run_pv_experiment_main(results_path);
+                        PVExperiment.run(params, &mut parallelism, results_path);
                     }
                 }
             }
@@ -227,8 +229,7 @@ fn main() {
     } else if let Some(_matches) = matches.subcommand_matches("exp3") {
         /*  Experiment 3: Fraud Detection */
         let mut params = VBExperimentParams {
-            parallelism: TimelyParallelism::new_sequential(), // will be set
-            val_rate_per_milli: 0,                            // will be set
+            val_rate_per_milli: 0, // will be set
             vals_per_hb_per_worker: 100,
             hbs_per_bar: 100,
             exp_duration_secs: 5,
@@ -246,8 +247,8 @@ fn main() {
                     println!("Sleeping for {}", sleep_dur);
                     sleep_for_secs(sleep_dur);
                 } else {
-                    params.parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
-                    println!("===== Parallelism: {} =====", params.parallelism.to_csv());
+                    let mut parallelism = TimelyParallelism::new_for_ec2(par_w, par_n);
+                    println!("===== Parallelism: {} =====", parallelism.to_csv());
                     let results_path = make_results_path(
                         "exp3_fd",
                         &[ &("w".to_owned() + &par_w.to_string()),
@@ -256,7 +257,7 @@ fn main() {
                     for &val_rate in val_rates {
                         params.val_rate_per_milli = val_rate;
                         println!("=== Value rate (events/ms): {} ===", val_rate);
-                        params.run_fd_experiment(results_path);
+                        FDExperiment.run(params, &mut parallelism, results_path);
                     }
                 }
             }
