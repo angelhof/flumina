@@ -20,6 +20,7 @@ use timely::dataflow::operators::{
 };
 
 use std::string::String;
+use std::vec::Vec;
 
 /* Experiment data */
 
@@ -39,6 +40,20 @@ impl ExperimentParams for VBExperimentParams {
             self.hbs_per_bar,
             self.exp_duration_secs,
         )
+    }
+    fn to_vec(&self) -> Vec<String> {
+        let mut result = Vec::new();
+        result.push(self.val_rate_per_milli.to_string());
+        result.push(self.vals_per_hb_per_worker.to_string());
+        result.push(self.hbs_per_bar.to_string());
+        result.push(self.exp_duration_secs.to_string());
+        result
+    }
+    fn get_exp_duration_secs(&self) -> u64 {
+        self.exp_duration_secs
+    }
+    fn set_rate(&mut self, rate_per_milli: u64) {
+        self.val_rate_per_milli = rate_per_milli;
     }
 }
 
@@ -209,7 +224,7 @@ where
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct VBGenExperiment;
 impl LatencyThroughputExperiment<VBExperimentParams, VBItem, VBItem>
-for VBGenExperiment
+    for VBGenExperiment
 {
     fn get_name(&self) -> String {
         "VBgen".to_owned()
@@ -231,7 +246,7 @@ for VBGenExperiment
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct VBExperiment;
 impl LatencyThroughputExperiment<VBExperimentParams, VBItem, usize>
-for VBExperiment
+    for VBExperiment
 {
     fn get_name(&self) -> String {
         "VB".to_owned()
@@ -251,7 +266,7 @@ for VBExperiment
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct FDExperiment;
 impl LatencyThroughputExperiment<VBExperimentParams, VBItem, VBItem>
-for FDExperiment
+    for FDExperiment
 {
     fn get_name(&self) -> String {
         "FD".to_owned()

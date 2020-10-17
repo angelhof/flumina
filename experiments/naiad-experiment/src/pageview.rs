@@ -34,10 +34,21 @@ impl ExperimentParams for PVExperimentParams {
     fn to_csv(&self) -> String {
         format!(
             "{} views/ms, {} views/update, {} s",
-            self.views_per_milli,
-            self.views_per_update,
-            self.exp_duration_secs,
+            self.views_per_milli, self.views_per_update, self.exp_duration_secs,
         )
+    }
+    fn to_vec(&self) -> Vec<String> {
+        let mut result = Vec::new();
+        result.push(self.views_per_milli.to_string());
+        result.push(self.views_per_update.to_string());
+        result.push(self.exp_duration_secs.to_string());
+        result
+    }
+    fn get_exp_duration_secs(&self) -> u64 {
+        self.exp_duration_secs
+    }
+    fn set_rate(&mut self, rate_per_milli: u64) {
+        self.views_per_milli = rate_per_milli;
     }
 }
 
@@ -98,7 +109,7 @@ where
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVGenExperiment;
 impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
-for PVGenExperiment
+    for PVGenExperiment
 {
     fn get_name(&self) -> String {
         "PVgen".to_owned()
@@ -118,7 +129,7 @@ for PVGenExperiment
 #[derive(Abomonation, Copy, Clone, Debug)]
 pub struct PVExperiment;
 impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
-for PVExperiment
+    for PVExperiment
 {
     fn get_name(&self) -> String {
         "PV".to_owned()
