@@ -13,6 +13,7 @@ use super::vb_data::{VBData, VBItem};
 use super::vb_generators::{barrier_source, value_source};
 
 use abomonation_derive::Abomonation;
+use structopt::StructOpt;
 
 use timely::dataflow::operators::{
     Accumulate, Broadcast, Concat, ConnectLoop, Exchange, Feedback, Filter,
@@ -24,7 +25,7 @@ use std::vec::Vec;
 
 /* Experiment data */
 
-#[derive(Abomonation, Copy, Clone, Debug)]
+#[derive(Abomonation, Copy, Clone, Debug, StructOpt)]
 pub struct VBExperimentParams {
     pub val_rate_per_milli: u64,
     pub vals_per_hb_per_worker: u64,

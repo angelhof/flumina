@@ -15,6 +15,7 @@ use super::pageview_generators::{
 };
 
 use abomonation_derive::Abomonation;
+use structopt::StructOpt;
 
 use timely::dataflow::operators::{Broadcast, Filter, Map, Reclock};
 
@@ -24,7 +25,7 @@ use std::string::String;
 
 const NUM_PAGES: usize = 2;
 
-#[derive(Abomonation, Copy, Clone, Debug)]
+#[derive(Abomonation, Copy, Clone, Debug, StructOpt)]
 pub struct PVExperimentParams {
     pub views_per_milli: u64,
     pub views_per_update: u64,

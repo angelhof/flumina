@@ -9,6 +9,7 @@ use super::perf::latency_throughput_meter;
 use super::util::{current_datetime_str, sleep_for_secs, string_to_static_str};
 
 use abomonation_derive::Abomonation;
+use structopt::StructOpt;
 
 use std::string::String;
 use std::vec::Vec;
@@ -41,7 +42,7 @@ const EC2_STARTING_PORT: u64 = 4000;
     Parameters to run a Timely dataflow between several
     parallel workers or nodes
 */
-#[derive(Abomonation, Copy, Clone, Debug)]
+#[derive(Abomonation, Copy, Clone, Debug, StructOpt)]
 pub struct TimelyParallelism {
     // Command line -w, should be >= 1
     workers: u64,
@@ -51,6 +52,7 @@ pub struct TimelyParallelism {
     this_node: u64,
     // Experiment number -- to disambiguate unique experiments,
     // in case multiple are going on at once so they don't interfere
+    #[structopt(skip = 0u64)]
     experiment_num: u64,
 }
 impl TimelyParallelism {
@@ -140,7 +142,7 @@ impl TimelyParallelism {
     set_rate should vary one or more of the parameters to set the
     input throughput (in events / ms), which can be used to test throughput.
 */
-pub trait ExperimentParams: Copy + timely::ExchangeData {
+pub trait ExperimentParams: Copy + StructOpt + timely::ExchangeData {
     fn to_csv(&self) -> String;
     fn to_vec(&self) -> Vec<String>;
     fn get_exp_duration_secs(&self) -> u64;
@@ -173,8 +175,8 @@ where
         worker_index: usize,
     ) -> (Stream<G, I>, Stream<G, O>);
 
-    /* Functionality provided */
-    // The core dataflow: should be considered private
+    /* Functionality provided, but mostly considered private */
+    // The core dataflow to be run
     fn run_core<G: Scope<Timestamp = u128>>(
         &self,
         scope: &mut G,
@@ -203,8 +205,7 @@ where
             },
         );
     }
-    // Run an experiment: also can be considered private if the user does
-    // not want a custom filename
+    // Run an experiment: only necessary if the user wants a custom filename
     fn run(
         &'static self,
         params: P,
@@ -235,8 +236,9 @@ where
         })
         .unwrap();
     }
-    // Run a single experiment and calculate the filepath rather than
-    // providing it
+
+    /* Functionality provided and exposed as the main options */
+    // Run a single experiment.
     fn run_single(
         &'static self,
         params: P,
