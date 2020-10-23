@@ -51,7 +51,9 @@ pub struct TimelyParallelism {
     // Command line -p, betwewen 0 and nodes-1 (unused if nodes=1)
     this_node: u64,
     // Experiment number -- to disambiguate unique experiments,
-    // in case multiple are going on at once so they don't interfere
+    // in case multiple are going on at once so they don't interfere.
+    // This is incorporated into the port number. If not needed can just
+    // be set to 0.
     #[structopt(skip = 0u64)]
     experiment_num: u64,
 }
@@ -70,7 +72,11 @@ impl TimelyParallelism {
     pub fn new_sequential() -> TimelyParallelism {
         Self::new_single_node(1)
     }
-    pub fn new_for_ec2(workers: u64, nodes: u64) -> TimelyParallelism {
+    pub fn new_for_ec2(
+        workers: u64,
+        nodes: u64,
+        exp_num: u64, // use 0 if unneeded
+    ) -> TimelyParallelism {
         if nodes == 1 {
             Self::new_single_node(workers)
         } else {
@@ -78,7 +84,7 @@ impl TimelyParallelism {
                 workers,
                 nodes,
                 this_node: get_ec2_node_number(),
-                experiment_num: 0,
+                experiment_num: exp_num,
             };
             result.validate();
             result
@@ -91,9 +97,6 @@ impl TimelyParallelism {
     }
     fn is_participating(&self) -> bool {
         self.this_node < self.nodes
-    }
-    fn increment_experiment_num(&mut self) {
-        self.experiment_num += 1;
     }
     fn prepare_ec2_host_file(&self) -> &'static str {
         let port = EC2_STARTING_PORT + self.experiment_num;
@@ -118,10 +121,8 @@ impl TimelyParallelism {
     // specific to that experiment.
     // Note 2: returns None if this node is not involved in this experiment
     // (i.e. node # is larger than number of nodes)
-    pub fn timely_args(&mut self) -> Option<Vec<String>> {
+    pub fn timely_args(&self) -> Option<Vec<String>> {
         self.validate();
-        self.increment_experiment_num();
-
         if !self.is_participating() {
             None
         } else {
@@ -219,7 +220,7 @@ where
     fn run(
         &'static self,
         params: P,
-        parallelism: &mut TimelyParallelism,
+        parallelism: TimelyParallelism,
         output_filename: &'static str,
     ) {
         println!(
@@ -234,14 +235,13 @@ where
             Some(mut args) => {
                 println!("[node {}] initializing experiment", node_index);
                 println!("[node {}] timely args: {:?}", node_index, args);
-                let parallelism_copy = *parallelism;
                 timely::execute_from_args(args.drain(0..), move |worker| {
                     let worker_index = worker.index();
                     worker.dataflow(move |scope| {
                         self.run_core(
                             scope,
                             params,
-                            parallelism_copy,
+                            parallelism,
                             worker_index,
                             output_filename,
                         );
@@ -249,7 +249,7 @@ where
                     });
                 })
                 .unwrap();
-            },
+            }
             None => {
                 println!(
                     "[node {}] skipping experiment between nodes {:?}",
@@ -259,18 +259,13 @@ where
                 let sleep_dur = params.get_exp_duration_secs();
                 println!("Sleeping for {}", sleep_dur);
                 sleep_for_secs(sleep_dur);
-                parallelism.increment_experiment_num();
             }
         }
     }
 
     /* Functionality provided and exposed as the main options */
     // Run a single experiment.
-    fn run_single(
-        &'static self,
-        params: P,
-        parallelism: &mut TimelyParallelism,
-    ) {
+    fn run_single(&'static self, params: P, parallelism: TimelyParallelism) {
         let mut args = Vec::new();
         args.append(&mut params.to_vec());
         args.append(&mut parallelism.to_vec());
@@ -285,18 +280,11 @@ where
         par_workers: &[u64],
         par_nodes: &[u64],
     ) {
+        let mut exp_num = 0;
         let mut params = default_params;
         for &par_w in par_workers {
             for &par_n in par_nodes {
-                // Note: fix this so that it works across experiments
-                let mut parallelism =
-                    TimelyParallelism::new_for_ec2(par_w, par_n);
-                // parallelism.workers = par_w;
-                // parallelism.nodes = par_n;
-                println!(
-                    "===== Parallelism: {} =====",
-                    parallelism.to_csv()
-                );
+                println!("===== Parallelism: {} w, {} n =====", par_w, par_n,);
                 let results_path = make_results_path(
                     &self.get_name(),
                     &[
@@ -305,13 +293,12 @@ where
                     ],
                 );
                 for &rate in rates_per_milli {
-                    params.set_rate(rate);
                     println!("=== Input Rate (events/ms): {} ===", rate);
-                    self.run(
-                        default_params,
-                        &mut parallelism,
-                        results_path,
-                    );
+                    params.set_rate(rate);
+                    let parallelism =
+                        TimelyParallelism::new_for_ec2(par_w, par_n, exp_num);
+                    self.run(default_params, parallelism, results_path);
+                    exp_num += 1;
                 }
             }
         }

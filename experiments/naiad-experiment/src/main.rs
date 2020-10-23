@@ -20,8 +20,8 @@ use structopt::StructOpt;
 #[structopt(
     author = "Caleb Stanford",
     no_version,
-    about = "Command line for running Timely experiments.")
-]
+    about = "Command line for running Timely experiments."
+)]
 enum TimelyExperiments {
     #[structopt(about = "Value-Barrier Example")]
     VB {
@@ -68,13 +68,13 @@ enum TimelyExperiments {
 impl TimelyExperiments {
     fn run(&mut self) {
         match self {
-            Self::VB  { pms, plsm } => VBExperiment.run_single(*pms, plsm),
-            Self::VBG { pms, plsm } => VBGenExperiment.run_single(*pms, plsm),
-            Self::FD  { pms, plsm } => FDExperiment.run_single(*pms, plsm),
-            Self::PV  { pms, plsm } => PVExperiment.run_single(*pms, plsm),
-            Self::PVG { pms, plsm } => PVGenExperiment.run_single(*pms, plsm),
+            Self::VB { pms, plsm } => VBExperiment.run_single(*pms, *plsm),
+            Self::VBG { pms, plsm } => VBGenExperiment.run_single(*pms, *plsm),
+            Self::FD { pms, plsm } => FDExperiment.run_single(*pms, *plsm),
+            Self::PV { pms, plsm } => PVExperiment.run_single(*pms, *plsm),
+            Self::PVG { pms, plsm } => PVGenExperiment.run_single(*pms, *plsm),
             Self::Exp1 => {
-                /* Experiment 2: ValueBarrier */
+                /* Experiment 1: Value-Barrier */
                 let params = VBExperimentParams {
                     val_rate_per_milli: 0, // will be set
                     vals_per_hb_per_worker: 100,
@@ -87,7 +87,7 @@ impl TimelyExperiments {
                 let par_workers = &[1, 2];
                 let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
                 VBExperiment.run_all(params, rates, par_workers, par_nodes);
-            },
+            }
             Self::Exp2 => {
                 /*  Experiment 2: Fraud Detection */
                 let params = VBExperimentParams {
@@ -102,9 +102,9 @@ impl TimelyExperiments {
                 let par_workers = &[1, 2];
                 let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
                 FDExperiment.run_all(params, rates, par_workers, par_nodes);
-            },
+            }
             Self::Exp3 => {
-                /* Experiment 3: Pageview */
+                /* Experiment 3: Page-View */
                 let params = PVExperimentParams {
                     views_per_milli: 0, // will be set
                     views_per_update: 10000,
@@ -116,7 +116,7 @@ impl TimelyExperiments {
                 let par_workers = &[1, 2];
                 let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
                 PVExperiment.run_all(params, rates, par_workers, par_nodes);
-            },
+            }
         }
     }
 }
