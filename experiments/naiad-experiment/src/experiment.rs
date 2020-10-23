@@ -56,7 +56,7 @@ pub struct TimelyParallelism {
     experiment_num: u64,
 }
 impl TimelyParallelism {
-    // Constructors
+    /* Constructors */
     fn new_single_node(workers: u64) -> TimelyParallelism {
         let result = TimelyParallelism {
             workers,
@@ -84,11 +84,13 @@ impl TimelyParallelism {
             result
         }
     }
-    // Private methods
+
+    /* Private methods */
     fn validate(&self) {
-        assert!(
-            self.workers >= 1 && self.nodes >= 1 && self.this_node < self.nodes
-        );
+        assert!(self.workers >= 1 && self.nodes >= 1);
+    }
+    fn is_participating(&self) -> bool {
+        self.this_node < self.nodes
     }
     fn increment_experiment_num(&mut self) {
         self.experiment_num += 1;
@@ -97,7 +99,8 @@ impl TimelyParallelism {
         let port = EC2_STARTING_PORT + self.experiment_num;
         prepare_ec2_host_file(port)
     }
-    // String summary
+
+    /* Data summaries */
     pub fn to_csv(&self) -> String {
         self.validate();
         format!("{} wkrs, {} nodes", self.workers, self.nodes)
@@ -109,27 +112,34 @@ impl TimelyParallelism {
         result.push(self.nodes.to_string());
         result
     }
-    // Compute arguments to pass to Timely
-    // Note: call only once per experiment. Creates/initializes a host file
+
+    /* Compute arguments to pass to Timely */
+    // Note 1: call only once per experiment. Creates/initializes a host file
     // specific to that experiment.
-    pub fn timely_args(&mut self) -> Vec<String> {
+    // Note 2: returns None if this node is not involved in this experiment
+    // (i.e. node # is larger than number of nodes)
+    pub fn timely_args(&mut self) -> Option<Vec<String>> {
         self.validate();
         self.increment_experiment_num();
 
-        let mut vec: Vec<String> = Vec::new();
-        vec.push("-w".to_string());
-        vec.push(self.workers.to_string());
-        if self.nodes > 1 {
-            vec.push("-n".to_string());
-            vec.push(self.nodes.to_string());
-            vec.push("-p".to_string());
-            vec.push(self.this_node.to_string());
+        if !self.is_participating() {
+            None
+        } else {
+            let mut vec: Vec<String> = Vec::new();
+            vec.push("-w".to_string());
+            vec.push(self.workers.to_string());
+            if self.nodes > 1 {
+                vec.push("-n".to_string());
+                vec.push(self.nodes.to_string());
+                vec.push("-p".to_string());
+                vec.push(self.this_node.to_string());
 
-            let hostfile = self.prepare_ec2_host_file();
-            vec.push("-h".to_string());
-            vec.push(hostfile.to_string());
+                let hostfile = self.prepare_ec2_host_file();
+                vec.push("-h".to_string());
+                vec.push(hostfile.to_string());
+            }
+            Some(vec)
         }
-        vec
     }
 }
 
@@ -218,23 +228,40 @@ where
             params.to_csv(),
             parallelism.to_csv(),
         );
-        let mut args = parallelism.timely_args();
-        let parallelism_copy = *parallelism;
-        println!("Timely args: {:?}", args);
-        timely::execute_from_args(args.drain(0..), move |worker| {
-            let worker_index = worker.index();
-            worker.dataflow(move |scope| {
-                self.run_core(
-                    scope,
-                    params,
-                    parallelism_copy,
-                    worker_index,
-                    output_filename,
+        let opt_args = parallelism.timely_args();
+        let node_index = parallelism.this_node;
+        match opt_args {
+            Some(mut args) => {
+                println!("[node {}] initializing experiment", node_index);
+                println!("[node {}] timely args: {:?}", node_index, args);
+                let parallelism_copy = *parallelism;
+                timely::execute_from_args(args.drain(0..), move |worker| {
+                    let worker_index = worker.index();
+                    worker.dataflow(move |scope| {
+                        self.run_core(
+                            scope,
+                            params,
+                            parallelism_copy,
+                            worker_index,
+                            output_filename,
+                        );
+                        println!("[worker {}] setup complete", worker_index);
+                    });
+                })
+                .unwrap();
+            },
+            None => {
+                println!(
+                    "[node {}] skipping experiment between nodes {:?}",
+                    node_index,
+                    (0..parallelism.nodes).collect::<Vec<u64>>()
                 );
-                println!("[worker {}] setup complete", worker_index);
-            });
-        })
-        .unwrap();
+                let sleep_dur = params.get_exp_duration_secs();
+                println!("Sleeping for {}", sleep_dur);
+                sleep_for_secs(sleep_dur);
+                parallelism.increment_experiment_num();
+            }
+        }
     }
 
     /* Functionality provided and exposed as the main options */
@@ -266,35 +293,25 @@ where
                     TimelyParallelism::new_for_ec2(par_w, par_n);
                 // parallelism.workers = par_w;
                 // parallelism.nodes = par_n;
-                // Only run experiment if this node # is used in the experiment
-                if get_ec2_node_number() >= par_n {
-                    for &_rate in rates_per_milli {
-                        let sleep_dur = params.get_exp_duration_secs();
-                        println!("Sleeping for {}", sleep_dur);
-                        sleep_for_secs(sleep_dur);
-                        parallelism.increment_experiment_num();
-                    }
-                } else {
-                    println!(
-                        "===== Parallelism: {} =====",
-                        parallelism.to_csv()
+                println!(
+                    "===== Parallelism: {} =====",
+                    parallelism.to_csv()
+                );
+                let results_path = make_results_path(
+                    &self.get_name(),
+                    &[
+                        &("w".to_owned() + &par_w.to_string()),
+                        &("n".to_owned() + &par_n.to_string()),
+                    ],
+                );
+                for &rate in rates_per_milli {
+                    params.set_rate(rate);
+                    println!("=== Input Rate (events/ms): {} ===", rate);
+                    self.run(
+                        default_params,
+                        &mut parallelism,
+                        results_path,
                     );
-                    let results_path = make_results_path(
-                        &self.get_name(),
-                        &[
-                            &("w".to_owned() + &par_w.to_string()),
-                            &("n".to_owned() + &par_n.to_string()),
-                        ],
-                    );
-                    for &rate in rates_per_milli {
-                        params.set_rate(rate);
-                        println!("=== Input Rate (events/ms): {} ===", rate);
-                        self.run(
-                            default_params,
-                            &mut parallelism,
-                            results_path,
-                        );
-                    }
                 }
             }
         }
