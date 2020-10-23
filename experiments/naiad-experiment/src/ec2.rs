@@ -1,5 +1,8 @@
 /*
     Configuration for running Timely experiments on EC2.
+
+    There is also one function, prepare_local_host_file that is not EC2-related,
+    but just for localhost computations.
 */
 
 use super::util::{match_line_in_file, replace_lines_in_file};
@@ -11,6 +14,9 @@ use std::string::String;
 const EC2_IP_FILE: &str = "hosts/ec2_local_ips.txt";
 const EC2_HOST_TEMP_FILE: &str = "hosts/temp_ec2_hosts.txt";
 const EC2_REGION: &str = "us-east-2";
+
+const LOCAL_HOST_INPUT: &str = "hosts/localhost_20.txt";
+const LOCAL_HOST_TEMP_FILE: &str = "hosts/temp_local_hosts.txt";
 
 pub fn get_ec2_ipv4() -> String {
     // example output: 172.31.27.62
@@ -47,9 +53,26 @@ pub fn get_ec2_node_number() -> u64 {
 
 // Create/overwrite the file with EC2 host information, then return the new file.
 pub fn prepare_ec2_host_file(port: u64) -> &'static str {
-    replace_lines_in_file(EC2_IP_FILE, EC2_HOST_TEMP_FILE, |ipv4| {
-        get_ec2_host_port_str(ipv4, port)
-    })
+    replace_lines_in_file(
+        EC2_IP_FILE,
+        EC2_HOST_TEMP_FILE,
+        |_line_num, ipv4| get_ec2_host_port_str(ipv4, port),
+    )
     .unwrap();
     EC2_HOST_TEMP_FILE
+}
+
+// Create/overwrite the file with local host information, then return the new file.
+// Hosts are localhost:port where the ports are in increasing order starting from
+// starting_port.
+pub fn prepare_local_host_file(starting_port: u64) -> &'static str {
+    replace_lines_in_file(
+        LOCAL_HOST_INPUT,
+        LOCAL_HOST_TEMP_FILE,
+        |line_num, _line| {
+            format!("localhost:{}", (starting_port as usize) + line_num)
+        },
+    )
+    .unwrap();
+    LOCAL_HOST_TEMP_FILE
 }

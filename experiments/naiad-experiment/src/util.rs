@@ -88,12 +88,12 @@ pub fn replace_lines_in_file<F>(
     closure: F,
 ) -> Result<()>
 where
-    F: Fn(&str) -> String,
+    F: Fn(usize, &str) -> String,
 {
     let mut out_file =
         OpenOptions::new().create(true).write(true).open(out_filepath)?;
-    for_each_line_do(in_filepath, move |_line_number, line| {
-        writeln!(out_file, "{}", closure(line))
+    for_each_line_do(in_filepath, move |line_number, line| {
+        writeln!(out_file, "{}", closure(line_number, line))
     })
 }
 
