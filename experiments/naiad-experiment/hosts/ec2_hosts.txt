@@ -1,0 +1,4 @@
+ip-172-31-27-62.us-east-2.compute.internal:4000
+ip-172-31-19-240.us-east-2.compute.internal:4000
+ip-172-31-30-102.us-east-2.compute.internal:4000
+ip-172-31-27-230.us-east-2.compute.internal:4000
