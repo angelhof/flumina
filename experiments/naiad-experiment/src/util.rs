@@ -132,3 +132,13 @@ pub fn rand_range(a: u64, b: u64) -> u64 {
 pub fn rand_bool(p: f64) -> bool {
     rand::thread_rng().gen::<f64>() < p
 }
+
+/*
+    Process management
+*/
+// Run a function as a separate process
+// If it crashes or is terminated, finish gracefully
+// TODO: Placeholder for now. Implement this
+pub fn run_as_process<F: FnOnce()>(func: F) {
+    func()
+}

@@ -8,7 +8,9 @@ use super::ec2::{
 };
 use super::operators::save_to_file;
 use super::perf::latency_throughput_meter;
-use super::util::{current_datetime_str, sleep_for_secs, string_to_static_str};
+use super::util::{
+    current_datetime_str, run_as_process, sleep_for_secs, string_to_static_str,
+};
 
 use abomonation_derive::Abomonation;
 use structopt::StructOpt;
@@ -150,8 +152,7 @@ impl TimelyParallelism {
                 prepare_local_host_file(port)
             }
             EC2 => {
-                let port =
-                    EC2_STARTING_PORT + self.experiment_num * self.nodes;
+                let port = EC2_STARTING_PORT + self.experiment_num * self.nodes;
                 prepare_ec2_host_file(port)
             }
         }
@@ -220,7 +221,7 @@ pub trait ExperimentParams: Copy + StructOpt + timely::ExchangeData {
     To use, implement the get_name and build_dataflow methods.
 
     One reason this trait is needed is in order to hide the top-level scope
-    parameter passed by run_core to build the dataflow, which is instead made
+    parameter passed by run_dataflow to build the dataflow, which is instead made
     generic in the build_dataflow method. This
     is necessary because Rust generics are weird -- see
     https://stackoverflow.com/questions/37606035/pass-generic-function-as-argument
@@ -242,7 +243,7 @@ where
 
     /* Functionality provided, but mostly considered private */
     // The core dataflow to be run
-    fn run_core<G: Scope<Timestamp = u128>>(
+    fn run_dataflow<G: Scope<Timestamp = u128>>(
         &self,
         scope: &mut G,
         params: P,
@@ -270,8 +271,9 @@ where
             },
         );
     }
-    // Run an experiment: only necessary if the user wants a custom filename
-    fn run(
+    // Run an experiment with a filename
+    // Only necessary if the user wants a custom filename
+    fn run_with_filename(
         &'static self,
         params: P,
         parallelism: TimelyParallelism,
@@ -289,20 +291,26 @@ where
             Some(mut args) => {
                 println!("[node {}] initializing experiment", node_index);
                 println!("[node {}] timely args: {:?}", node_index, args);
-                timely::execute_from_args(args.drain(0..), move |worker| {
-                    let worker_index = worker.index();
-                    worker.dataflow(move |scope| {
-                        self.run_core(
-                            scope,
-                            params,
-                            parallelism,
-                            worker_index,
-                            output_filename,
-                        );
-                        println!("[worker {}] setup complete", worker_index);
-                    });
-                })
-                .unwrap();
+                let func = move || {
+                    timely::execute_from_args(args.drain(0..), move |worker| {
+                        let worker_index = worker.index();
+                        worker.dataflow(move |scope| {
+                            self.run_dataflow(
+                                scope,
+                                params,
+                                parallelism,
+                                worker_index,
+                                output_filename,
+                            );
+                            println!(
+                                "[worker {}] setup complete",
+                                worker_index
+                            );
+                        });
+                    })
+                    .unwrap();
+                };
+                run_as_process(func);
             }
             None => {
                 println!(
@@ -324,7 +332,7 @@ where
         args.append(&mut params.to_vec());
         args.append(&mut parallelism.to_vec());
         let results_path = make_results_path(&self.get_name(), &args[..]);
-        self.run(params, parallelism, results_path);
+        self.run_with_filename(params, parallelism, results_path);
     }
     // Run many experiments
     fn run_all(
@@ -352,7 +360,11 @@ where
                     let parallelism = TimelyParallelism::new_distributed_ec2(
                         par_w, par_n, exp_num,
                     );
-                    self.run(default_params, parallelism, results_path);
+                    self.run_with_filename(
+                        default_params,
+                        parallelism,
+                        results_path,
+                    );
                     exp_num += 1;
                 }
             }

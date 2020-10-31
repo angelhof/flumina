@@ -5,8 +5,8 @@
 
 extern crate timely;
 
-use timely::dataflow::operators::*;
 use timely::dataflow::operators::generic::operator::source;
+use timely::dataflow::operators::*;
 use timely::dataflow::scopes::Scope;
 use timely::dataflow::stream::Stream;
 
@@ -60,7 +60,5 @@ fn main() {
         });
         println!("worker {}/{} complete", w_index, w_total);
     })
-    .unwrap_or_else(
-        |err| panic!("Runtime error: {}", err)
-    );
+    .unwrap_or_else(|err| panic!("Runtime error: {}", err));
 }
