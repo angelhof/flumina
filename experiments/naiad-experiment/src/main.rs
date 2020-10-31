@@ -3,7 +3,7 @@
 */
 
 use naiad_experiment::experiment::{
-    LatencyThroughputExperiment, TimelyParallelism,
+    LatencyThroughputExperiment, TimelyNodeInfo, TimelyParallelism,
 };
 use naiad_experiment::pageview::{
     PVExperiment, PVExperimentParams, PVGenExperiment,
@@ -59,11 +59,20 @@ enum TimelyExperiments {
         plsm: TimelyParallelism,
     },
     #[structopt(about = "Pre-Defined Experiment 1: Value-Barrier")]
-    Exp1,
+    Exp1 {
+        #[structopt(default_value = "e")]
+        node_info: TimelyNodeInfo,
+    },
     #[structopt(about = "Pre-Defined Experiment 2: Fraud Detection")]
-    Exp2,
+    Exp2 {
+        #[structopt(default_value = "e")]
+        node_info: TimelyNodeInfo,
+    },
     #[structopt(about = "Pre-Defined Experiment 3: Page-view")]
-    Exp3,
+    Exp3 {
+        #[structopt(default_value = "e")]
+        node_info: TimelyNodeInfo,
+    },
 }
 impl TimelyExperiments {
     fn run(&mut self) {
@@ -73,7 +82,7 @@ impl TimelyExperiments {
             Self::FD { pms, plsm } => FDExperiment.run_single(*pms, *plsm),
             Self::PV { pms, plsm } => PVExperiment.run_single(*pms, *plsm),
             Self::PVG { pms, plsm } => PVGenExperiment.run_single(*pms, *plsm),
-            Self::Exp1 => {
+            Self::Exp1 { node_info } => {
                 /* Experiment 1: Value-Barrier */
                 let params = VBExperimentParams {
                     val_rate_per_milli: 0, // will be set
@@ -86,9 +95,15 @@ impl TimelyExperiments {
                 ];
                 let par_workers = &[1, 2];
                 let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
-                VBExperiment.run_all(params, rates, par_workers, par_nodes);
+                VBExperiment.run_all(
+                    *node_info,
+                    params,
+                    rates,
+                    par_workers,
+                    par_nodes,
+                );
             }
-            Self::Exp2 => {
+            Self::Exp2 { node_info } => {
                 /*  Experiment 2: Fraud Detection */
                 let params = VBExperimentParams {
                     val_rate_per_milli: 0, // will be set
@@ -101,9 +116,15 @@ impl TimelyExperiments {
                 ];
                 let par_workers = &[1, 2];
                 let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
-                FDExperiment.run_all(params, rates, par_workers, par_nodes);
+                FDExperiment.run_all(
+                    *node_info,
+                    params,
+                    rates,
+                    par_workers,
+                    par_nodes,
+                );
             }
-            Self::Exp3 => {
+            Self::Exp3 { node_info } => {
                 /* Experiment 3: Page-View */
                 let params = PVExperimentParams {
                     views_per_milli: 0, // will be set
@@ -115,7 +136,13 @@ impl TimelyExperiments {
                 ];
                 let par_workers = &[1, 2];
                 let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
-                PVExperiment.run_all(params, rates, par_workers, par_nodes);
+                PVExperiment.run_all(
+                    *node_info,
+                    params,
+                    rates,
+                    par_workers,
+                    par_nodes,
+                );
             }
         }
     }

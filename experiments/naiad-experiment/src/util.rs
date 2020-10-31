@@ -1,5 +1,7 @@
 /*
     Utility functions
+
+    Warning: some of these functions are Linux-specific.
 */
 
 use chrono::offset::Local;

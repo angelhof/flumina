@@ -45,21 +45,47 @@ const LOCAL_STARTING_PORT: u64 = 4000;
 /*
     Types of networks where Timely distributed experiments can be run
 */
-#[derive(Abomonation, Copy, Clone, Debug, Eq, PartialEq, StructOpt)]
+#[derive(Abomonation, Copy, Clone, Debug, Eq, PartialEq)]
 enum TimelyNetworkType {
     SingleNode,
     Local,
     EC2,
 }
-use TimelyNetworkType::{Local, SingleNode, EC2};
 impl FromStr for TimelyNetworkType {
     type Err = &'static str;
     fn from_str(input: &str) -> Result<TimelyNetworkType, Self::Err> {
         match input {
-            "s" => Ok(SingleNode),
-            "l" => Ok(Local),
-            "e" => Ok(EC2),
+            "s" => Ok(Self::SingleNode),
+            "l" => Ok(Self::Local),
+            "e" => Ok(Self::EC2),
             _ => Err("Invalid network type (choices: 's', 'l', 'e')"),
+        }
+    }
+}
+
+/*
+    Distributed node information
+    Network together with a node number.
+    Used to run distributed experiments that can be either local
+    (with a node number) or over EC2 (where node number will be derived).
+*/
+#[derive(Abomonation, Copy, Clone, Debug, Eq, PartialEq)]
+pub enum TimelyNodeInfo {
+    Local(u64), // node number
+    EC2,
+}
+impl FromStr for TimelyNodeInfo {
+    type Err = &'static str;
+    fn from_str(input: &str) -> Result<TimelyNodeInfo, Self::Err> {
+        if input == "e" {
+            Ok(Self::EC2)
+        } else if &input[0..1] == "l" {
+            match u64::from_str(&input[1..]) {
+                Ok(this_node) => Ok(Self::Local(this_node)),
+                Err(_err) => Err("Node ID should be a u64. Example usage: l3"),
+            }
+        } else {
+            Err("Invalid node info (choices: 'l<id>', 'e')")
         }
     }
 }
@@ -93,7 +119,7 @@ impl TimelyParallelism {
             workers,
             nodes: 1,
             this_node: 0,
-            network: SingleNode,
+            network: TimelyNetworkType::SingleNode,
             experiment_num: 0,
         };
         result.validate();
@@ -112,7 +138,7 @@ impl TimelyParallelism {
             workers,
             nodes,
             this_node,
-            network: Local,
+            network: TimelyNetworkType::Local,
             experiment_num,
         };
         result.validate();
@@ -127,17 +153,35 @@ impl TimelyParallelism {
             workers,
             nodes,
             this_node: get_ec2_node_number(),
-            network: EC2,
+            network: TimelyNetworkType::EC2,
             experiment_num,
         };
         result.validate();
         result
     }
+    pub fn new_from_info(
+        node_info: TimelyNodeInfo,
+        workers: u64,
+        nodes: u64,
+        experiment_num: u64,
+    ) -> TimelyParallelism {
+        match node_info {
+            TimelyNodeInfo::Local(this_node) => Self::new_distributed_local(
+                workers,
+                nodes,
+                this_node,
+                experiment_num,
+            ),
+            TimelyNodeInfo::EC2 => {
+                Self::new_distributed_ec2(workers, nodes, experiment_num)
+            }
+        }
+    }
 
     /* Private methods */
     fn validate(&self) {
         assert!(self.workers >= 1 && self.nodes >= 1);
-        if self.network == SingleNode {
+        if self.network == TimelyNetworkType::SingleNode {
             assert!(self.nodes == 1);
         }
     }
@@ -146,12 +190,12 @@ impl TimelyParallelism {
     }
     fn prepare_host_file(&self) -> &'static str {
         match self.network {
-            SingleNode => unreachable!(),
-            Local => {
+            TimelyNetworkType::SingleNode => unreachable!(),
+            TimelyNetworkType::Local => {
                 let port = LOCAL_STARTING_PORT + self.experiment_num;
                 prepare_local_host_file(port)
             }
-            EC2 => {
+            TimelyNetworkType::EC2 => {
                 let port = EC2_STARTING_PORT + self.experiment_num * self.nodes;
                 prepare_ec2_host_file(port)
             }
@@ -319,7 +363,7 @@ where
                     (0..parallelism.nodes).collect::<Vec<u64>>()
                 );
                 let sleep_dur = params.get_exp_duration_secs();
-                println!("Sleeping for {}", sleep_dur);
+                println!("[node {}] sleeping for {}", node_index, sleep_dur);
                 sleep_for_secs(sleep_dur);
             }
         }
@@ -337,11 +381,13 @@ where
     // Run many experiments
     fn run_all(
         &'static self,
+        node_info: TimelyNodeInfo,
         default_params: P,
         rates_per_milli: &[u64],
         par_workers: &[u64],
         par_nodes: &[u64],
     ) {
+        // Run experiment for all different configurations
         let mut exp_num = 0;
         let mut params = default_params;
         for &par_w in par_workers {
@@ -357,8 +403,8 @@ where
                 for &rate in rates_per_milli {
                     println!("=== Input Rate (events/ms): {} ===", rate);
                     params.set_rate(rate);
-                    let parallelism = TimelyParallelism::new_distributed_ec2(
-                        par_w, par_n, exp_num,
+                    let parallelism = TimelyParallelism::new_from_info(
+                        node_info, par_w, par_n, exp_num,
                     );
                     self.run_with_filename(
                         default_params,

@@ -1,8 +1,10 @@
 /*
     Configuration for running Timely experiments on EC2.
 
-    There is also one function, prepare_local_host_file that is not EC2-related,
-    but just for localhost computations.
+    The following functions are not EC2-related, but are just for
+    localhost computations. These correspond to the similar EC2
+    versions of these functions.
+    - prepare_local_host_file (corresponds to prepare_ec2_host_file)
 */
 
 use super::util::{match_line_in_file, replace_lines_in_file};
