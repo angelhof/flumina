@@ -93,8 +93,8 @@ impl TimelyExperiments {
                 let rates = &[
                     50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
                 ];
-                let par_workers = &[1, 2];
-                let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
+                let par_workers = &[1];
+                let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
                 VBExperiment.run_all(
                     *node_info,
                     params,
@@ -114,8 +114,8 @@ impl TimelyExperiments {
                 let rates = &[
                     50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
                 ];
-                let par_workers = &[1, 2];
-                let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
+                let par_workers = &[1];
+                let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
                 FDExperiment.run_all(
                     *node_info,
                     params,
@@ -134,8 +134,8 @@ impl TimelyExperiments {
                 let rates = &[
                     50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
                 ];
-                let par_workers = &[1, 2];
-                let par_nodes = &[1, 2, 4]; // , 8, 12, 16, 20];
+                let par_workers = &[1];
+                let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
                 PVExperiment.run_all(
                     *node_info,
                     params,
