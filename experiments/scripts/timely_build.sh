@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run cargo build on remote host
+# Run cargo build --release on remote host
 
 hostname=$1
 remote_cargo=/home/ubuntu/.cargo/bin/cargo

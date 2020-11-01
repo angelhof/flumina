@@ -1,4 +1,4 @@
-ubuntu@ec2-3-134-253-231.us-east-2.compute.amazonaws.com
-ubuntu@ec2-3-133-91-169.us-east-2.compute.amazonaws.com
-ubuntu@ec2-18-222-136-202.us-east-2.compute.amazonaws.com
-ubuntu@ec2-18-222-15-80.us-east-2.compute.amazonaws.com
+ubuntu@ec2-3-131-162-180.us-east-2.compute.amazonaws.com
+ubuntu@ec2-18-217-168-150.us-east-2.compute.amazonaws.com
+ubuntu@ec2-3-131-152-23.us-east-2.compute.amazonaws.com
+ubuntu@ec2-3-138-155-48.us-east-2.compute.amazonaws.com
