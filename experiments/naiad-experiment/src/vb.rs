@@ -53,8 +53,10 @@ impl ExperimentParams for VBExperimentParams {
     fn get_exp_duration_secs(&self) -> u64 {
         self.exp_duration_secs
     }
-    fn set_rate(&mut self, rate_per_milli: u64) {
-        self.val_rate_per_milli = rate_per_milli;
+    fn set_rate(&self, rate_per_milli: u64) -> Self {
+        let mut copy = *self;
+        copy.val_rate_per_milli = rate_per_milli;
+        copy
     }
 }
 

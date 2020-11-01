@@ -251,12 +251,15 @@ impl TimelyParallelism {
     get_exp_duration_secs is the total time that the experiment runs (in secs).
     set_rate should vary one or more of the parameters to set the
     input throughput (in events / ms), which can be used to test throughput.
+
+    ExperimentParams should be immutable and implement the Copy trait.
+    For example, set_rate returns a new object.
 */
 pub trait ExperimentParams: Copy + StructOpt + timely::ExchangeData {
     fn to_csv(&self) -> String;
     fn to_vec(&self) -> Vec<String>;
     fn get_exp_duration_secs(&self) -> u64;
-    fn set_rate(&mut self, rate_per_milli: u64);
+    fn set_rate(&self, rate_per_milli: u64) -> Self;
 }
 
 /*
@@ -389,7 +392,6 @@ where
     ) {
         // Run experiment for all different configurations
         let mut exp_num = 0;
-        let mut params = default_params;
         for &par_w in par_workers {
             for &par_n in par_nodes {
                 println!("===== Parallelism: {} w, {} n =====", par_w, par_n,);
@@ -402,15 +404,11 @@ where
                 );
                 for &rate in rates_per_milli {
                     println!("=== Input Rate (events/ms): {} ===", rate);
-                    params.set_rate(rate);
+                    let params = default_params.set_rate(rate);
                     let parallelism = TimelyParallelism::new_from_info(
                         node_info, par_w, par_n, exp_num,
                     );
-                    self.run_with_filename(
-                        default_params,
-                        parallelism,
-                        results_path,
-                    );
+                    self.run_with_filename(params, parallelism, results_path);
                     exp_num += 1;
                 }
             }
