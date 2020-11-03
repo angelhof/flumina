@@ -17,7 +17,7 @@ use super::pageview_generators::{
 use abomonation_derive::Abomonation;
 use structopt::StructOpt;
 
-use timely::dataflow::operators::{Broadcast, Filter, Map, Reclock};
+use timely::dataflow::operators::{Broadcast, Exchange, Filter, Map, Reclock};
 
 use std::string::String;
 
@@ -76,7 +76,7 @@ where
     (v_stream, u_stream)
 }
 
-fn pv_dataflow<G>(
+fn pv_dataflow_good<G>(
     views: &Stream<G, PVItem>,
     updates: &Stream<G, PVItem>,
     worker_index: usize,
@@ -96,13 +96,41 @@ where
         ;
 
     // re-timestamp views using updates
-    let updates_clock = updates.map(|_| ());
+    let updates_clock = partitioned_updates.map(|_| ());
     let clocked_views = views.reclock(&updates_clock);
 
     // join each value with the most recent update
     join_by_timestamp(&partitioned_updates, &clocked_views)
         // .inspect(move |(x, y)| {
         //     println!("Result: ({:?}, {:?}) at worker {}", x, y, worker_index)
+        // })
+        .map(|(x, _y)| x)
+}
+
+fn pv_dataflow_bad<G>(
+    views: &Stream<G, PVItem>,
+    updates: &Stream<G, PVItem>,
+) -> Stream<G, PVItem>
+where
+    G: Scope<Timestamp = u128>,
+{
+    // Unlike in the good version, here partition by page name
+    // (creates one stream for each page, fails for a small number
+    // of pages taking up a large amount of the traffic).
+
+    let partitioned_updates = updates.exchange(|x| x.name);
+    let partitioned_views = views.exchange(|x| x.name);
+
+    // The rest of the computation is the same as the 'good' version
+
+    // re-timestamp views using updates
+    let updates_clock = partitioned_updates.map(|_| ());
+    let clocked_views = partitioned_views.reclock(&updates_clock);
+
+    // join each value with the most recent update
+    join_by_timestamp(&partitioned_updates, &clocked_views)
+        // .inspect(move |(x, y)| {
+        //     println!("Result: ({:?}, {:?})", x, y)
         // })
         .map(|(x, _y)| x)
 }
@@ -130,12 +158,12 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
 }
 
 #[derive(Abomonation, Copy, Clone, Debug)]
-pub struct PVExperiment;
+pub struct PVGoodExperiment;
 impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
-    for PVExperiment
+    for PVGoodExperiment
 {
     fn get_name(&self) -> String {
-        "PV".to_owned()
+        "PVgood".to_owned()
     }
     fn build_dataflow<G: Scope<Timestamp = u128>>(
         &self,
@@ -144,7 +172,27 @@ impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
         worker_index: usize,
     ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
         let (views, updates) = pv_datagen(params, scope, worker_index);
-        let output = pv_dataflow(&views, &updates, worker_index);
+        let output = pv_dataflow_good(&views, &updates, worker_index);
+        (views, output)
+    }
+}
+
+#[derive(Abomonation, Copy, Clone, Debug)]
+pub struct PVBadExperiment;
+impl LatencyThroughputExperiment<PVExperimentParams, PVItem, PVItem>
+    for PVBadExperiment
+{
+    fn get_name(&self) -> String {
+        "PVbad".to_owned()
+    }
+    fn build_dataflow<G: Scope<Timestamp = u128>>(
+        &self,
+        params: PVExperimentParams,
+        scope: &mut G,
+        worker_index: usize,
+    ) -> (Stream<G, PVItem>, Stream<G, PVItem>) {
+        let (views, updates) = pv_datagen(params, scope, worker_index);
+        let output = pv_dataflow_bad(&views, &updates);
         (views, output)
     }
 }

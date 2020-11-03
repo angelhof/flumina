@@ -6,7 +6,7 @@ use naiad_experiment::experiment::{
     LatencyThroughputExperiment, TimelyNodeInfo, TimelyParallelism,
 };
 use naiad_experiment::pageview::{
-    PVExperiment, PVExperimentParams, PVGenExperiment,
+    PVBadExperiment, PVExperimentParams, PVGenExperiment, PVGoodExperiment,
 };
 use naiad_experiment::vb::{
     FDExperiment, VBExperiment, VBExperimentParams, VBGenExperiment,
@@ -31,7 +31,7 @@ enum TimelyExperiments {
         plsm: TimelyParallelism,
     },
     #[structopt(about = "Value-Barrier Data Generation Only")]
-    VBG {
+    VBGen {
         #[structopt(flatten)]
         pms: VBExperimentParams,
         #[structopt(flatten)]
@@ -44,15 +44,22 @@ enum TimelyExperiments {
         #[structopt(flatten)]
         plsm: TimelyParallelism,
     },
-    #[structopt(about = "Page-View Example")]
-    PV {
+    #[structopt(about = "Page-View Example, Good Version (Scales)")]
+    PVGood {
+        #[structopt(flatten)]
+        pms: PVExperimentParams,
+        #[structopt(flatten)]
+        plsm: TimelyParallelism,
+    },
+    #[structopt(about = "Page-View Example, Bad Version (Doesn't Scale)")]
+    PVBad {
         #[structopt(flatten)]
         pms: PVExperimentParams,
         #[structopt(flatten)]
         plsm: TimelyParallelism,
     },
     #[structopt(about = "Page-View Data Generation Only")]
-    PVG {
+    PVGen {
         #[structopt(flatten)]
         pms: PVExperimentParams,
         #[structopt(flatten)]
@@ -68,8 +75,13 @@ enum TimelyExperiments {
         #[structopt(default_value = "e")]
         node_info: TimelyNodeInfo,
     },
-    #[structopt(about = "Pre-Defined Experiment 3: Page-view")]
+    #[structopt(about = "Pre-Defined Experiment 3: Page-View Good")]
     Exp3 {
+        #[structopt(default_value = "e")]
+        node_info: TimelyNodeInfo,
+    },
+    #[structopt(about = "Pre-Defined Experiment 4: Page-View Bad")]
+    Exp4 {
         #[structopt(default_value = "e")]
         node_info: TimelyNodeInfo,
     },
@@ -78,10 +90,19 @@ impl TimelyExperiments {
     fn run(&mut self) {
         match self {
             Self::VB { pms, plsm } => VBExperiment.run_single(*pms, *plsm),
-            Self::VBG { pms, plsm } => VBGenExperiment.run_single(*pms, *plsm),
+            Self::VBGen { pms, plsm } => {
+                VBGenExperiment.run_single(*pms, *plsm)
+            }
             Self::FD { pms, plsm } => FDExperiment.run_single(*pms, *plsm),
-            Self::PV { pms, plsm } => PVExperiment.run_single(*pms, *plsm),
-            Self::PVG { pms, plsm } => PVGenExperiment.run_single(*pms, *plsm),
+            Self::PVGood { pms, plsm } => {
+                PVGoodExperiment.run_single(*pms, *plsm)
+            }
+            Self::PVBad { pms, plsm } => {
+                PVBadExperiment.run_single(*pms, *plsm)
+            }
+            Self::PVGen { pms, plsm } => {
+                PVGenExperiment.run_single(*pms, *plsm)
+            }
             Self::Exp1 { node_info } => {
                 /* Experiment 1: Value-Barrier */
                 let params = VBExperimentParams {
@@ -125,7 +146,7 @@ impl TimelyExperiments {
                 );
             }
             Self::Exp3 { node_info } => {
-                /* Experiment 3: Page-View */
+                /* Experiment 3: Page-View Good */
                 let params = PVExperimentParams {
                     views_per_milli: 0, // will be set
                     views_per_update: 10000,
@@ -136,7 +157,27 @@ impl TimelyExperiments {
                 ];
                 let par_workers = &[1];
                 let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
-                PVExperiment.run_all(
+                PVGoodExperiment.run_all(
+                    *node_info,
+                    params,
+                    rates,
+                    par_workers,
+                    par_nodes,
+                );
+            }
+            Self::Exp4 { node_info } => {
+                /* Experiment 4: Page-View Bad */
+                let params = PVExperimentParams {
+                    views_per_milli: 0, // will be set
+                    views_per_update: 10000,
+                    exp_duration_secs: 5,
+                };
+                let rates = &[
+                    50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
+                ];
+                let par_workers = &[1];
+                let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
+                PVBadExperiment.run_all(
                     *node_info,
                     params,
                     rates,

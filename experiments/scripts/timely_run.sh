@@ -10,4 +10,5 @@ cd flumina-devel/experiments/naiad-experiment/
 ${remote_cargo} run --release exp1
 ${remote_cargo} run --release exp2
 ${remote_cargo} run --release exp3
+${remote_cargo} run --release exp4
 EOF
