@@ -80,8 +80,13 @@ enum TimelyExperiments {
         #[structopt(default_value = "e")]
         node_info: TimelyNodeInfo,
     },
-    #[structopt(about = "Pre-Defined Experiment 4: Page-View Bad")]
-    Exp4 {
+    #[structopt(about = "Pre-Defined Experiment 4: Page-View Bad (part a)")]
+    Exp4a {
+        #[structopt(default_value = "e")]
+        node_info: TimelyNodeInfo,
+    },
+    #[structopt(about = "Pre-Defined Experiment 4: Page-View Bad (part b)")]
+    Exp4b {
         #[structopt(default_value = "e")]
         node_info: TimelyNodeInfo,
     },
@@ -165,8 +170,28 @@ impl TimelyExperiments {
                     par_nodes,
                 );
             }
-            Self::Exp4 { node_info } => {
-                /* Experiment 4: Page-View Bad */
+            Self::Exp4a { node_info } => {
+                /* Experiment 4: Page-View Bad (part a) */
+                let params = PVExperimentParams {
+                    views_per_milli: 0, // will be set
+                    views_per_update: 10000,
+                    exp_duration_secs: 5,
+                };
+                let rates = &[
+                    50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
+                ];
+                let par_workers = &[1];
+                let par_nodes = &[1, 2, 4];
+                PVBadExperiment.run_all(
+                    *node_info,
+                    params,
+                    rates,
+                    par_workers,
+                    par_nodes,
+                );
+            }
+            Self::Exp4b { node_info } => {
+                /* Experiment 4: Page-View Bad (part b) */
                 let params = PVExperimentParams {
                     views_per_milli: 0, // will be set
                     views_per_update: 10000,
@@ -174,12 +199,9 @@ impl TimelyExperiments {
                 };
                 let rates = &[
                     2, 3, 4, 5, 10, 20, 30, 40, 50,
-                    // also need to run the following but only for 1 or 2
-                    // nodes; for more nodes they just crash
-                    // 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
                 ];
                 let par_workers = &[1];
-                let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
+                let par_nodes = &[4, 8, 12, 16, 20];
                 PVBadExperiment.run_all(
                     *node_info,
                     params,
