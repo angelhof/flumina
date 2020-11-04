@@ -173,7 +173,10 @@ impl TimelyExperiments {
                     exp_duration_secs: 5,
                 };
                 let rates = &[
-                    50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
+                    2, 3, 4, 5, 10, 20, 30, 40, 50,
+                    // also need to run the following but only for 1 or 2
+                    // nodes; for more nodes they just crash
+                    // 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
                 ];
                 let par_workers = &[1];
                 let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
