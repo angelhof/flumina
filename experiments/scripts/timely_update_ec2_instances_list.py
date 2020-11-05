@@ -13,6 +13,7 @@ EC2_SSH_HOSTS_PATH = "hosts/ssh_hosts.txt"
 EC2_PARTIAL_SSH_HOSTS_PATHS = [
     (1, "hosts/ssh_hosts_1.txt"),
     (2, "hosts/ssh_hosts_2.txt"),
+    (4, "hosts/ssh_hosts_4.txt"),
 ]
 
 # Get ec2 describe-instances list, return as a json structure
