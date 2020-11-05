@@ -117,7 +117,8 @@ impl TimelyExperiments {
                     exp_duration_secs: 5,
                 };
                 let rates = &[
-                    50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
+                    200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000,
+                    2200, 2400,
                 ];
                 let par_workers = &[1];
                 let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
@@ -138,7 +139,8 @@ impl TimelyExperiments {
                     exp_duration_secs: 5,
                 };
                 let rates = &[
-                    50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
+                    200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000,
+                    2200, 2400,
                 ];
                 let par_workers = &[1];
                 let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
@@ -158,7 +160,8 @@ impl TimelyExperiments {
                     exp_duration_secs: 5,
                 };
                 let rates = &[
-                    50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
+                    200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000,
+                    2200, 2400,
                 ];
                 let par_workers = &[1];
                 let par_nodes = &[1, 2, 4, 8, 12, 16, 20];
@@ -178,7 +181,8 @@ impl TimelyExperiments {
                     exp_duration_secs: 5,
                 };
                 let rates = &[
-                    50, 100, 150, 200, 250, 300, 350, 400, 450, 500, 550, 600,
+                    200, 400, 600, 800, 1000, 1200, 1400, 1600, 1800, 2000,
+                    2200, 2400,
                 ];
                 let par_workers = &[1];
                 let par_nodes = &[1, 2, 4];
@@ -198,7 +202,7 @@ impl TimelyExperiments {
                     exp_duration_secs: 5,
                 };
                 let rates = &[
-                    2, 3, 4, 5, 10, 20, 30, 40, 50,
+                    20, 40, 60, 80, 100, 120, 140, 160, 180, 200, 220, 240,
                 ];
                 let par_workers = &[1];
                 let par_nodes = &[4, 8, 12, 16, 20];

@@ -124,7 +124,11 @@ where
     // The rest of the computation is the same as the 'good' version
 
     // re-timestamp views using updates
-    let updates_clock = partitioned_updates.map(|_| ());
+    let updates_clock = partitioned_updates
+        // .inspect(move |x| {
+        //     println!("Update: {:?}", x)
+        // })
+        .map(|_| ());
     let clocked_views = partitioned_views.reclock(&updates_clock);
 
     // join each value with the most recent update
