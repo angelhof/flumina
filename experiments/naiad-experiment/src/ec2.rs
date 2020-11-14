@@ -7,6 +7,7 @@
     - prepare_local_host_file (corresponds to prepare_ec2_host_file)
 */
 
+use super::network_util::{handshake, socket};
 use super::util::{match_line_in_file, replace_lines_in_file};
 
 use std::process::Command;
@@ -77,4 +78,21 @@ pub fn prepare_local_host_file(starting_port: u64) -> &'static str {
     )
     .unwrap();
     LOCAL_HOST_TEMP_FILE
+}
+
+// A logical barrier between EC2 nodes.
+// (each node waits for every node to reach the barrier)
+pub fn ec2_barrier(_this_node: u64, _num_nodes: u64) {
+    // PLACEHOLDER
+    // if num_nodes == 2 {
+    // } else {
+    //     todo!();
+    // }
+    todo!();
+}
+
+pub fn local_barrier(num_nodes: u64, this_node: u64) {
+    // PLACEHOLDER
+    if num_nodes != 2 { todo!(); }
+    handshake(socket("localhost", 4000), this_node == 0);
 }

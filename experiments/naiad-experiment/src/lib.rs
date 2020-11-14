@@ -4,6 +4,7 @@ pub mod ec2;
 pub mod either;
 pub mod experiment;
 pub mod generators;
+pub mod network_util;
 pub mod operators;
 pub mod perf;
 pub mod util;
