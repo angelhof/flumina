@@ -1,0 +1,5 @@
+1 wkrs, 16 nodes, 50 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 125.77320072 ms, 678.05220765969 events/ms
+1 wkrs, 16 nodes, 100 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 11.90466126 ms, 1591.610625169563 events/ms
+1 wkrs, 16 nodes, 150 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 2576.9107845384615 ms, 1838.3930503713354 events/ms
+1 wkrs, 16 nodes, 200 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 44.9368856 ms, 3097.8342108583793 events/ms
+1 wkrs, 16 nodes, 250 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 3209.259848314516 ms, 2019.4999714314465 events/ms

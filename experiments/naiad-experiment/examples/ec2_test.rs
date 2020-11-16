@@ -1,3 +1,8 @@
+/*
+    This file tests running a Timely computation over two
+    EC2 instances, twice.
+*/
+
 extern crate timely;
 
 use timely::dataflow::operators::*;

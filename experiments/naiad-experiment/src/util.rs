@@ -1,14 +1,19 @@
 /*
     Utility functions
+
+    Warning: some of these functions are Linux-specific.
 */
 
 use chrono::offset::Local;
+use nix::sys::wait::{waitpid, WaitStatus};
+use nix::unistd::{fork, ForkResult};
 use rand::Rng;
 
 use std::boxed::Box;
 use std::fmt::Debug;
 use std::fs::{File, OpenOptions};
 use std::io::{self, prelude::*, BufReader, Result};
+use std::process::exit;
 use std::str::FromStr;
 use std::string::String;
 use std::thread;
@@ -88,12 +93,12 @@ pub fn replace_lines_in_file<F>(
     closure: F,
 ) -> Result<()>
 where
-    F: Fn(&str) -> String,
+    F: Fn(usize, &str) -> String,
 {
     let mut out_file =
         OpenOptions::new().create(true).write(true).open(out_filepath)?;
-    for_each_line_do(in_filepath, move |_line_number, line| {
-        writeln!(out_file, "{}", closure(line))
+    for_each_line_do(in_filepath, move |line_number, line| {
+        writeln!(out_file, "{}", closure(line_number, line))
     })
 }
 
@@ -131,4 +136,46 @@ pub fn rand_range(a: u64, b: u64) -> u64 {
 }
 pub fn rand_bool(p: f64) -> bool {
     rand::thread_rng().gen::<f64>() < p
+}
+
+/*
+    Process management
+*/
+// Run a function as a separate process.
+// If it crashes or is terminated, finish gracefully.
+// This function may panic if the system calls fail or the process
+// has an unexpected result (e.g. stopped, continued, nonzero exit code).
+pub fn run_as_process<Out, F: FnOnce() -> Out>(func: F) {
+    match unsafe { fork() } {
+        Ok(ForkResult::Parent { child, .. }) => {
+            println!("[parent] running in subprocess PID: {}", child);
+            match waitpid(child, None) {
+                Ok(WaitStatus::Exited(pid, code)) => {
+                    debug_assert!(child == pid);
+                    if code != 0 {
+                        println!("[parent] non-zero exit code! {}", code);
+                    }
+                }
+                Ok(WaitStatus::Signaled(pid, signal, code)) => {
+                    debug_assert!(child == pid);
+                    println!(
+                        "[parent] process killed! signal {}, exit code {}",
+                        signal, code
+                    );
+                }
+                Ok(status) => panic!(
+                    "[parent] Error: unexpected child process status! {:?}",
+                    status
+                ),
+                Err(err) => panic!("[parent] Error: waitpid failed! {}", err),
+            }
+        }
+        Ok(ForkResult::Child) => {
+            // println!("[child] starting");
+            func();
+            // println!("[child] exiting");
+            exit(0)
+        }
+        Err(err) => panic!("[parent] Error: fork failed! {}", err),
+    }
 }

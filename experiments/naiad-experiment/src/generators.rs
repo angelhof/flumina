@@ -67,10 +67,10 @@ where
                 // println!("New items to send: {}", vals_to_send - vals_sent);
 
                 // Output values to catch up
+                let time_nanos = nanos_timestamp(SystemTime::now());
+                cap.downgrade(&time_nanos);
                 while vals_sent < vals_to_send && vals_sent < vals_max {
-                    let time_nanos = nanos_timestamp(SystemTime::now());
                     let item = item_gen(time_nanos);
-                    cap.downgrade(&time_nanos);
                     output.session(&cap).give(item);
                     vals_sent += 1;
                 }

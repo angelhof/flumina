@@ -1,0 +1,10 @@
+1 wkrs, 2 nodes, 50 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 5.393912 ms, 100.04455268057394 events/ms
+1 wkrs, 2 nodes, 100 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 5.04190048 ms, 199.87310680053326 events/ms
+1 wkrs, 2 nodes, 150 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 4.414679186666667 ms, 300.0335957226246 events/ms
+1 wkrs, 2 nodes, 200 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 4.62888042 ms, 399.89143219542063 events/ms
+1 wkrs, 2 nodes, 250 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 5.533552568 ms, 499.7876010649596 events/ms
+1 wkrs, 2 nodes, 300 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 9.572801253333333 ms, 599.9492716825604 events/ms
+1 wkrs, 2 nodes, 350 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 18.39112170857143 ms, 699.1229172001458 events/ms
+1 wkrs, 2 nodes, 400 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 23.83411438 ms, 781.4459110845536 events/ms
+1 wkrs, 2 nodes, 450 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 25.68769120888889 ms, 765.0175623508304 events/ms
+1 wkrs, 2 nodes, 500 vals/ms, 100 val/hb/wkr, 100 hb/bar, 5 s, 27.691205524 ms, 730.7613108737046 events/ms
