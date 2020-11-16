@@ -7,15 +7,33 @@ from os import path
 import numpy as np
 
 
+def process_latencies_file(file_path):
+    pattern = re.compile(r'\[latency: (-?\d+) ms\]')
+    with open(file_path, 'r') as f:
+        return [int(re.search(pattern, line).group(1)) for line in f.readlines()]
+
+
 def get_flink_latencies(result_path):
+    # Parse out.txt
     out_file = path.join(result_path, 'out.txt')
-    with open(out_file, 'r') as f:
-        pattern = re.compile(r'\[latency: (-?\d+) ms\]')
-        latencies = [int(re.search(pattern, line).group(1)) for line in f.readlines()]
-        p10 = np.percentile(latencies, 10)
-        p50 = np.percentile(latencies, 50)
-        p90 = np.percentile(latencies, 90)
-        return p10, p50, p90
+    latencies = process_latencies_file(out_file)
+
+    # Parse trans.txt if it is a file
+    trans_file = path.join(result_path, 'trans.txt')
+    if path.isfile(trans_file):
+        latencies += process_latencies_file(trans_file)
+
+    # Parse trans.txt if it is a dir
+    if path.isdir(trans_file):
+        for ls in (process_latencies_file(path.join(trans_file, file))
+                   for file in os.listdir(trans_file)
+                   if path.isfile(path.join(trans_file, file))):
+            latencies += ls
+
+    p10 = np.percentile(latencies, 10)
+    p50 = np.percentile(latencies, 50)
+    p90 = np.percentile(latencies, 90)
+    return p10, p50, p90
 
 
 def get_flink_throughput(result_path):

@@ -117,6 +117,8 @@ def plot_latency_throughput(fst_label, fst_latencies_throughputs,
     snd_latencies_diff_10 = [p50 - p10 for p10, p50, p90 in snd_latencies]
     snd_latencies_diff_90 = [p90 - p50 for p10, p50, p90 in snd_latencies]
 
+    plt.rcParams['mathtext.fontset'] = 'stix'
+    plt.rcParams['font.family'] = 'STIXGeneral'
     plt.rcParams.update({'font.size': 18})
     fig, ax = plt.subplots()
     ax.set_xlabel('Throughput (events/ms)')
@@ -129,12 +131,14 @@ def plot_latency_throughput(fst_label, fst_latencies_throughputs,
     ax.errorbar(snd_throughputs,
                 snd_latencies_mean, [snd_latencies_diff_10, snd_latencies_diff_90],
                 linestyle='--', marker='^', label=snd_label,
-                linewidth=1, capthick=1, capsize=3, color='tab:red')
+                linewidth=1, capthick=1, capsize=3, color='tab:orange')
     ax.legend()
 
     plt.tight_layout()
-    plt.savefig(output_file)
-    # plt.show()
+    if not output_file:
+        plt.show()
+    else:
+        plt.savefig(output_file)
 
 
 def get_flumina_latencies_throughputs(flumina_dirs, experiment='value-barrier'):
@@ -168,8 +172,10 @@ def plot_latency_throughput_single(label, latencies_throughputs, output_file=Non
     ax.legend()
 
     plt.tight_layout()
-    # plt.savefig(output_file)
-    plt.show()
+    if output_file is None:
+        plt.show()
+    else:
+        plt.savefig(output_file)
 
 
 def plot_flumina_5(result_dir):
@@ -244,18 +250,34 @@ def plot_flumina_flink_pageview_nodes(dir_flumina, dir_flink):
                                 path.join(dir_flink, f'u2_p{p}_r15')
                                 for p in range(2, 39, 2)))
 
+
 def plot_flumina_flink_pageview_rates(dir_flumina, dir_flink):
     plot_latency_throughput('Flumina',
                             get_flumina_latencies_throughputs(
-                                (path.join(dir_flumina, f'stream_table_join_1_1_1_{r}')
-                                 for r in range(20, 71, 2)),
+                                (path.join(dir_flumina, f'stream_table_join_1_1_0_{r}')
+                                 for r in range(20, 211, 10)),
                                 experiment='stream-table-join'
                             ),
                             'Flink',
                             get_flink_latencies_throughputs(
                                 path.join(dir_flink, f'u2_p1_r{r}')
-                                for r in range(20, 101, 2)),
+                                for r in range(20, 211, 10)),
                             output_file='../plots/stream_join_rate_scaleup-both.pdf')
+
+
+def plot_flink_splan_pageview(dir_flink):
+    plot_latency_throughput('Flink S-Plan',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'u2_p12_r{r}_a1')
+                                for r in range(20, 111, 10)
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink,f'u2_p12_r{r}_a2')
+                                for r in range(20, 111, 10)
+                            ),
+                            output_file='../plots/pageview-flink-splan.pdf')
+                            # output_file=None)
 
 ### ValueBarrier
 
@@ -274,14 +296,14 @@ def plot_flumina_flink_vb_nodes(dir_flumina, dir_flink):
 def plot_flumina_flink_vb_rates(dir_flumina, dir_flink):
     plot_latency_throughput('Flumina',
                             get_flumina_latencies_throughputs(
-                                (path.join(dir_flumina, f'ab_exp_1_{r}_1000_10_1_optimizer_greedy')
-                                 for r in range(40, 91, 2)),
+                                (path.join(dir_flumina, f'ab_exp_1_{r}_10000_100_0_optimizer_greedy')
+                                 for r in range(50, 261, 10)),
                                 experiment='value-barrier'
                             ),
                             'Flink',
                             get_flink_latencies_throughputs(
-                                path.join(dir_flink, f'n5_r{r}_q1000_h10')
-                                for r in range(40, 101, 2)),
+                                path.join(dir_flink, f'n1_r{r}_q10000_h100')
+                                for r in range(50, 401, 10)),
                             output_file='../plots/vb-rates-scaleup-both.pdf')
 
 # Fraud detection
@@ -302,15 +324,31 @@ def plot_flumina_flink_fraud_nodes(dir_flumina, dir_flink):
 def plot_flumina_flink_fraud_rates(dir_flumina, dir_flink):
     plot_latency_throughput('Flumina',
                             get_flumina_latencies_throughputs(
-                                (path.join(dir_flumina, f'ab_exp_full_1_{r}_10000_100_1_optimizer_greedy')
-                                 for r in range(20, 61, 2)),
+                                (path.join(dir_flumina, f'ab_exp_full_1_{r}_10000_100_0_optimizer_greedy')
+                                 for r in range(50, 261, 10)),
                                 experiment='full-value-barrier'
                             ),
                             'Flink',
                             get_flink_latencies_throughputs(
-                                path.join(dir_flink, f'n5_r{r}_q10000_h100')
-                                for r in range(20, 101, 2)),
+                                path.join(dir_flink, f'n1_r{r}_q10000_h100')
+                                for r in range(50, 401, 10)),
                             output_file='../plots/full-vb-rates-scaleup-both.pdf')
+
+
+def plot_flink_splan_frauds(dir_flink):
+    plot_latency_throughput('Flink S-Plan',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'n12_r{r}_q10000_h100_a1')
+                                for r in range(20, 241, 20)
+                            ),
+                            'Flink',
+                            get_flink_latencies_throughputs(
+                                path.join(dir_flink, f'n12_r{r}_q10000_h100_a2')
+                                for r in range(20, 111, 20)
+                            ),
+                            output_file='../plots/frauds-flink-splan.pdf')
+                            # output_file=None)
+
 
 def plot_flink_fraud_nodes(result_dir):
     plot_latency_throughput_single('Flink',
