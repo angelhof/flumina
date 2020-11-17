@@ -2,47 +2,93 @@
     A few simple abstractions for distributed communication over a network.
 */
 
+use super::util::sleep_for_secs;
+
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream, SocketAddrV4};
-// use std::process::Command;
+use std::net::{Ipv4Addr, TcpListener, TcpStream, SocketAddrV4};
 use std::str;
-// use std::string::String;
-// use std::thread;
+
+fn parse_host(host: &str) -> Ipv4Addr {
+    if host.to_lowercase() == "localhost" {
+        Ipv4Addr::LOCALHOST
+    } else {
+        host.parse().unwrap_or_else(|err| {
+            panic!("Unable to parse '{}' as an IPV4 address: {}", host, err)
+        })
+    }
+}
 
 pub fn socket(host: &str, port: u16) -> SocketAddrV4 {
-    SocketAddrV4::new(host.parse().unwrap(), port)
+    SocketAddrV4::new(parse_host(host), port)
 }
 
 // Handshake: barrier between two distributed processes
 // call handshake(s0, true) on s0 and handshake(s0, false) on s1.
+const HANDSHAKE_SLEEP: u64 = 2;
 pub fn handshake(s0: SocketAddrV4, listener: bool) {
     match listener {
         true => {
             /* Handshake listener */
-            println!("[listener] initializing...");
+            // println!("[listener] initializing...");
             let listener = TcpListener::bind(s0).unwrap();
+            // println!("[listener] waiting...");
             for stream in listener.incoming() {
-                println!("[listener] reading...");
+                // println!("[listener] reading...");
                 let mut data = [0 as u8; 50];
-                let msg = stream.unwrap().read(&mut data).unwrap();
-                println!("[listener] got: {}", msg);
+                let _msg = stream.unwrap().read(&mut data).unwrap();
+                // println!("[listener] got: {}", msg);
                 break;
             }
-            println!("[listener] handshake complete");
+            // println!("[listener] handshake complete");
         }
         false => {
+            /* Handshake sender */
             loop {
-                println!("[sender] connecting...");
+                // println!("[sender] waiting...");
                 if let Ok(mut stream) = TcpStream::connect(s0) {
-                    println!("[sender] writing...");
+                    // println!("[sender] writing...");
                     stream.write(&[1]).unwrap();
                     break;
+                } else {
+                    // println!("[sender] sleeping for {}s", HANDSHAKE_SLEEP);
+                    sleep_for_secs(HANDSHAKE_SLEEP);
                 }
             }
-            println!("[sender] handshake complete")
+            // println!("[sender] handshake complete")
         }
     }
 }
 
 // Barrier between n distributed processes
-// fn barrier()
+// uses host 'host' on process 0
+// precondition: the range of ports [port + 1, port + 2 * num_nodes) is unique
+// for each call
+// uses port port + i to communicate between host (index 0) and index i
+pub fn barrier(
+    host: &str,
+    start_port: u16,
+    num_nodes: usize,
+    this_node: usize
+) {
+    assert!(this_node < num_nodes);
+    for phase in 0..2 {
+        println!("[node {}/{}] barrier phase {}", this_node, num_nodes, phase);
+        if this_node == 0 {
+            /* Listener */
+            for i in 1..num_nodes {
+                println!(
+                    "[node {}/{}] listening for handshake from {}",
+                    this_node, num_nodes, i
+                );
+                let socket0 = socket(host, start_port * phase + (i as u16));
+                handshake(socket0, true);
+            }
+        } else {
+            /* Sender  */
+            println!("[node {}/{}] sending handshake", this_node, num_nodes);
+            let socket0 = socket(host, start_port * phase + (this_node as u16));
+            handshake(socket0, false);
+        }
+    }
+    println!("[node {}/{}] barrier complete", this_node, num_nodes);
+}
