@@ -25,14 +25,15 @@ enum BarrierTest {
         num_nodes: u64,
     },
 }
+const START_PORT: u16 = 5000;
 impl BarrierTest {
-    fn run_core<F: Fn(u64, u64)>(
+    fn run_core<F: Fn(u64, u64, u16)>(
         num_nodes: u64,
         this_node: u64,
         barrier_fun: F
     ) {
         println!("[node {}/{}] entering barrier", this_node, num_nodes);
-        barrier_fun(num_nodes, this_node);
+        barrier_fun(num_nodes, this_node, START_PORT);
         println!("[node {}/{}] done", this_node, num_nodes);
     }
     fn run_barrier(&self) {

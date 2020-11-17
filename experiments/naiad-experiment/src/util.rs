@@ -18,7 +18,6 @@ use std::str::FromStr;
 use std::string::String;
 use std::thread;
 use std::time::{Duration, SystemTime};
-use std::vec::Vec;
 
 /*
     Related to time
@@ -60,18 +59,18 @@ where
 /*
     File handling
 */
-pub fn vec_to_file<T>(v: Vec<T>, filename: &str)
-where
-    T: std::fmt::Debug,
-{
-    // This function may panic due to multiple reasons
-    let mut file =
-        OpenOptions::new().create(true).write(true).open(filename).unwrap();
-
-    for item in v {
-        writeln!(file, "{:?}", item).unwrap();
-    }
-}
+// pub fn vec_to_file<T>(v: Vec<T>, filename: &str)
+// where
+//     T: std::fmt::Debug,
+// {
+//     // This function may panic due to multiple reasons
+//     let mut file =
+//         OpenOptions::new().create(true).write(true).open(filename).unwrap();
+//
+//     for item in v {
+//         writeln!(file, "{:?}", item).unwrap();
+//     }
+// }
 
 // Run a closure for each line in a file
 fn for_each_line_do<F>(filepath: &str, mut closure: F) -> Result<()>
@@ -117,6 +116,19 @@ pub fn match_line_in_file(text: &str, filepath: &str) -> Result<usize> {
         io::ErrorKind::Other,
         format!("text {} not found in file {}", text, filepath),
     ))
+}
+
+pub fn first_line_in_file(filepath: &str) -> String {
+    let file = File::open(filepath).unwrap_or_else(|err| {
+        panic!("couldn't open file {}: {}", filepath, err);
+    });
+    let reader = BufReader::new(file);
+    for line in reader.lines() {
+        return line.unwrap_or_else(|err| {
+            panic!("getting first line in file failed: {}! {}", filepath, err);
+        });
+    }
+    panic!("couldn't get line bc the file had no lines? {}", filepath);
 }
 
 /*

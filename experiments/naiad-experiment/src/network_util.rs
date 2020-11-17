@@ -18,7 +18,7 @@ fn parse_host(host: &str) -> Ipv4Addr {
     }
 }
 
-pub fn socket(host: &str, port: u16) -> SocketAddrV4 {
+fn socket(host: &str, port: u16) -> SocketAddrV4 {
     SocketAddrV4::new(parse_host(host), port)
 }
 
@@ -30,12 +30,22 @@ pub fn handshake(s0: SocketAddrV4, listener: bool) {
         true => {
             /* Handshake listener */
             // println!("[listener] initializing...");
-            let listener = TcpListener::bind(s0).unwrap();
+            let listener = TcpListener::bind(s0).unwrap_or_else(|err| {
+                panic!("Failed to start TCP connection at {:?}: {}", s0, err);
+            });
             // println!("[listener] waiting...");
             for stream in listener.incoming() {
                 // println!("[listener] reading...");
                 let mut data = [0 as u8; 50];
-                let _msg = stream.unwrap().read(&mut data).unwrap();
+                let _msg = stream.unwrap_or_else(|err| { panic!(
+                        "Listener failed to get message from stream: {}",
+                        err
+                    );
+                }).read(&mut data).unwrap_or_else(|err| { panic!(
+                        "Listener failed to read message from stream: {}",
+                        err
+                    );
+                });
                 // println!("[listener] got: {}", msg);
                 break;
             }
@@ -66,13 +76,16 @@ pub fn handshake(s0: SocketAddrV4, listener: bool) {
 // uses port port + i to communicate between host (index 0) and index i
 pub fn barrier(
     host: &str,
+    num_nodes: u64,
+    this_node: u64,
     start_port: u16,
-    num_nodes: usize,
-    this_node: usize
 ) {
     assert!(this_node < num_nodes);
     for phase in 0..2 {
-        println!("[node {}/{}] barrier phase {}", this_node, num_nodes, phase);
+        println!(
+            "[node {}/{}] barrier phase {}",
+            this_node, num_nodes, phase + 1
+        );
         if this_node == 0 {
             /* Listener */
             for i in 1..num_nodes {
@@ -80,13 +93,19 @@ pub fn barrier(
                     "[node {}/{}] listening for handshake from {}",
                     this_node, num_nodes, i
                 );
-                let socket0 = socket(host, start_port * phase + (i as u16));
+                let socket0 = socket(
+                    host,
+                    start_port + (num_nodes as u16) * phase + (i as u16)
+                );
                 handshake(socket0, true);
             }
         } else {
             /* Sender  */
             println!("[node {}/{}] sending handshake", this_node, num_nodes);
-            let socket0 = socket(host, start_port * phase + (this_node as u16));
+            let socket0 = socket(
+                host,
+                start_port + (num_nodes as u16) * phase + (this_node as u16)
+            );
             handshake(socket0, false);
         }
     }
