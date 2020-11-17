@@ -89,6 +89,17 @@ impl FromStr for TimelyNodeInfo {
         }
     }
 }
+impl TimelyNodeInfo {
+    fn this_node(&self) -> u64 {
+        match &self {
+            TimelyNodeInfo::Local(this_node) => *this_node,
+            TimelyNodeInfo::EC2 => get_ec2_node_number(),
+        }
+    }
+    fn is_main_node(&self) -> bool {
+        self.this_node() == 0
+    }
+}
 
 /*
     Parameters to run a Timely dataflow between several
@@ -241,6 +252,11 @@ impl TimelyParallelism {
             Some(vec)
         }
     }
+
+    /* Main node (used for restricting output so it is less noisy) */
+    fn is_main_node(&self) -> bool {
+        self.this_node == 0
+    }
 }
 
 /*
@@ -326,12 +342,14 @@ where
         parallelism: TimelyParallelism,
         output_filename: &'static str,
     ) {
-        println!(
-            "{} Experiment Parameters: {}, Parallelism: {}",
-            self.get_name(),
-            params.to_csv(),
-            parallelism.to_csv(),
-        );
+        if parallelism.is_main_node() {
+            println!(
+                "{} Experiment Parameters: {}, Parallelism: {}",
+                self.get_name(),
+                params.to_csv(),
+                parallelism.to_csv(),
+            );
+        }
         let opt_args = parallelism.timely_args();
         let node_index = parallelism.this_node;
         match opt_args {
@@ -394,7 +412,12 @@ where
         let mut exp_num = 0;
         for &par_w in par_workers {
             for &par_n in par_nodes {
-                println!("===== Parallelism: {} w, {} n =====", par_w, par_n,);
+                if node_info.is_main_node() {
+                    println!(
+                        "===== Parallelism: {} w, {} n =====",
+                        par_w, par_n
+                    );
+                }
                 let results_path = make_results_path(
                     &self.get_name(),
                     &[
@@ -403,7 +426,9 @@ where
                     ],
                 );
                 for &rate in rates_per_milli {
-                    println!("=== Input Rate (events/ms): {} ===", rate);
+                    if node_info.is_main_node() {
+                        println!("=== Input Rate (events/ms): {} ===", rate);
+                    }
                     let params = default_params.set_rate(rate);
                     let parallelism = TimelyParallelism::new_from_info(
                         node_info, par_w, par_n, exp_num,

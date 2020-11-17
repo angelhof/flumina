@@ -82,17 +82,17 @@ pub fn barrier(
 ) {
     assert!(this_node < num_nodes);
     for phase in 0..2 {
-        println!(
-            "[node {}/{}] barrier phase {}",
-            this_node, num_nodes, phase + 1
-        );
+        // println!(
+        //     "[node {}/{}] barrier phase {}",
+        //     this_node, num_nodes, phase + 1
+        // );
         if this_node == 0 {
             /* Listener */
             for i in 1..num_nodes {
-                println!(
-                    "[node {}/{}] listening for handshake from {}",
-                    this_node, num_nodes, i
-                );
+                // println!(
+                //     "[node {}/{}] listening for handshake from {}",
+                //     this_node, num_nodes, i
+                // );
                 let socket0 = socket(
                     host,
                     start_port + (num_nodes as u16) * phase + (i as u16)
@@ -101,7 +101,7 @@ pub fn barrier(
             }
         } else {
             /* Sender  */
-            println!("[node {}/{}] sending handshake", this_node, num_nodes);
+            // println!("[node {}/{}] sending handshake", this_node, num_nodes);
             let socket0 = socket(
                 host,
                 start_port + (num_nodes as u16) * phase + (this_node as u16)
@@ -109,5 +109,5 @@ pub fn barrier(
             handshake(socket0, false);
         }
     }
-    println!("[node {}/{}] barrier complete", this_node, num_nodes);
+    // println!("[node {}/{}] barrier complete", this_node, num_nodes);
 }
