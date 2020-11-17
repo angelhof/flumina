@@ -30,7 +30,7 @@ impl BarrierTest {
     fn run_core<F: Fn(u64, u64, u16)>(
         num_nodes: u64,
         this_node: u64,
-        barrier_fun: F
+        barrier_fun: F,
     ) {
         println!("[node {}/{}] entering barrier", this_node, num_nodes);
         barrier_fun(num_nodes, this_node, START_PORT);

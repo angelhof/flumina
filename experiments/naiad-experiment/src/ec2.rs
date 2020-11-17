@@ -9,7 +9,7 @@
 
 use super::network_util::barrier;
 use super::util::{
-    first_line_in_file, match_line_in_file, replace_lines_in_file
+    first_line_in_file, match_line_in_file, replace_lines_in_file,
 };
 
 use std::process::Command;
