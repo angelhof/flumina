@@ -123,12 +123,12 @@ pub fn first_line_in_file(filepath: &str) -> String {
         panic!("couldn't open file {}: {}", filepath, err);
     });
     let reader = BufReader::new(file);
-    for line in reader.lines() {
-        return line.unwrap_or_else(|err| {
-            panic!("getting first line in file failed: {}! {}", filepath, err);
-        });
-    }
-    panic!("couldn't get line bc the file had no lines? {}", filepath);
+    let line = reader.lines().next().unwrap_or_else(|| {
+        panic!("couldn't get line bc the file had no lines? {}", filepath);
+    });
+    line.unwrap_or_else(|err| {
+        panic!("getting first line in file failed: {}! {}", filepath, err);
+    })
 }
 
 /*

@@ -26,46 +26,43 @@ fn socket(host: &str, port: u16) -> SocketAddrV4 {
 // call handshake(s0, true) on s0 and handshake(s0, false) on s1.
 const HANDSHAKE_SLEEP: u64 = 2;
 pub fn handshake(s0: SocketAddrV4, listener: bool) {
-    match listener {
-        true => {
-            /* Handshake listener */
-            // println!("[listener] initializing...");
-            let listener = TcpListener::bind(s0).unwrap_or_else(|err| {
-                panic!("Failed to start TCP connection at {:?}: {}", s0, err);
-            });
-            // println!("[listener] waiting...");
-            for stream in listener.incoming() {
-                // println!("[listener] reading...");
-                let mut data = [0 as u8; 50];
-                let _msg = stream.unwrap_or_else(|err| { panic!(
-                        "Listener failed to get message from stream: {}",
-                        err
-                    );
-                }).read(&mut data).unwrap_or_else(|err| { panic!(
-                        "Listener failed to read message from stream: {}",
-                        err
-                    );
-                });
-                // println!("[listener] got: {}", msg);
+    if listener {
+        /* Handshake listener */
+        // println!("[listener] initializing...");
+        let listener = TcpListener::bind(s0).unwrap_or_else(|err| {
+            panic!("Failed to start TCP connection at {:?}: {}", s0, err);
+        });
+        // println!("[listener] waiting...");
+        let stream = listener.incoming().next().unwrap_or_else(|| {
+            panic!("Failed to get stream using TCP (got None) at {:?}", s0);
+        });
+        // println!("[listener] reading...");
+        let mut data = [0 as u8; 50];
+        let _msg = stream.unwrap_or_else(|err| { panic!(
+                "Listener failed to get message from stream: {}",
+                err
+            );
+        }).read(&mut data).unwrap_or_else(|err| { panic!(
+                "Listener failed to read message from stream: {}",
+                err
+            );
+        });
+        // println!("[listener] got: {}", msg);
+        // println!("[listener] handshake complete");
+    } else {
+        /* Handshake sender */
+        loop {
+            // println!("[sender] waiting...");
+            if let Ok(mut stream) = TcpStream::connect(s0) {
+                // println!("[sender] writing...");
+                stream.write_all(&[1]).unwrap();
                 break;
+            } else {
+                // println!("[sender] sleeping for {}s", HANDSHAKE_SLEEP);
+                sleep_for_secs(HANDSHAKE_SLEEP);
             }
-            // println!("[listener] handshake complete");
         }
-        false => {
-            /* Handshake sender */
-            loop {
-                // println!("[sender] waiting...");
-                if let Ok(mut stream) = TcpStream::connect(s0) {
-                    // println!("[sender] writing...");
-                    stream.write(&[1]).unwrap();
-                    break;
-                } else {
-                    // println!("[sender] sleeping for {}s", HANDSHAKE_SLEEP);
-                    sleep_for_secs(HANDSHAKE_SLEEP);
-                }
-            }
-            // println!("[sender] handshake complete")
-        }
+        // println!("[sender] handshake complete")
     }
 }
 
