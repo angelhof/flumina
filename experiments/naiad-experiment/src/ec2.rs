@@ -84,7 +84,7 @@ pub fn prepare_local_host_file(starting_port: u64) -> &'static str {
 
 // A logical barrier between EC2 nodes.
 // (each node waits for every node to reach the barrier)
-pub fn ec2_barrier(this_node: u64, num_nodes: u64, start_port: u16) {
+pub fn ec2_barrier(num_nodes: u64, this_node: u64, start_port: u16) {
     let host0 = first_line_in_file(EC2_IP_FILE);
     barrier(&host0, num_nodes, this_node, start_port);
 }

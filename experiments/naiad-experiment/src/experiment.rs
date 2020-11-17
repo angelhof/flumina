@@ -4,7 +4,8 @@
 
 use super::common::{Scope, Stream};
 use super::ec2::{
-    get_ec2_node_number, prepare_ec2_host_file, prepare_local_host_file,
+    ec2_barrier, get_ec2_node_number, local_barrier, prepare_ec2_host_file,
+    prepare_local_host_file,
 };
 use super::operators::save_to_file;
 use super::perf::latency_throughput_meter;
@@ -41,7 +42,7 @@ fn make_results_path<T: AsRef<str>>(
 // Ports for distributed communication over EC2
 const EC2_STARTING_PORT: u64 = 4000;
 const LOCAL_STARTING_PORT: u64 = 4000;
-
+const BARRIER_START_PORT: u16 = 5000;
 /*
     Types of networks where Timely distributed experiments can be run
 */
@@ -257,6 +258,22 @@ impl TimelyParallelism {
     fn is_main_node(&self) -> bool {
         self.this_node == 0
     }
+    /* Barrier (used for synchronizing experiments) */
+    fn barrier(&self) {
+        match self.network {
+            TimelyNetworkType::SingleNode => (),
+            TimelyNetworkType::Local => {
+                let port = BARRIER_START_PORT
+                    + ((self.experiment_num * 2 * self.nodes) as u16);
+                local_barrier(self.nodes, self.this_node, port);
+            }
+            TimelyNetworkType::EC2 => {
+                let port = BARRIER_START_PORT
+                    + ((self.experiment_num * 2 * self.nodes) as u16);
+                ec2_barrier(self.nodes, self.this_node, port);
+            }
+        }
+    }
 }
 
 /*
@@ -433,6 +450,9 @@ where
                     let parallelism = TimelyParallelism::new_from_info(
                         node_info, par_w, par_n, exp_num,
                     );
+                    // Barrier to make sure different experiments don't overlap!
+                    parallelism.barrier();
+                    // Do the experiment
                     self.run_with_filename(params, parallelism, results_path);
                     exp_num += 1;
                 }
