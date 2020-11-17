@@ -67,17 +67,26 @@ enum TimelyExperiments {
     },
     #[structopt(about = "Pre-Defined Experiment 1: Value-Barrier")]
     Exp1 {
-        #[structopt(default_value = "e")]
+        #[structopt(
+            default_value = "e",
+            help = "e or l<n> where n is this node"
+        )]
         node_info: TimelyNodeInfo,
     },
     #[structopt(about = "Pre-Defined Experiment 2: Fraud Detection")]
     Exp2 {
-        #[structopt(default_value = "e")]
+        #[structopt(
+            default_value = "e",
+            help = "e or l<n> where n is this node"
+        )]
         node_info: TimelyNodeInfo,
     },
     #[structopt(about = "Pre-Defined Experiment 3: Page-View Good")]
     Exp3 {
-        #[structopt(default_value = "e")]
+        #[structopt(
+            default_value = "e",
+            help = "e or l<n> where n is this node"
+        )]
         node_info: TimelyNodeInfo,
     },
     #[structopt(about = "Pre-Defined Experiment 4: Page-View Bad (part a)")]

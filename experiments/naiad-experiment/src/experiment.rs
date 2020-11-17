@@ -9,9 +9,7 @@ use super::ec2::{
 };
 use super::operators::save_to_file;
 use super::perf::latency_throughput_meter;
-use super::util::{
-    current_datetime_str, run_as_process, sleep_for_secs, string_to_static_str,
-};
+use super::util::{current_datetime_str, run_as_process, string_to_static_str};
 
 use abomonation_derive::Abomonation;
 use structopt::StructOpt;
@@ -371,6 +369,9 @@ where
         let node_index = parallelism.this_node;
         match opt_args {
             Some(mut args) => {
+                // Barrier to make sure different experiments don't overlap!
+                parallelism.barrier();
+
                 println!("[node {}] initializing experiment", node_index);
                 println!("[node {}] timely args: {:?}", node_index, args);
                 let func = move || {
@@ -400,9 +401,11 @@ where
                     node_index,
                     (0..parallelism.nodes).collect::<Vec<u64>>()
                 );
-                let sleep_dur = params.get_exp_duration_secs();
-                println!("[node {}] sleeping for {}", node_index, sleep_dur);
-                sleep_for_secs(sleep_dur);
+                // Old -- no longer necessary, it was just a hack not as general
+                // as using the barrier to synchronize experiments
+                // let sleep_dur = params.get_exp_duration_secs();
+                // println!("[node {}] sleeping for {}", node_index, sleep_dur);
+                // sleep_for_secs(sleep_dur);
             }
         }
     }
@@ -450,9 +453,6 @@ where
                     let parallelism = TimelyParallelism::new_from_info(
                         node_info, par_w, par_n, exp_num,
                     );
-                    // Barrier to make sure different experiments don't overlap!
-                    parallelism.barrier();
-                    // Do the experiment
                     self.run_with_filename(params, parallelism, results_path);
                     exp_num += 1;
                 }
