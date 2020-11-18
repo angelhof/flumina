@@ -401,6 +401,134 @@ def plot_relative_max_throughputs_full_value_barrier_example(dirname):
     flink_maximums = [337.0, 551, 466, 508, 497, 513, 485, 463, 441]
     plot_relative_max_throughputs_common(experiment, a_nodes_numbers, maximums, flink_maximums)
 
+def get_max_throughput_flumina(archive_dir, prefix, suffix):
+
+    subdirectories = [os.path.join(archive_dir, o) for o in os.listdir(archive_dir) 
+                      if os.path.isdir(os.path.join(archive_dir,o))
+                      and o.startswith(prefix)
+                      and o.endswith(suffix)]
+
+    throughputs = [results.get_erlang_throughput(subdir)
+                   for subdir in subdirectories]
+    try:
+        max_throughput = max(throughputs)
+    except:
+        max_throughput = 0
+    return max_throughput
+
+def get_all_max_throughputs_flumina_vb(dirname, prefix, suffix_format, a_nodes_numbers):
+    maximums = []
+    for a_nodes_number in a_nodes_numbers:
+        suffix = suffix_format.format(a_nodes_number)
+        max_throughput = get_max_throughput_flumina(dirname, prefix, suffix)
+        maximums.append(max_throughput)
+    return maximums
+
+def get_all_max_throughputs_flumina_join(dirname, prefix_format, a_nodes_numbers):    
+    maximums = []
+    for nodes in a_nodes_numbers:
+        suffix = ""
+        prefix = prefix_format.format(nodes)
+        max_throughput = get_max_throughput_flumina(dirname, prefix, suffix)
+        maximums.append(max_throughput)
+    return maximums
+
+
+
+def plot_all_relative_max_throughputs_flumina(dirname):
+    prefix = "ab_exp_1"
+    a_nodes_numbers =  list(range(0,21,4))
+    suffix_format = "10000_100_{}_optimizer_greedy"
+    value_aggregation_maximums = get_all_max_throughputs_flumina_vb(dirname, prefix, suffix_format, a_nodes_numbers)
+
+    prefix_format = "stream_table_join_2_{}_"
+    a_nodes_numbers = [1] + list(range(2,11,2))
+    stream_table_join_maximums = get_all_max_throughputs_flumina_join(dirname, prefix_format, a_nodes_numbers)
+
+    prefix = "ab_exp_full_1"
+    a_nodes_numbers =  list(range(0,21,4))
+    suffix_format = "10000_100_{}_optimizer_greedy"
+    fraud_detection_maximums = get_all_max_throughputs_flumina_vb(dirname, prefix, suffix_format, a_nodes_numbers)
+
+    plot_results = [("Event Win.", '-o', value_aggregation_maximums, value_aggregation_maximums[0]),
+                    ("Page View", '-D', stream_table_join_maximums, stream_table_join_maximums[0]),
+                    ("Fraud Dec.", '-^', fraud_detection_maximums, fraud_detection_maximums[0])] 
+    # print(maximums)
+    plot_node_ticks = [1] + list(range(4,21,4))
+    plot_all_relative_max_throughputs_common("flumina", plot_node_ticks, plot_results)
+
+def plot_all_relative_max_throughputs_flink():
+    value_aggregation_maximums = [284, 1235, 2494, 3600, 4475, 5563]
+    stream_table_join_maximums = [228, 465, 506, 520, 572, 554]
+    fraud_detection_maximums = [327, 306, 298, 287, 298, 302]
+
+    plot_results = [("Event Win.", '-o', value_aggregation_maximums, 348.0),
+                    ("Page View", '-D', stream_table_join_maximums, 276.0),
+                    ("Fraud Dec.", '-^', fraud_detection_maximums, 327.0)] 
+    # print(maximums)
+    plot_node_ticks = [1] + list(range(4,21,4))
+    plot_all_relative_max_throughputs_common("flink", plot_node_ticks, plot_results)
+
+def plot_all_relative_max_throughputs_timely(file):
+    with open(file) as f:
+        lines = f.read().split('\n')
+    parallelism_levels = [1, 4, 8, 12, 16, 20]
+    header_words = lines[0].split('\t')
+    data_words = [line.split('\t') for line in lines[1:]]
+    relevant_data_words = [line_words for line_words in data_words
+                           if int(line_words[0]) in parallelism_levels]
+
+
+    value_agg_index = header_words.index('Value-Barrier')
+    value_aggregation_maximums = [float(line_words[value_agg_index])
+                                  for line_words in relevant_data_words]
+    
+    page_view_auto_index = header_words.index('Page-View Automatic')
+    page_view_auto_maximums = [float(line_words[page_view_auto_index])
+                               for line_words in relevant_data_words]
+
+    page_view_man_index = header_words.index('Page-View Manual')
+    page_view_man_maximums = [float(line_words[page_view_man_index])
+                              for line_words in relevant_data_words]
+
+    fraud_detection_index = header_words.index('Fraud-Detection')
+    fraud_detection_maximums = [float(line_words[fraud_detection_index])
+                                for line_words in relevant_data_words]
+    
+    plot_results = [("Event Win.", '-o', value_aggregation_maximums, value_aggregation_maximums[0]),
+                    ("Page View", '-D', page_view_auto_maximums, page_view_auto_maximums[0]),
+                    ("Fraud Dec.", '-^', fraud_detection_maximums, fraud_detection_maximums[0]),
+                    ("Page View (Manual)", '-h', page_view_man_maximums, page_view_man_maximums[0])] 
+    # print(maximums)
+    plot_node_ticks = [1] + list(range(4,21,4))
+    plot_all_relative_max_throughputs_common("timely", plot_node_ticks, plot_results)
+
+
+## This function takes a list of tuples that contain:
+## - name of application
+## - maximum throughputs
+def plot_all_relative_max_throughputs_common(experiment, ticks, plot_results):
+
+    fig, ax = plt.subplots()
+    ax.set_xlabel('Parallelism')
+    ax.set_ylabel('Max. Throughput (events/ms)')
+    # plt.xscale("log")
+    
+    for name, line_type, maximums_ms, seq_max in plot_results:
+        print("Maximums:", maximums_ms)
+        maximums_us = [maxim / float(1000) for maxim in maximums_ms]
+        speedups = [maxim / float(seq_max) for maxim in maximums_ms]
+        print("Speedups:", speedups)
+        ax.plot(ticks, maximums_ms, line_type, label=name)
+    
+    plt.xticks(ticks)
+    ax.legend()
+    plt.grid()
+    plt.tight_layout()
+    fig.set_size_inches(14, 5)
+    plt.savefig(os.path.join('plots', "{}_max_throughput_scaleup.pdf".format(experiment)),bbox_inches='tight')
+
+
 
 def plot_relative_max_throughputs_common(experiment, ticks, maximums, flink_maximums):
     print("Maximums:", maximums)
@@ -439,20 +567,24 @@ if __name__ == '__main__':
     plt.rcParams['mathtext.fontset'] = 'stix'
     plt.rcParams['font.family'] = 'STIXGeneral'
 
+    ## Plot Scaleup for flumina
+    plot_all_relative_max_throughputs_flumina('../../experiment_results_archive/archive')
+    plot_all_relative_max_throughputs_flink()
+    plot_all_relative_max_throughputs_timely('analysis/timely_max_throughputs.csv')
 
     ## Plot Max throughput scaleup for ab-example
-    plot_relative_max_throughputs_ab_example('archive/ab-example-max-throughput-scaleup/archive')
+    # plot_relative_max_throughputs_ab_example('archive/ab-example-max-throughput-scaleup/archive')
 
     ## Plot Max throughput scaleup for stream-table-join
-    plot_relative_max_throughputs_stream_table_join('archive/stream-table-max-throughput-scaleup/archive')
+    # plot_relative_max_throughputs_stream_table_join('archive/stream-table-max-throughput-scaleup/archive')
 
     ## Plot max throughput scaleup for full value barrier
-    plot_relative_max_throughputs_full_value_barrier_example('archive/full-ab-example-max-throughput-scaleup/archive')
+    # plot_relative_max_throughputs_full_value_barrier_example('archive/full-ab-example-max-throughput-scaleup/archive')
 
     # ## Plot sequential throughput vs latency for ab-example
     # ## Old ranges
     # plot_scaleup_rate('archive/sequential-ab-example/archive', 'ab_exp_1', range(40, 92, 2), 1000, 10, 1, 'optimizer_greedy')
-    plot_scaleup_rate('archive/sequential-ab-example-new/archive', 'ab_exp_1', range(100, 201, 10), 1000, 10, 1, 'optimizer_greedy')
+    # plot_scaleup_rate('archive/sequential-ab-example-new/archive', 'ab_exp_1', range(100, 201, 10), 1000, 10, 1, 'optimizer_greedy')
 
     # plot_stream_table_join_scaleup_rate('archive/sequential-stream-table-join-example/archive', 'stream_table_join', 1, 1, 1, range(20,71,2))
 
@@ -490,12 +622,12 @@ if __name__ == '__main__':
 
 
     ## Synchronization costs
-    plot_latency_over_nodes_and_ratios('archive/synchronization_costs/ratios_nodes/archive', 'ab_exp_2')
+    # plot_latency_over_nodes_and_ratios('archive/synchronization_costs/ratios_nodes/archive', 'ab_exp_2')
 
-    plot_latency_over_heartbeats_ratios('archive/synchronization_costs/ratios_nodes/archive', 'ab_exp_2')
+    # plot_latency_over_heartbeats_ratios('archive/synchronization_costs/ratios_nodes/archive', 'ab_exp_2')
 
     ## Checkpointing_cost
-    plot_checkpointing_latencies('archive/checkpointing_cost/archive', 'ab_exp_2')
+    # plot_checkpointing_latencies('archive/checkpointing_cost/archive', 'ab_exp_2')
 
 
     # plot_stream_table_join_scaleup_nodes('archive/archive', 'stream_table_join', 2, range(1,11), 5)
