@@ -6,13 +6,14 @@
     are defined in the other vb_* modules.
 */
 
-use abomonation_derive::Abomonation;
-
 use super::common::{Duration, Scope, Stream};
 use super::experiment::{ExperimentParams, LatencyThroughputExperiment};
 use super::operators::{join_by_timestamp, Sum};
 use super::vb_data::{VBData, VBItem};
 use super::vb_generators::{barrier_source, value_source};
+
+use abomonation_derive::Abomonation;
+use structopt::StructOpt;
 
 use timely::dataflow::operators::{
     Accumulate, Broadcast, Concat, ConnectLoop, Exchange, Feedback, Filter,
@@ -20,30 +21,42 @@ use timely::dataflow::operators::{
 };
 
 use std::string::String;
+use std::vec::Vec;
 
 /* Experiment data */
 
-#[derive(Abomonation, Copy, Clone, Debug)]
+#[derive(Abomonation, Copy, Clone, Debug, StructOpt)]
 pub struct VBExperimentParams {
-    pub parallelism: u64,
     pub val_rate_per_milli: u64,
     pub vals_per_hb_per_worker: u64,
     pub hbs_per_bar: u64,
     pub exp_duration_secs: u64,
 }
 impl ExperimentParams for VBExperimentParams {
-    fn get_parallelism(&self) -> u64 {
-        self.parallelism
-    }
     fn to_csv(&self) -> String {
         format!(
-            "{} wkrs, {} vals/ms, {} val/hb/wkr, {} hb/bar, {} s",
-            self.parallelism,
+            "{} vals/ms, {} val/hb/wkr, {} hb/bar, {} s",
             self.val_rate_per_milli,
             self.vals_per_hb_per_worker,
             self.hbs_per_bar,
             self.exp_duration_secs,
         )
+    }
+    fn to_vec(&self) -> Vec<String> {
+        let mut result = Vec::new();
+        result.push(self.val_rate_per_milli.to_string());
+        result.push(self.vals_per_hb_per_worker.to_string());
+        result.push(self.hbs_per_bar.to_string());
+        result.push(self.exp_duration_secs.to_string());
+        result
+    }
+    fn get_exp_duration_secs(&self) -> u64 {
+        self.exp_duration_secs
+    }
+    fn set_rate(&self, rate_per_milli: u64) -> Self {
+        let mut copy = *self;
+        copy.val_rate_per_milli = rate_per_milli;
+        copy
     }
 }
 
@@ -103,7 +116,12 @@ where
         // .inspect(move |x| println!("value seen: {:?}", x))
         .reclock(&barrier_clock_withheartbeats)
         // .inspect(move |x| println!("reclocked: {:?}", x))
-        .count()
+        .map(|x| match x.data {
+            VBData::Value(v) => v,
+            VBData::BarrierHeartbeat => unreachable!(),
+            VBData::Barrier => unreachable!(),
+        })
+        .sum()
         // .inspect(move |x| println!("count per heartbeat: {:?}", x))
         .reclock(&barrier_clock_noheartbeats)
         // .inspect(move |x| println!("reclocked: {:?}", x))
@@ -207,7 +225,7 @@ where
 /* Exposed experiments */
 
 #[derive(Abomonation, Copy, Clone, Debug)]
-struct VBGenExperiment;
+pub struct VBGenExperiment;
 impl LatencyThroughputExperiment<VBExperimentParams, VBItem, VBItem>
     for VBGenExperiment
 {
@@ -229,7 +247,7 @@ impl LatencyThroughputExperiment<VBExperimentParams, VBItem, VBItem>
 }
 
 #[derive(Abomonation, Copy, Clone, Debug)]
-struct VBExperiment;
+pub struct VBExperiment;
 impl LatencyThroughputExperiment<VBExperimentParams, VBItem, usize>
     for VBExperiment
 {
@@ -249,7 +267,7 @@ impl LatencyThroughputExperiment<VBExperimentParams, VBItem, usize>
 }
 
 #[derive(Abomonation, Copy, Clone, Debug)]
-struct FDExperiment;
+pub struct FDExperiment;
 impl LatencyThroughputExperiment<VBExperimentParams, VBItem, VBItem>
     for FDExperiment
 {
@@ -268,14 +286,26 @@ impl LatencyThroughputExperiment<VBExperimentParams, VBItem, VBItem>
     }
 }
 
-impl VBExperimentParams {
-    pub fn run_vb_experiment_main(self, output_filename: &'static str) {
-        VBExperiment.run(self, output_filename);
-    }
-    pub fn run_vb_experiment_gen_only(self, output_filename: &'static str) {
-        VBGenExperiment.run(self, output_filename);
-    }
-    pub fn run_fd_experiment(self, output_filename: &'static str) {
-        FDExperiment.run(self, output_filename);
-    }
-}
+// impl VBExperimentParams {
+//     pub fn run_vb_experiment_main(
+//         self,
+//         par: TimelyParallelism,
+//         output_filename: &'static str
+//     ) {
+//         VBExperiment::from_params(self).run(par, output_filename);
+//     }
+//     pub fn run_vb_experiment_gen_only(
+//         self,
+//         par: TimelyParallelism,
+//         output_filename: &'static str
+//     ) {
+//         VBGenExperiment::from_params(self).run(par, output_filename);
+//     }
+//     pub fn run_fd_experiment(
+//         self,
+//         par: TimelyParallelism,
+//         output_filename: &'static str
+//     ) {
+//         FDExperiment::from_params(self).run(par, output_filename);
+//     }
+// }

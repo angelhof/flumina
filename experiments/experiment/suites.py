@@ -71,75 +71,79 @@ suites = {
 
     'value-barrier-test': ExperimentSuite(
         'value-barrier-test',
-        [ValueBarrierEC2(7, 400 * 10_000, 400, 1000, 10, attempt=a, sequential=True) for a in [1, 2]]
+        [ValueBarrierEC2(3, 300 * 10_000, 300, 1000, 10, attempt=a, sequential=True) for a in [1, 2, 3]]
     ),
     'value-barrier-sequential': ExperimentSuite(
         'value-barrier-sequential',
         # By making the number of values 30_000 times the rate, we aim at the experiment ideally taking 30s
-        [ValueBarrierEC2(1, r * 30_000, r, 10_000, 100, sequential=True) for r in range(300, 441, 10)]
+        [ValueBarrierEC2(1, r * 30_000, r, 10_000, 100, sequential=True, attempt=a)
+         for r in range(400, 441, 20)
+         for a in [1, 2, 3]]
     ),
     'value-barrier': ExperimentSuite(
         'value-barrier',
         [ValueBarrierEC2(p, r * 30_000, r, 10_000, 100, attempt=a)
          for p in chain([1], range(2, 21, 2))
-         for r in range(200, 441, 20)
-         for a in range(1, 2)]
+         for r in range(360, 441, 10)
+         for a in [1]]
     ),
     'value-barrier-manual': ExperimentSuite(
         'value-barrier-manual',
         [ValueBarrierEC2(p, r * 30_000, r, 10_000, 100, attempt=a, manual=True)
          for p in chain([1], range(2, 21, 2))
-         for r in range(200, 441, 20)
-         for a in range(1, 2)]
+         for r in range(360, 441, 10)
+         for a in [1]]
     ),
 
     # PageView
 
     'pageview-test': ExperimentSuite(
         'pageview-test',
-        [PageViewEC2(400 * 10_000, 2, 3, 400, attempt=a) for a in [1, 2]]
+        [PageViewEC2(400 * 10_000, 2, 4, 400, attempt=a) for a in [1, 2, 3]]
     ),
     'pageview-sequential': ExperimentSuite(
         'pageview-sequential',
-        [PageViewEC2(r * 30_000, 2, 1, r, sequential=True) for r in range(20, 211, 10)]
+        [PageViewEC2(r * 30_000, 2, 1, r, sequential=True, attempt=a)
+         for r in range(160, 201, 20)
+         for a in [1, 2, 3]]
     ),
     'pageview': ExperimentSuite(
         'pageview',
-        [PageViewEC2(r * 30_000, 2, p, r, attempt=a)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(20, 201, 20)
-         for a in range(1, 2)]
+        [PageViewEC2(320 // p * 30_000, 2, p, 320 // p, attempt=a)
+         for p in [1, 4, 8, 12, 16, 20]
+         for a in [1, 2, 3]]
     ),
     'pageview-manual': ExperimentSuite(
         'pageview-manual',
-        [PageViewEC2(r * 30_000, 2, p, r, attempt=a, manual=True)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(20, 201, 20)
-         for a in range(1, 2)]
+        [PageViewEC2(r * 30_000, 2, 12, r, attempt=1, manual=True)
+         for r in range(20, 111, 10)] +
+        [PageViewEC2(r * 30_000, 2, 12, r, attempt=2)
+         for r in range(20, 111, 10)]
     ),
 
     # Fraud detection
 
     'fraud-detection-test': ExperimentSuite(
         'fraud-detection-test',
-        [FraudDetectionEC2(1, 50 * 10_000, 50, 10_000, 100, attempt=a, manual=True) for a in [1, 2]]
+        [FraudDetectionEC2(7, 300 * 10_000, 300, 10_000, 100, attempt=a) for a in [1, 2, 3]]
     ),
     'fraud-detection-sequential': ExperimentSuite(
         'fraud-detection-sequential',
-        [FraudDetectionEC2(1, r * 30_000, r, 10_000, 100) for r in range(300, 441, 10)]
+        [FraudDetectionEC2(1, r * 30_000, r, 10_000, 100, attempt=a)
+         for r in range(400, 441, 20)
+         for a in [1, 2, 3]]
     ),
     'fraud-detection': ExperimentSuite(
         'fraud-detection',
-        [FraudDetectionEC2(p, r * 30_000, r, 10_000, 100, attempt=a)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(200, 441, 20)
-         for a in range(1, 2)]
+        [FraudDetectionEC2(p, 380 // p * 30_000, 380 // p, 10_000, 100, attempt=a)
+         for p in [1, 4, 8, 12, 16, 20]
+         for a in [1, 2, 3]]
     ),
     'fraud-detection-manual': ExperimentSuite(
         'fraud-detection-manual',
-        [FraudDetectionEC2(p, r * 30_000, r, 10_000, 100, attempt=a, manual=True)
-         for p in chain([1], range(2, 21, 2))
-         for r in range(200, 441, 20)
-         for a in range(1, 2)]
+        [FraudDetectionEC2(12, r * 30_000, r, 10_000, 100, attempt=1, manual=True)
+         for r in range(20, 111, 10)] +
+        [FraudDetectionEC2(12, r * 30_000, r, 10_000, 100, attempt=1)
+         for r in range(20, 111, 10)]
     )
 }

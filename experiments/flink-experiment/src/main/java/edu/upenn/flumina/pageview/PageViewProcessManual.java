@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 
-import static edu.upenn.flumina.time.TimeHelper.max;
 import static edu.upenn.flumina.time.TimeHelper.min;
 
 public class PageViewProcessManual extends
@@ -56,7 +55,7 @@ public class PageViewProcessManual extends
                                final ReadOnlyContext ctx,
                                final Collector<Void> out) throws RemoteException {
         pageViews.addAll(pageViewOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-        pageViewPhysicalTimestamp = max(pageViewPhysicalTimestamp, pageViewOrHeartbeat.getPhysicalTimestamp());
+        pageViewPhysicalTimestamp = pageViewOrHeartbeat.getPhysicalTimestamp();
         makeProgress();
     }
 
@@ -72,7 +71,7 @@ public class PageViewProcessManual extends
         updates.addAll(getOrUpdateOrHeartbeat.match(
                 gou -> gou.match(g -> Collections.emptyList(), List::of),
                 hb -> Collections.emptyList()));
-        getOrUpdatePhysicalTimestamp = max(getOrUpdatePhysicalTimestamp, getOrUpdateOrHeartbeat.getPhysicalTimestamp());
+        getOrUpdatePhysicalTimestamp = getOrUpdateOrHeartbeat.getPhysicalTimestamp();
         makeProgress();
     }
 

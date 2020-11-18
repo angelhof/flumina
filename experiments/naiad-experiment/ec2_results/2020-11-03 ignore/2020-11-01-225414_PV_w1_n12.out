@@ -1,0 +1,8 @@
+1 wkrs, 12 nodes, 50 views/ms, 10000 views/update, 5 s, 246.62323053554366 ms, 497.6342168263374 events/ms
+1 wkrs, 12 nodes, 100 views/ms, 10000 views/update, 5 s, 124.18697771807966 ms, 1177.576925682229 events/ms
+1 wkrs, 12 nodes, 150 views/ms, 10000 views/update, 5 s, 91.77918941919384 ms, 1769.7608159202912 events/ms
+1 wkrs, 12 nodes, 200 views/ms, 10000 views/update, 5 s, 75.76414537836887 ms, 2341.766181012527 events/ms
+1 wkrs, 12 nodes, 250 views/ms, 10000 views/update, 5 s, 79.31472445839675 ms, 2898.1657491005312 events/ms
+1 wkrs, 12 nodes, 300 views/ms, 10000 views/update, 5 s, 65.4442531073321 ms, 3461.091952112175 events/ms
+1 wkrs, 12 nodes, 350 views/ms, 10000 views/update, 5 s, 62.5476720425967 ms, 3940.3357808836954 events/ms
+1 wkrs, 12 nodes, 400 views/ms, 10000 views/update, 5 s, 50.42242876425547 ms, 3979.2902303399164 events/ms

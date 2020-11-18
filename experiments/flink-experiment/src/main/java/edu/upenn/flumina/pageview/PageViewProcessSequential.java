@@ -1,122 +1,75 @@
 package edu.upenn.flumina.pageview;
 
-import edu.upenn.flumina.pageview.data.GetOrUpdate;
+import edu.upenn.flumina.pageview.data.GetOrUpdateOrHeartbeat;
 import edu.upenn.flumina.pageview.data.PageView;
+import edu.upenn.flumina.pageview.data.PageViewOrHeartbeat;
 import edu.upenn.flumina.pageview.data.Update;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
-import org.apache.flink.api.common.typeinfo.TypeHint;
-import org.apache.flink.api.common.typeinfo.TypeInformation;
-import org.apache.flink.configuration.Configuration;
-import org.apache.flink.streaming.api.functions.co.KeyedCoProcessFunction;
+import edu.upenn.flumina.util.TimestampComparator;
+import org.apache.flink.streaming.api.functions.co.CoProcessFunction;
 import org.apache.flink.util.Collector;
 
-import java.io.IOException;
+import java.time.Instant;
 import java.util.*;
 
-import static edu.upenn.flumina.time.TimeHelper.toEpochMilli;
+import static edu.upenn.flumina.time.TimeHelper.min;
 
-public class PageViewProcessSequential extends KeyedCoProcessFunction<Integer, GetOrUpdate, PageView, Update> {
+public class PageViewProcessSequential extends CoProcessFunction<GetOrUpdateOrHeartbeat, PageViewOrHeartbeat, Update> {
 
-    private static final ValueStateDescriptor<List<Integer>> zipCodeDescriptor =
-            new ValueStateDescriptor<>("ZipCode", TypeInformation.of(new TypeHint<>() {
-            }));
-    private static final ValueStateDescriptor<Queue<Update>> updateBufferDescriptor =
-            new ValueStateDescriptor<>("UpdateBuffer", TypeInformation.of(new TypeHint<>() {
-            }));
-    private static final ValueStateDescriptor<PriorityQueue<PageView>> pageViewBufferDescriptor =
-            new ValueStateDescriptor<>("PageViewBuffer", TypeInformation.of(new TypeHint<>() {
-            }));
+    private final List<Instant> pageViewTimestamps = new ArrayList<>();
+    private final List<Integer> zipCodes = new ArrayList<>();
+    private final Queue<Update> updates = new ArrayDeque<>();
+    private final PriorityQueue<PageView> pageViews = new PriorityQueue<>(new TimestampComparator());
+    private Instant updateTimestamp = Instant.MIN;
 
-    private transient ValueState<List<Integer>> zipCodeState;
-    private transient ValueState<Queue<Update>> updateBufferState;
-    private transient ValueState<PriorityQueue<PageView>> pageViewBufferState;
-
-    private final int totalUsers;
-
-    public PageViewProcessSequential(final int totalUsers) {
-        this.totalUsers = totalUsers;
+    public PageViewProcessSequential(final int totalUsers, final int pageViewParallelism) {
+        pageViewTimestamps.addAll(Collections.nCopies(pageViewParallelism, Instant.MIN));
+        zipCodes.addAll(Collections.nCopies(totalUsers, 10_000));
     }
 
     @Override
-    public void open(final Configuration parameters) {
-        zipCodeState = getRuntimeContext().getState(zipCodeDescriptor);
-        updateBufferState = getRuntimeContext().getState(updateBufferDescriptor);
-        pageViewBufferState = getRuntimeContext().getState(pageViewBufferDescriptor);
-    }
-
-    @Override
-    public void processElement1(final GetOrUpdate getOrUpdate,
+    public void processElement1(final GetOrUpdateOrHeartbeat getOrUpdateOrHeartbeat,
                                 final Context ctx,
-                                final Collector<Update> out) throws IOException {
-        final var updateBuffer = getUpdateBuffer();
-        getOrUpdate.match(
-                get -> null,
-                update -> {
-                    updateBuffer.add(update);
-                    ctx.timerService().registerEventTimeTimer(ctx.timestamp());
-                    return null;
-                }
-        );
+                                final Collector<Update> out) {
+        updates.addAll(getOrUpdateOrHeartbeat.match(
+                gou -> gou.match(g -> Collections.emptyList(), List::of),
+                hb -> Collections.emptyList()));
+        updateTimestamp = getOrUpdateOrHeartbeat.getPhysicalTimestamp();
+        makeProgress(out);
     }
 
     @Override
-    public void processElement2(final PageView pageView,
+    public void processElement2(final PageViewOrHeartbeat pageViewOrHeartbeat,
                                 final Context ctx,
-                                final Collector<Update> out) throws IOException {
-        getPageViewBuffer().add(pageView);
-        ctx.timerService().registerEventTimeTimer(ctx.timestamp());
+                                final Collector<Update> out) {
+        pageViews.addAll(pageViewOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
+        pageViewTimestamps.set(pageViewOrHeartbeat.getSourceIndex(), pageViewOrHeartbeat.getPhysicalTimestamp());
+        makeProgress(out);
     }
 
-    @Override
-    public void onTimer(final long timestamp, final OnTimerContext ctx, final Collector<Update> out) throws Exception {
-        final var updateBuffer = getUpdateBuffer();
-        final var pageViewBuffer = getPageViewBuffer();
+    private Instant getCurrentTimestamp() {
+        final var pageViewTimestamp = pageViewTimestamps.stream().min(Instant::compareTo).get();
+        return min(pageViewTimestamp, updateTimestamp);
+    }
 
-        while (!updateBuffer.isEmpty() &&
-                toEpochMilli(updateBuffer.element().getPhysicalTimestamp()) <= timestamp) {
-            final var update = updateBuffer.remove();
-            while (!pageViewBuffer.isEmpty() &&
-                    pageViewBuffer.element().getPhysicalTimestamp()
-                            .isBefore(update.getPhysicalTimestamp())) {
-                update(pageViewBuffer.remove(), out);
+    private void makeProgress(final Collector<Update> out) {
+        final var currentTimestamp = getCurrentTimestamp();
+        while (!updates.isEmpty() &&
+                updates.element().getPhysicalTimestamp().compareTo(currentTimestamp) <= 0) {
+            final var update = updates.remove();
+            while (!pageViews.isEmpty() &&
+                    pageViews.element().getPhysicalTimestamp().isBefore(update.getPhysicalTimestamp())) {
+                update(pageViews.remove(), out);
             }
             update(update, out);
         }
-        while (!pageViewBuffer.isEmpty() &&
-                toEpochMilli(pageViewBuffer.element().getPhysicalTimestamp()) <= timestamp) {
-            update(pageViewBuffer.remove(), out);
+        while (!pageViews.isEmpty() &&
+                pageViews.element().getPhysicalTimestamp().compareTo(currentTimestamp) <= 0) {
+            update(pageViews.remove(), out);
         }
     }
 
-    private Queue<Update> getUpdateBuffer() throws IOException {
-        if (updateBufferState.value() == null) {
-            updateBufferState.update(new ArrayDeque<>());
-        }
-        return updateBufferState.value();
-    }
-
-    private PriorityQueue<PageView> getPageViewBuffer() throws IOException {
-        if (pageViewBufferState.value() == null) {
-            pageViewBufferState.update(new PriorityQueue<>(
-                    Comparator.comparing(PageView::getPhysicalTimestamp)));
-        }
-        return pageViewBufferState.value();
-    }
-
-    private List<Integer> getZipCodes() throws IOException {
-        if (zipCodeState.value() == null) {
-            final List<Integer> zipCodes = new ArrayList<>(totalUsers);
-            for (int i = 0; i < totalUsers; ++i) {
-                zipCodes.add(10_000);
-            }
-            zipCodeState.update(zipCodes);
-        }
-        return zipCodeState.value();
-    }
-
-    private void update(final Update update, final Collector<Update> out) throws IOException {
-        getZipCodes().set(update.getUserId(), update.zipCode);
+    private void update(final Update update, final Collector<Update> out) {
+        zipCodes.set(update.getUserId(), update.zipCode);
         out.collect(update);
     }
 

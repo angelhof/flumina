@@ -4,4 +4,6 @@ import edu.upenn.flumina.data.TimestampedUnion;
 
 public interface GetOrUpdateOrHeartbeat extends TimestampedUnion<GetOrUpdate, GetOrUpdateHeartbeat> {
 
+    int getUserId();
+
 }

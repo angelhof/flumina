@@ -19,11 +19,11 @@ import java.rmi.server.UnicastRemoteObject;
 import java.time.Instant;
 import java.util.UUID;
 
-public class FraudDetectionManual implements Experiment {
+public class FraudDetectionManualExperiment implements Experiment {
 
     private final FraudDetectionConfig conf;
 
-    public FraudDetectionManual(final FraudDetectionConfig conf) {
+    public FraudDetectionManualExperiment(final FraudDetectionConfig conf) {
         this.conf = conf;
     }
 
@@ -59,8 +59,7 @@ public class FraudDetectionManual implements Experiment {
                 .slotSharingGroup("transactions")
                 .map(new TimestampMapper())
                 .setParallelism(conf.getValueNodes())
-                .writeAsText(conf.getTransOutFile(), FileSystem.WriteMode.OVERWRITE)
-                .setParallelism(conf.getValueNodes());
+                .writeAsText(conf.getTransOutFile(), FileSystem.WriteMode.OVERWRITE);
 
         ruleStream
                 .flatMap(new FlatMapFunction<RuleOrHeartbeat, Rule>() {

@@ -332,7 +332,9 @@ class FraudDetectionEC2:
                                 host.rstrip() + ':' + self.trans_file,
                                 exp_path])
                 subprocess.run(['ssh', host.rstrip(), 'rm', self.out_file])
+                subprocess.run(['ssh', host.rstrip(), 'rm', '-rf', self.trans_file])
         # shutil.move(self.out_file, exp_path)
-        # shutil.move(self.trans_file, exp_path)
+        # if path.exists(self.trans_file):
+        #     shutil.move(self.trans_file, exp_path)
         shutil.move(self.stats_file, exp_path)
         print(f'Throughput: {results.get_flink_throughput(exp_path)}')

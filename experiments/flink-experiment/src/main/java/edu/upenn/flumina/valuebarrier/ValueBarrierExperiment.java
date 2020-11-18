@@ -26,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Queue;
 
-import static edu.upenn.flumina.time.TimeHelper.max;
 import static edu.upenn.flumina.time.TimeHelper.min;
 
 public class ValueBarrierExperiment implements Experiment {
@@ -74,7 +73,7 @@ public class ValueBarrierExperiment implements Experiment {
                                                final ReadOnlyContext ctx,
                                                final Collector<Tuple3<Long, Long, Instant>> collector) {
                         unprocessedValues.addAll(valueOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-                        valuePhysicalTimestamp = max(valuePhysicalTimestamp, valueOrHeartbeat.getPhysicalTimestamp());
+                        valuePhysicalTimestamp = valueOrHeartbeat.getPhysicalTimestamp();
                         makeProgress(collector);
                     }
 
@@ -83,7 +82,7 @@ public class ValueBarrierExperiment implements Experiment {
                                                         final Context ctx,
                                                         final Collector<Tuple3<Long, Long, Instant>> collector) {
                         unprocessedBarriers.addAll(barrierOrHeartbeat.match(List::of, hb -> Collections.emptyList()));
-                        barrierPhysicalTimestamp = max(barrierPhysicalTimestamp, barrierOrHeartbeat.getPhysicalTimestamp());
+                        barrierPhysicalTimestamp = barrierOrHeartbeat.getPhysicalTimestamp();
                         makeProgress(collector);
                     }
 

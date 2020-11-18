@@ -1,0 +1,5 @@
+1 wkrs, 16 nodes, 2 views/ms, 10000 views/update, 5 s, 781.0050651631938 ms, 30.50072445139619 events/ms
+1 wkrs, 16 nodes, 3 views/ms, 10000 views/update, 5 s, 315.87953105497036 ms, 17.535376208441463 events/ms
+1 wkrs, 16 nodes, 4 views/ms, 10000 views/update, 5 s, 1496.6549316529938 ms, 60.88384427560912 events/ms
+1 wkrs, 16 nodes, 5 views/ms, 10000 views/update, 5 s, 3547.1821900023765 ms, 29.852837854273204 events/ms
+1 wkrs, 16 nodes, 10 views/ms, 10000 views/update, 5 s, 152070.93793821937 ms, 2.5137377327418484 events/ms

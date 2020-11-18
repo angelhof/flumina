@@ -20,9 +20,9 @@ import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Queue;
 
-public class FraudDetectionManualTest {
+public class FraudDetectionTest {
 
-    private static final Logger LOG = LoggerFactory.getLogger(FraudDetectionManualTest.class);
+    private static final Logger LOG = LoggerFactory.getLogger(FraudDetectionTest.class);
 
     @ClassRule
     public static final MiniClusterWithClientResource flinkCluster =
@@ -77,6 +77,32 @@ public class FraudDetectionManualTest {
 
                 })
                 .setParallelism(transNodes);
+        env.execute();
+    }
+
+    @Test
+    public void testSequential() throws Exception {
+        // Parameters
+        final int totalTrans = 12;
+        final double transRate = 0.1;
+        final int transNodes = 2;
+        final int trRatio = 6;
+        final int hbRatio = 2;
+
+        final var env = StreamExecutionEnvironment.getExecutionEnvironment();
+        env.setParallelism(1);
+
+        final var startTime = Instant.now();
+        final var transStream =
+                env.addSource(new TransactionOrHeartbeatSource(totalTrans, transRate, startTime)).setParallelism(transNodes);
+        final var ruleStream =
+                env.addSource(new RuleOrHeartbeatSource(totalTrans, transRate, trRatio, hbRatio, startTime));
+
+        ruleStream.connect(transStream)
+                .process(new FraudProcessFunction(transNodes))
+                .map(new TimestampMapper())
+                .print();
+
         env.execute();
     }
 
