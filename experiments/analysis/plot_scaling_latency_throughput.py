@@ -467,7 +467,7 @@ def plot_all_relative_max_throughputs_flink():
                     ("Fraud Dec.", '-^', fraud_detection_maximums, 327.0)] 
     # print(maximums)
     plot_node_ticks = [1] + list(range(4,21,4))
-    plot_all_relative_max_throughputs_common("flink", plot_node_ticks, plot_results)
+    plot_all_relative_max_throughputs_common("flink", plot_node_ticks, plot_results, hide_x=False)
 
 def plot_all_relative_max_throughputs_timely(file):
     with open(file) as f:
@@ -498,7 +498,7 @@ def plot_all_relative_max_throughputs_timely(file):
     plot_results = [("Event Win.", '-o', value_aggregation_maximums, value_aggregation_maximums[0]),
                     ("Page View", '-D', page_view_auto_maximums, page_view_auto_maximums[0]),
                     ("Fraud Dec.", '-^', fraud_detection_maximums, fraud_detection_maximums[0]),
-                    ("Page View (Manual)", '-h', page_view_man_maximums, page_view_man_maximums[0])] 
+                    ("Page View (M)", '-h', page_view_man_maximums, page_view_man_maximums[0])] 
     # print(maximums)
     plot_node_ticks = [1] + list(range(4,21,4))
     plot_all_relative_max_throughputs_common("timely", plot_node_ticks, plot_results)
@@ -507,10 +507,9 @@ def plot_all_relative_max_throughputs_timely(file):
 ## This function takes a list of tuples that contain:
 ## - name of application
 ## - maximum throughputs
-def plot_all_relative_max_throughputs_common(experiment, ticks, plot_results):
+def plot_all_relative_max_throughputs_common(experiment, ticks, plot_results, hide_x=False):
 
     fig, ax = plt.subplots()
-    ax.set_xlabel('Parallelism')
     ax.set_ylabel('Max. Throughput (events/ms)')
     # plt.xscale("log")
     
@@ -526,6 +525,8 @@ def plot_all_relative_max_throughputs_common(experiment, ticks, plot_results):
     plt.grid()
     plt.tight_layout()
     fig.set_size_inches(14, 5)
+    if(not hide_x):
+        ax.set_xlabel('Parallelism')
     plt.savefig(os.path.join('plots', "{}_max_throughput_scaleup.pdf".format(experiment)),bbox_inches='tight')
 
 
@@ -571,6 +572,7 @@ if __name__ == '__main__':
     plot_all_relative_max_throughputs_flumina('../../experiment_results_archive/archive')
     plot_all_relative_max_throughputs_flink()
     plot_all_relative_max_throughputs_timely('analysis/timely_max_throughputs.csv')
+    # plot_all_relative_max_throughputs_flink_and_timely('analysis/timely_max_throughputs.csv')
 
     ## Plot Max throughput scaleup for ab-example
     # plot_relative_max_throughputs_ab_example('archive/ab-example-max-throughput-scaleup/archive')
