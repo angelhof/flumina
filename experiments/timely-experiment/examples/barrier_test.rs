@@ -5,7 +5,7 @@ When run on multiple EC2 instances, waits for all to start,
 then all of them complete the barrier and terminate.
 */
 
-use naiad_experiment::ec2::{ec2_barrier, get_ec2_node_number, local_barrier};
+use timely_experiment::ec2::{ec2_barrier, get_ec2_node_number, local_barrier};
 
 use structopt::StructOpt;
 

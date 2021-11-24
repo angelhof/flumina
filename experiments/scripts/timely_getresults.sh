@@ -3,8 +3,8 @@
 
 hostname=$1
 
-timely_dir=/home/caleb/git/research/flumina-dev/experiments/naiad-experiment
-remote_timely_dir=/home/ubuntu/flumina-devel/experiments/naiad-experiment
+timely_dir=/home/caleb/git/research/flumina-dev/experiments/timely-experiment
+remote_timely_dir=/home/ubuntu/flumina-devel/experiments/timely-experiment
 
 echo "Getting Timely results files in: $hostname..."
 echo ">> copying folder: results/ to: ec2_results/"

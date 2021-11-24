@@ -1,7 +1,7 @@
 """
 Script to update the EC2 instance information using the AWS CLI.
 
-NOTE: be sure to run this script from the naiad-experiment repo!
+NOTE: be sure to run this script from the timely-experiment repo!
 It won't work from another directory.
 """
 

@@ -12,7 +12,7 @@ Notes:
   event should be processed.
 */
 
-use naiad_experiment::vb_data::{VBData, VBItem};
+use timely_experiment::vb_data::{VBData, VBItem};
 
 use timely::dataflow::channels::pact::Pipeline;
 use timely::dataflow::operators::generic::operator::Operator;

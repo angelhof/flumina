@@ -10,7 +10,7 @@ Notes:
   event should be processed.
 */
 
-use naiad_experiment::vb_data::{VBData, VBItem};
+use timely_experiment::vb_data::{VBData, VBItem};
 
 use timely::dataflow::operators::{
     Accumulate, Exchange, Input, Inspect, Partition, Probe,

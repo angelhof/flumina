@@ -1,9 +1,10 @@
 /*
-    Input parameters, then run a value barrier experiment.
+    Input parameters, then run the value barrier experiment
+    data generation only.
 */
 
-use naiad_experiment::util;
-use naiad_experiment::vb::vb_experiment_main;
+use timely_experiment::util;
+use timely_experiment::vb::vb_experiment_gen_only;
 
 use std::time::Duration;
 
@@ -17,5 +18,9 @@ fn main() {
     let experiment_duration =
         Duration::from_secs(util::get_input("Total time to run in seconds:"));
 
-    vb_experiment_main(value_frequency, barrier_frequency, experiment_duration);
+    vb_experiment_gen_only(
+        value_frequency,
+        barrier_frequency,
+        experiment_duration,
+    );
 }

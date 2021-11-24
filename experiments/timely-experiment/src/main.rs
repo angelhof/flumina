@@ -2,13 +2,13 @@
     Command-line entrypoint to run experiments.
 */
 
-use naiad_experiment::experiment::{
+use timely_experiment::experiment::{
     LatencyThroughputExperiment, TimelyNodeInfo, TimelyParallelism,
 };
-use naiad_experiment::pageview::{
+use timely_experiment::pageview::{
     PVBadExperiment, PVExperimentParams, PVGenExperiment, PVGoodExperiment,
 };
-use naiad_experiment::vb::{
+use timely_experiment::vb::{
     FDExperiment, VBExperiment, VBExperimentParams, VBGenExperiment,
 };
 

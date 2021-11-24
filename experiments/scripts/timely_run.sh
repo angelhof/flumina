@@ -6,7 +6,7 @@ hostname=$1
 remote_cargo=/home/ubuntu/.cargo/bin/cargo
 
 ssh $hostname << EOF
-cd flumina-devel/experiments/naiad-experiment/
+cd flumina-devel/experiments/timely-experiment/
 ${remote_cargo} run --release exp1
 ${remote_cargo} run --release exp2
 ${remote_cargo} run --release exp3
