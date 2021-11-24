@@ -12,6 +12,8 @@ For more information about Flumina, check out our PPoPP'22 paper:
 
 - Installation instructions: is step 3 necessary below?
 
+- I currently can't run Flumina, I got some errors. I think we should try to quickly get it working and provide instructions (trying to do this in <1hr of work)
+
 - Sort and clean up `experiments` folder
 
   - We need an `examples/` directory and a basic example program to run.
@@ -40,6 +42,23 @@ export EEP_EBIN_DIR=?????
 
 4. Finally, run `make prepare_dialyzer` to set up Dialyzer, and `make` to
 build Flumina.
+
+## Examples and experiments
+
+**Inside experiments dir** (`cd experiments`):
+
+You first have to set the `FLUMINA_TOP` environment variable to point
+at the Flumina directory.
+
+Then run `make` and then `make tests` to make sure that everything is working properly.
+
+### Execute Scenario
+
+Scenarios are just shell scripts and should be executed from the main directory, for example:
+
+```
+scenarios/docker_scenario.sh
+```
 
 ## Issues
 
