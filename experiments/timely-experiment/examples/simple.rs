@@ -1,3 +1,8 @@
+/*
+    Timely hello world example
+    (has nothing to do with Flumina)
+*/
+
 extern crate timely;
 
 use timely::dataflow::operators::*;
