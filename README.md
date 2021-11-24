@@ -1,22 +1,46 @@
-## Overview
+# Flumina
 
-This repo contains a prototype implementation of Flumina, a
-programming model for stateful streaming computations. It is still in
-a research prototype state, and there are several issues and
-extensions that need to be implemented.
+A parallel programming model for online applications with complex synchronization requirements.
+Flumina can used for *stream processing* workloads and is evaluated against [Flink](https://github.com/apache/flink) and [Timely Dataflow](https://github.com/TimelyDataflow/timely-dataflow).
 
-A repository containing examples of streaming applications implemented on
-Flumina can be found
-[here](https://github.com/angelhof/flumina-examples/).
+For more information about Flumina, check out our PPoPP'22 paper:
 
-### Build
+- **Stream Processing with Dependency-Guided Synchronization.** Konstantinos Kallas, Filip Niksic, Caleb Stanford, and Rajeev Alur. Principles and Practice of Parallel Programming (PPoPP), February 2022.
+[Extended version](https://arxiv.org/abs/2104.04512).
 
-Set your environment variable ERL_TOP where your Erlang OTP
+## Repository cleanup TODOs (November 23, 2021)
+
+- Installation instructions: is step 3 necessary below?
+
+- Sort and clean up `experiments` folder
+
+  - We need an `examples/` directory and a basic example program to run.
+
+- Can we get rid of erlang dot? Samza? NS3?
+
+- We need to clean up unused programs/files, I don't know all the junk that's in the repo though so it's fine if we miss some stuff.
+
+## Installation
+
+1. Install Erlang: [link](https://www.erlang.org/downloads) or follow [this guide](https://medium.com/erlang-central/erlang-quick-install-9c5dcaa5b634)
+
+2. Set your environment variable `ERL_TOP` where your Erlang OTP
 installation is. If downloaded using apt, then it should be in
-`/usr/lib/erlang/`.
+`/usr/lib/erlang/`. On mac, if downloaded using homebrew, then it should be in `/opt/homebrew/lib/erlang/`; otherwise also check `/opt/local/bin/to_erl/`.
 
-Set the `EEP_EBIN_DIR` environment variable to point to the directory
+```
+export ERL_TOP=/usr/lib/erlang/
+```
+
+3. (TODO Konstantinos: is this step necessary? I installed and built Flumina without it. What is `eep.beam`? I couldn't find anywhere.) Set the `EEP_EBIN_DIR` environment variable to point to the directory
 that contains `eep.beam`.
+```
+export EEP_EBIN_DIR=?????
+```
 
-Then run `make prepare_dialyzer` to set up Dialyzer, and `make` to
+4. Finally, run `make prepare_dialyzer` to set up Dialyzer, and `make` to
 build Flumina.
+
+## Issues
+
+This is a research prototype implementation in Erlang and is not currently being maintained. However, if you encounter any issues running the code, please post an issue and we will try to take a look.
