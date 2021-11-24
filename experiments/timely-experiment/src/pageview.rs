@@ -39,11 +39,11 @@ impl ExperimentParams for PVExperimentParams {
         )
     }
     fn to_vec(&self) -> Vec<String> {
-        let mut result = Vec::new();
-        result.push(self.views_per_milli.to_string());
-        result.push(self.views_per_update.to_string());
-        result.push(self.exp_duration_secs.to_string());
-        result
+        vec![
+            self.views_per_milli.to_string(),
+            self.views_per_update.to_string(),
+            self.exp_duration_secs.to_string(),
+        ]
     }
     fn get_exp_duration_secs(&self) -> u64 {
         self.exp_duration_secs

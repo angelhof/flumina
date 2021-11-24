@@ -37,7 +37,7 @@ pub fn handshake(s0: SocketAddrV4, listener: bool) {
             panic!("Failed to get stream using TCP (got None) at {:?}", s0);
         });
         // println!("[listener] reading...");
-        let mut data = [0 as u8; 50];
+        let mut data = [0_u8; 50];
         let _msg = stream
             .unwrap_or_else(|err| {
                 panic!("Listener failed to get message from stream: {}", err);

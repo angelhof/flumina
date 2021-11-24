@@ -43,12 +43,12 @@ impl ExperimentParams for VBExperimentParams {
         )
     }
     fn to_vec(&self) -> Vec<String> {
-        let mut result = Vec::new();
-        result.push(self.val_rate_per_milli.to_string());
-        result.push(self.vals_per_hb_per_worker.to_string());
-        result.push(self.hbs_per_bar.to_string());
-        result.push(self.exp_duration_secs.to_string());
-        result
+        vec![
+            self.val_rate_per_milli.to_string(),
+            self.vals_per_hb_per_worker.to_string(),
+            self.hbs_per_bar.to_string(),
+            self.exp_duration_secs.to_string(),
+        ]
     }
     fn get_exp_duration_secs(&self) -> u64 {
         self.exp_duration_secs

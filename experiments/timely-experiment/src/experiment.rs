@@ -2,6 +2,10 @@
     Abstractions for running experiments in Timely.
 */
 
+// Sorry Clippy, in this case it's a minor problem with too many instances
+// to be worth fixing right now.
+#![allow(clippy::wrong_self_convention)]
+
 use super::common::{Scope, Stream};
 use super::ec2::{
     ec2_barrier, get_ec2_node_number, local_barrier, prepare_ec2_host_file,
@@ -219,10 +223,7 @@ impl TimelyParallelism {
     }
     pub fn to_vec(&self) -> Vec<String> {
         self.validate();
-        let mut result = Vec::new();
-        result.push(self.workers.to_string());
-        result.push(self.nodes.to_string());
-        result
+        vec![self.workers.to_string(), self.nodes.to_string()]
     }
 
     /* Compute arguments to pass to Timely */
@@ -235,9 +236,7 @@ impl TimelyParallelism {
         if !self.is_participating() {
             None
         } else {
-            let mut vec: Vec<String> = Vec::new();
-            vec.push("-w".to_string());
-            vec.push(self.workers.to_string());
+            let mut vec = vec!["-w".to_string(), self.workers.to_string()];
             if self.nodes > 1 {
                 vec.push("-n".to_string());
                 vec.push(self.nodes.to_string());
