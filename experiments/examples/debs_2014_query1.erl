@@ -10,7 +10,14 @@
          run_experiment_distributed/2,
 
          make_house_generator/6,
-         make_end_timeslice_stream/5
+         make_end_timeslice_stream/5,
+
+         %% Silencing warnings
+         get_average/1,
+         get_ls_averages/2,
+         predict_plug_load/4,
+         predict_house_load/4,
+         output_predictions/4
         ]).
 
 -include_lib("eunit/include/eunit.hrl").

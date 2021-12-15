@@ -619,7 +619,7 @@ fork_modulo(_, {Sum, PrevBModulo}) ->
 
 
 %% The specification of the computation
-update({{a,_}, Value}, Sum, SendTo) ->
+update({{a,_}, Value}, Sum, _SendTo) ->
     %% This is here for debugging purposes
     %% io:format("log: ~p~n", [{self(), a, Value, Ts}]),
     %% SendTo ! {self(), a, Value, Ts},
@@ -754,7 +754,7 @@ complex_input_distr_example(NodeA1, NodeA2, NodeA3, NodeA4, NodeB) ->
 %%      A2s ++ [{heartbeat, {{a,2},2005}}]}.
 
 gen_a(V) ->
-    Id = random:uniform(2),
+    Id = rand:uniform(2),
     {{a, Id}, V}.
 
 input_example2(NodeA1, NodeA2, NodeB) ->

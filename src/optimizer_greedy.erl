@@ -200,25 +200,31 @@ complete_root_tree_to_setup_tree({StateTypePair, {{HTags, Node}, Children}, Hole
 	      [HoleTree(HoleSetupTree) || HoleSetupTree <- HoleSetupTrees]
       end, HoledSetupTrees).
 
-%% This function returns a binary root tree given a normal one. It
-%% doesn't check whether it is possible to generate that root tree
-%% from splits and merges though.
--spec generate_binary_root_tree(root_tree()) -> root_tree().
-generate_binary_root_tree({Node, Children}) ->
-    BinarizedSubtrees = [generate_binary_root_tree(Child) || Child <- Children],
-    BinaryRootTree = {Node, BinarizedSubtrees},
-    FinalBinaryRootTree = binarize_root_tree_layer(BinaryRootTree),
-    %% io:format("Binary root tree:~n~p~n", [FinalBinaryRootTree]),
-    FinalBinaryRootTree.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%
+%%% Experimental
+%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--spec binarize_root_tree_layer(root_tree()) -> root_tree().
-binarize_root_tree_layer({{_Tags, _Node}, []} = RootTree) ->
-    RootTree;
-binarize_root_tree_layer({{Tags, Node}, Children}) ->
-    %% TODO: Make a nested binary list from the inital list
-    {{[], Node}, NestedBinaryChildren} = binarize_root_tree_list(Node, Children),
-    %% io:format("Nested Children:~n~p~n", [NestedBinaryChildren]),
-    {{Tags, Node}, NestedBinaryChildren}.
+% %% This function returns a binary root tree given a normal one. It
+% %% doesn't check whether it is possible to generate that root tree
+% %% from splits and merges though.
+% -spec generate_binary_root_tree(root_tree()) -> root_tree().
+% generate_binary_root_tree({Node, Children}) ->
+%     BinarizedSubtrees = [generate_binary_root_tree(Child) || Child <- Children],
+%     BinaryRootTree = {Node, BinarizedSubtrees},
+%     FinalBinaryRootTree = binarize_root_tree_layer(BinaryRootTree),
+%     %% io:format("Binary root tree:~n~p~n", [FinalBinaryRootTree]),
+%     FinalBinaryRootTree.
+
+% -spec binarize_root_tree_layer(root_tree()) -> root_tree().
+% binarize_root_tree_layer({{_Tags, _Node}, []} = RootTree) ->
+%     RootTree;
+% binarize_root_tree_layer({{Tags, Node}, Children}) ->
+%     %% TODO: Make a nested binary list from the inital list
+%     {{[], Node}, NestedBinaryChildren} = binarize_root_tree_list(Node, Children),
+%     %% io:format("Nested Children:~n~p~n", [NestedBinaryChildren]),
+%     {{Tags, Node}, NestedBinaryChildren}.
 
 %% TODO: Optimize to not always put the extra level on top of the big subtrees
 %% -spec binarize_root_tree_list([root_tree()]) -> [root_tree()].
@@ -237,61 +243,61 @@ binarize_root_tree_layer({{Tags, Node}, Children}) ->
 %%             [[BinarizedFirstHalf, BinarizedSecondHalf], BinarizedRem]
 %%     end.
 
--spec binarize_root_tree_list(node(), [root_tree()]) -> root_tree().
-binarize_root_tree_list(Node, RootTrees) ->
-    Len = length(RootTrees),
+% -spec binarize_root_tree_list(node(), [root_tree()]) -> root_tree().
+% binarize_root_tree_list(Node, RootTrees) ->
+%     Len = length(RootTrees),
 
-    %% Take a full binary tree for the biggest power of 2
-    BiggestPowerExponent = util:biggest_power_of_two_less_than_number(Len),
-    BiggestPower = util:intpow(2, BiggestPowerExponent),
-    {FirstPart, Rest} = lists:split(BiggestPower, RootTrees),
-    FirstPartRootTree = make_total_binary_root_tree_from_children_list(Node, FirstPart),
-    case Rest of
-        [] ->
-            FirstPartRootTree;
-        _ ->
-            SecondPartRootTree = binarize_root_tree_list(Node, Rest),
-            {{[], Node}, [FirstPartRootTree, SecondPartRootTree]}
-    end.
+%     %% Take a full binary tree for the biggest power of 2
+%     BiggestPowerExponent = util:biggest_power_of_two_less_than_number(Len),
+%     BiggestPower = util:intpow(2, BiggestPowerExponent),
+%     {FirstPart, Rest} = lists:split(BiggestPower, RootTrees),
+%     FirstPartRootTree = make_total_binary_root_tree_from_children_list(Node, FirstPart),
+%     case Rest of
+%         [] ->
+%             FirstPartRootTree;
+%         _ ->
+%             SecondPartRootTree = binarize_root_tree_list(Node, Rest),
+%             {{[], Node}, [FirstPartRootTree, SecondPartRootTree]}
+%     end.
 
-    %% case Len =< 1 of
-    %%     true ->
-    %%         RootTrees;
-    %%     false ->
-    %%         HalfSize = Len div 2,
-    %%         {FirstHalf, Rest} = lists:split(HalfSize, RootTrees),
-    %%         {SecondHalf, Rem} = lists:split(HalfSize, Rest),
-    %%         BinarizedFirstHalf = binarize_root_tree_list(FirstHalf),
-    %%         BinarizedSecondHalf = binarize_root_tree_list(SecondHalf),
-    %%         BinarizedRem = binarize_root_tree_list(Rem),
-    %%         [[BinarizedFirstHalf, BinarizedSecondHalf], BinarizedRem]
-    %% end.
+%     %% case Len =< 1 of
+%     %%     true ->
+%     %%         RootTrees;
+%     %%     false ->
+%     %%         HalfSize = Len div 2,
+%     %%         {FirstHalf, Rest} = lists:split(HalfSize, RootTrees),
+%     %%         {SecondHalf, Rem} = lists:split(HalfSize, Rest),
+%     %%         BinarizedFirstHalf = binarize_root_tree_list(FirstHalf),
+%     %%         BinarizedSecondHalf = binarize_root_tree_list(SecondHalf),
+%     %%         BinarizedRem = binarize_root_tree_list(Rem),
+%     %%         [[BinarizedFirstHalf, BinarizedSecondHalf], BinarizedRem]
+%     %% end.
 
 
-make_total_binary_root_tree_from_children_list(Node, [_|_] = RootTrees) ->
-    Len = length(RootTrees),
-    case Len =< 1 of
-        true ->
-            [RootTree] = RootTrees,
-            RootTree;
-        false->
-            HalfSize = Len div 2,
-            %% Assert that the input is a full power of two
-            0 = Len rem 2,
-            {FirstHalf, SecondHalf} = lists:split(HalfSize, RootTrees),
-            BinarizedFirstHalf = make_total_binary_root_tree_from_children_list(Node, FirstHalf),
-            BinarizedSecondHalf = make_total_binary_root_tree_from_children_list(Node, SecondHalf),
-            {{[], Node}, [BinarizedFirstHalf, BinarizedSecondHalf]}
-    end.
+% make_total_binary_root_tree_from_children_list(Node, [_|_] = RootTrees) ->
+%     Len = length(RootTrees),
+%     case Len =< 1 of
+%         true ->
+%             [RootTree] = RootTrees,
+%             RootTree;
+%         false->
+%             HalfSize = Len div 2,
+%             %% Assert that the input is a full power of two
+%             0 = Len rem 2,
+%             {FirstHalf, SecondHalf} = lists:split(HalfSize, RootTrees),
+%             BinarizedFirstHalf = make_total_binary_root_tree_from_children_list(Node, FirstHalf),
+%             BinarizedSecondHalf = make_total_binary_root_tree_from_children_list(Node, SecondHalf),
+%             {{[], Node}, [BinarizedFirstHalf, BinarizedSecondHalf]}
+%     end.
 
-    %% case RootTrees of
-    %%     [] ->
-    %%         [];
-    %%     [Child] ->
-    %%         [Child];
-    %%     [Child1, Child2] ->
+%     %% case RootTrees of
+%     %%     [] ->
+%     %%         [];
+%     %%     [Child] ->
+%     %%         [Child];
+%     %%     [Child1, Child2] ->
 
-    %% {Node, NestedBinaryChildren}.
+%     %% {Node, NestedBinaryChildren}.
 
 %% This function returns all possible pairs of split-merge and set root trees
 %% that can be handled as their children. In essence, what it returns is a

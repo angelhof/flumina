@@ -256,12 +256,12 @@ update_page_view({{page_view, Uid}, Ts}, State, SendTo) ->
 update({{update_user_address, Uid}, {ZipCode, Ts}}, State, SendTo) ->
     SendTo ! {{update_user_address, Uid}, {ZipCode, Ts}},
     maps:put(Uid, ZipCode, State);
-update({{page_view, Uid}, Ts}, State, SendTo) ->
-    ZipCode = maps:get(Uid, State, 'no_zipcode'),
+update({{page_view, Uid}, _Ts}, State, _SendTo) ->
+    _ZipCode = maps:get(Uid, State, 'no_zipcode'),
     %% SendTo ! {page_view, {Uid, ZipCode, Ts}},
     State;
-update({{get_user_address, Uid}, Ts}, State, SendTo) ->
-    ZipCode = maps:get(Uid, State, 'no_zipcode'),
+update({{get_user_address, Uid}, _Ts}, State, _SendTo) ->
+    _ZipCode = maps:get(Uid, State, 'no_zipcode'),
     %% SendTo ! {"Zipcode for", Uid, ZipCode, Ts},
     State.
 

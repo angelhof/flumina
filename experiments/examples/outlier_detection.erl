@@ -577,7 +577,7 @@ split({_Pred1, _Pred2}, State) ->
 -spec merge(state(), state()) -> state().
 merge(State1, State2) ->
     {ItemsetHash1, WindowScores1, LocalOutliers1} = State1,
-    {ItemsetHash2, WindowScores2, LocalOutliers2} = State2,
+    {ItemsetHash2, _WindowScores2, LocalOutliers2} = State2,
 
     MergedItemsetHash =
         merge_itemsethashes(ItemsetHash1, ItemsetHash2),

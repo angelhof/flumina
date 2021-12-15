@@ -50,7 +50,7 @@ impl_tags_to_spec_predicate(Tags) ->
 can_state_type_handle_tags(StateType, ImplTags, Specification) ->
     {HandledTagsSet, _UpdFun} = conf_gen:get_state_type_tags_upd(StateType, Specification),
     Tags = 
-	sets:from_list([Tag || {Tag, Node} <- sets:to_list(ImplTags)]),
+	sets:from_list([Tag || {Tag, _Node} <- sets:to_list(ImplTags)]),
     sets:is_subset(Tags, HandledTagsSet).
 
 -spec max_rate_node(nodes_rates()) -> node().
@@ -65,7 +65,7 @@ max_rate_node(NodesRates) ->
 	  end, #{}, NodesRates),
     SortedNodesTotalRates =
 	lists:sort(
-	 fun({Node1, Rate1}, {Node2, Rate2}) ->
+	 fun({_Node1, Rate1}, {_Node2, Rate2}) ->
 		 Rate1 > Rate2
 	 end, maps:to_list(NodesTotalRates)),
     [{MaxNode, _MaxRate}|_] = SortedNodesTotalRates,

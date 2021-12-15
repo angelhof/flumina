@@ -138,6 +138,6 @@ find_responsibles({node, _NodePid, _NNN, MboxNameNode, {_SpecPred, Pred}, Childr
     end.
 
 
--spec all_pids(configuration()) -> [mailbox()].
-all_pids({node, _NodePid, _NNN, MboxNameNode, _, Children}) ->
-    [MboxNameNode|lists:flatmap(fun all_pids/1, Children)].
+% -spec all_pids(configuration()) -> [mailbox()].
+% all_pids({node, _NodePid, _NNN, MboxNameNode, _, Children}) ->
+%     [MboxNameNode|lists:flatmap(fun all_pids/1, Children)].

@@ -49,7 +49,46 @@ mkdir -p logs
 
 ## "Hello, World" example
 
-TODO
+After having built the experiments and running the tests, you can run the "Hello, World" Flumina example.
+
+You can inspect the source code of this example in `abexample.erl`. The function that configures it is called `big_conf/3` (https://github.com/angelhof/flumina-devel/blob/master/experiments/examples/abexample.erl#L91).
+
+It roughly sets up the following:
+- Sets three input streams and their rates, two fast streams for `a` tags, and one slow stream for `b` tags.
+- It then invokes the compiler to generate a synchronization plan for these input streams.
+- It then spawns three producers for these streams, and runs the synchronization plan.
+
+You can run this example by running `make abexample` in `experiments`. The output will look something like this:
+```
+Mod: abexample, Fun: big_conf, Opts: [...]
+Dependency Graph:
+[{{b, ...},{{a,2}, ...}},
+ {{{a,2}, ...},{b, ...}},
+ {{b, ...},{{a,1}, ...}},
+ {{{a,1}, ...},{b, ...}}]
+Root tree:
+{{[{b, ...}], ...},
+ [{{[{{a,2}, ...}], ...},[]},
+  {{[{{a,1}, ...}], ...},[]}]}
+Possible setup trees: 1
+Configuration:
+...
+Spawning 'steady_retimestamp' producer forimpl tag: ...
+Spawning 'steady_retimestamp' producer forimpl tag: ...
+Spawning 'steady_retimestamp' producer forimpl tag: ...
+Producer for implementation tag: {{a,1}, ...} is done initializing.
+Producer for implementation tag: {{a,2}, ...} is done initializing.
+Producer for implementation tag: {b, ...} is done initializing.
+Configuration done
+{'EXIT',<0.83.0>,normal}
+{sum,{{b,1000},2}}
+{sum,{{b,2000},13}}
+...
+```
+
+The output contains the implementation tag dependence graph produced by the dependencies of the input tags, a root tree (which is a simplified version of a synchronization plan), and a synchronization plan (which is called configuration).
+
+It then spawns producers, and starts running the experiment.
 
 ## Notes on the experiments
 
