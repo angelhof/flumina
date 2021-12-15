@@ -1,6 +1,7 @@
 # Flumina
 
 A parallel programming model for online applications with complex synchronization requirements.
+Also known as *dependency-guided synchronization (DGS).*
 Flumina can used for *stream processing* workloads and is evaluated against [Flink](https://github.com/apache/flink) and [Timely Dataflow](https://github.com/TimelyDataflow/timely-dataflow).
 
 For more information about Flumina, check out our PPoPP'22 paper:
