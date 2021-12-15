@@ -8,15 +8,6 @@ For more information about Flumina, check out our PPoPP'22 paper:
 - **Stream Processing with Dependency-Guided Synchronization.** Konstantinos Kallas, Filip Niksic, Caleb Stanford, and Rajeev Alur. Principles and Practice of Parallel Programming (PPoPP), February 2022.
 [Extended version](https://arxiv.org/abs/2104.04512).
 
-## Repository cleanup TODOs (November 23, 2021)
-
-- I currently can't run Flumina, I got some errors. I think we should try to quickly get it working and provide instructions (trying to do this in <1hr of work)
-
-- Sort and clean up `experiments` folder
-
-  - We need an `examples/` directory and a basic example program to run.
-
-- We need to clean up unused programs/files, I don't know all the junk that's in the repo though so it's fine if we miss some stuff.
 
 ## Installation and basic tests
 
