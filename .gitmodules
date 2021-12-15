@@ -1,3 +1,0 @@
-[submodule "erlang-dot"]
-	path = erlang-dot
-	url = git@github.com:angelhof/erlang-dot.git
