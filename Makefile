@@ -22,14 +22,14 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 
 .PHONY: all clean
 
+all: $(BEAM_FILES)
+	@(cd src && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
+		I_DIR1="../$(I_DIR1)" I_DIR2="../$(I_DIR2)" $@)
+
 dialyzer: all
 	@echo ""
 	@echo " --- --- --- --- DIALYZER --- --- --- --- "
 	dialyzer --src -r src
-
-all: $(BEAM_FILES)
-	@(cd src && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
-		I_DIR1="../$(I_DIR1)" I_DIR2="../$(I_DIR2)" $@)
 
 %.beam: %.erl $(INCLUDES)
 	$(ERLC) $(ERL_COMPILE_FLAGS) $(I_DIRS) -o $(EBIN_DIR) $<
