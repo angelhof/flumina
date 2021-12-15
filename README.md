@@ -34,14 +34,21 @@ installation is. If downloaded using apt, then it should be in
 export ERL_TOP=/usr/lib/erlang/
 ```
 
+3. Set `FLUMINA_TOP` to the `flumina` directory.
+
+4. Run `make` to build Flumina.
+
+5. `cd` into the `experiments` directory and then run `make` there to build experiments.
+
+6. Run `make tests` to run tests.
+
+
+KK: I think this is not necessary
 3. (TODO Konstantinos: is this step necessary? I installed and built Flumina without it. What is `eep.beam`? I couldn't find anywhere.) Set the `EEP_EBIN_DIR` environment variable to point to the directory
 that contains `eep.beam`.
 ```
 export EEP_EBIN_DIR=?????
 ```
-
-4. Finally, run `make prepare_dialyzer` to set up Dialyzer, and `make` to
-build Flumina.
 
 ## Examples and experiments
 
