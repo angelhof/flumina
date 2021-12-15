@@ -10,62 +10,50 @@ For more information about Flumina, check out our PPoPP'22 paper:
 
 ## Repository cleanup TODOs (November 23, 2021)
 
-- Installation instructions: is step 3 necessary below?
-
 - I currently can't run Flumina, I got some errors. I think we should try to quickly get it working and provide instructions (trying to do this in <1hr of work)
 
 - Sort and clean up `experiments` folder
 
   - We need an `examples/` directory and a basic example program to run.
 
-- Can we get rid of erlang dot? Samza? NS3?
-
 - We need to clean up unused programs/files, I don't know all the junk that's in the repo though so it's fine if we miss some stuff.
 
-## Installation
+## Installation and basic tests
 
 1. Install Erlang: [link](https://www.erlang.org/downloads) or follow [this guide](https://medium.com/erlang-central/erlang-quick-install-9c5dcaa5b634)
+
+**NOTE:** We have tested running the code with Erlang 23 and Erlang 24. If installation is not working, make sure you have one of these two versions installed.
 
 2. Set your environment variable `ERL_TOP` where your Erlang OTP
 installation is. If downloaded using apt, then it should be in
 `/usr/lib/erlang/`. On mac, if downloaded using homebrew, then it should be in `/opt/homebrew/lib/erlang/`; otherwise also check `/opt/local/bin/to_erl/`.
-
+E.g. (replacing the path with the correct directory for your installation):
 ```
 export ERL_TOP=/usr/lib/erlang/
 ```
 
 3. Set `FLUMINA_TOP` to the `flumina` directory.
+(in the top-level directory, run `echo $PWD` to get the full path.)
 
 4. Run `make` to build Flumina.
 
-5. `cd` into the `experiments` directory and then run `make` there to build experiments.
+5. Run `cd experiments` directory: run `make` there to build the Flumina experiments (note: for baseline comparison, the Flink and Timely developments are built separately and not handled by this makefile).
 
-6. Run `make tests` to run tests.
-
-
-KK: I think this is not necessary
-3. (TODO Konstantinos: is this step necessary? I installed and built Flumina without it. What is `eep.beam`? I couldn't find anywhere.) Set the `EEP_EBIN_DIR` environment variable to point to the directory
-that contains `eep.beam`.
+6. Finally, still in `experiments`, run `make tests` to run tests. You should see output like this:
 ```
-export EEP_EBIN_DIR=?????
+mkdir -p logs
+  All 203 tests passed.
+  All 420 tests passed.
+  All 200 tests passed.
 ```
 
-## Examples and experiments
+## "Hello, World" example
 
-**Inside experiments dir** (`cd experiments`):
+TODO
 
-You first have to set the `FLUMINA_TOP` environment variable to point
-at the Flumina directory.
+## Running the baseline experiments (Flink and Timely)
 
-Then run `make` and then `make tests` to make sure that everything is working properly.
-
-### Execute Scenario
-
-Scenarios are just shell scripts and should be executed from the main directory, for example:
-
-```
-scenarios/docker_scenario.sh
-```
+TODO
 
 ## Issues
 
