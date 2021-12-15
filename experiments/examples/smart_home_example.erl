@@ -164,7 +164,7 @@ update0({{a, Id}, Thermo}, {LastPres, MaxSpike, ThermoMap}, _SendTo) ->
 %%
 
 -type state_b() :: {pressure(), pressure_spike()}.
--type tags_b() :: pressure_tag().
+% -type tags_b() :: pressure_tag().
 -type messages_b() :: b_message().
 
 %% To think about: Ideally we would want to not have to rewrite the same update
@@ -178,7 +178,7 @@ update_b({b, Pressure}, {LastPres, MaxSpike}, _SendTo) ->
 %%
 
 -type state_a() :: thermo_map().
--type tags_a() :: thermo_id().
+% -type tags_a() :: thermo_id().
 -type messages_a() :: a_message().
 
 %% To think about: Ideally we would want to not have to rewrite the same update
@@ -217,7 +217,7 @@ split_a({Pred1, Pred2}, ThermoMap) ->
 -spec merge_a(state_a(), state_a()) -> state_a().
 merge_a(ThermoMap1, ThermoMap2) ->
     util:merge_with(
-      fun(_K, V1, V2) ->
+      fun(_K, _V1, _V2) ->
 	      %% There shouldn't be a common key between those
 	      erlang:halt(1)
       end, ThermoMap1, ThermoMap2).

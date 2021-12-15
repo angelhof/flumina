@@ -1,7 +1,11 @@
 -module(increment_decrement_example).
 
-% -export([distributed_experiment/11
-%     	]).
+-export([dependencies/0,
+         init_state/0,
+         update/3,
+         fork/2,
+         join/2
+    	]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("flumina/include/type_definitions.hrl").

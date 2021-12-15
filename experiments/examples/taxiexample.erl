@@ -258,7 +258,7 @@ create_producers(MarkerFun, MarkerTag, Node, ConfTree, Topology) ->
 %% It finds the distance between each two consecutive points of each taxi driver
 %% and then adds them all for each hour
 
-update_id_2({Tag, Position}, DriverPosDists, SendTo) ->
+update_id_2({Tag, Position}, DriverPosDists, _SendTo) ->
     %% SendTo ! {"Time", Ts, Tag, Position, self()},
     {PrevPos, PrevDist} = maps:get(Tag, DriverPosDists),
     Dist = dist(PrevPos, Position),
@@ -270,7 +270,7 @@ update_2({hour, Ts}, DriverPosDists, SendTo) ->
     {_PrevPositions, Distances} = lists:unzip(Values),
     RoundedDistances = [round(D) || D <- Distances],
     SendTo ! {"Distances per rider", maps:from_list(lists:zip(Ids, RoundedDistances)), "Minutes: ", Ts},
-    maps:map(fun(_,{PrevPos, Dist}) -> {PrevPos, 0} end, DriverPosDists);
+    maps:map(fun(_,{PrevPos, _Dist}) -> {PrevPos, 0} end, DriverPosDists);
 update_2(Msg, DriverPosDists, SendTo) ->
     update_id_2(Msg, DriverPosDists, SendTo).
 
@@ -301,7 +301,7 @@ dist({X1, Y1}, {X2, Y2}) ->
     X12 = (X2 - X1) * (X2 - X1),
     Y12 = (Y2 - Y1) * (Y2 - Y1),
     math:sqrt(X12 + Y12);
-dist(undef, {X2, Y2}) ->
+dist(undef, {_X2, _Y2}) ->
     %% This is only here for the first update
     0.
 
@@ -318,7 +318,7 @@ dist(undef, {X2, Y2}) ->
 %% both the window length and slide. Here this is the slide itself so the
 %% implementation is simplified.
 
-update_id_1({Tag, Value}, {TipSums, WindowTips}, SendTo) ->
+update_id_1({Tag, Value}, {TipSums, WindowTips}, _SendTo) ->
     %% This is here for debugging purposes
     %% SendTo ! {"Time", Ts, Tag, Value},
     Tip = maps:get(Tag, TipSums),
@@ -385,7 +385,7 @@ merge_1({TipsMap1, WindowTips1}, {TipsMap2, WindowTips2}) ->
 	       V1 + V2
        end, TipsMap1, TipsMap2),
      util:merge_with(
-       fun(_K, V1, V2) ->
+       fun(_K, _V1, _V2) ->
 	       %% There shouldn't be a common key between those
 	       %% Actually there might be a common key between them
 	       erlang:halt(1)
@@ -408,14 +408,14 @@ init_state_1() ->
 %% This is the update that the parallel nodes will run
 %% It is the same as the other ones, but the parallel
 %% nodes are supposed to have maps for less ids
-update_id({Tag, Value}, TipSums, SendTo) ->
+update_id({Tag, Value}, TipSums, _SendTo) ->
     %% This is here for debugging purposes
     %% SendTo ! {"Time", Ts, Tag, Value, self()},
     Tip = maps:get(Tag, TipSums),
     maps:update(Tag, Tip + Value, TipSums).
 
 %% This is the sequential update of the total
-update({hour, Ts}, TipSums, SendTo) ->
+update({hour, _Ts}, TipSums, SendTo) ->
     SendTo ! {"Tips per rider", TipSums},
     maps:map(fun(_,_) -> 0 end, TipSums);
 update(Msg, TipSums, SendTo) ->
