@@ -355,7 +355,7 @@ add_blocked_producer(From, MboxState) ->
     BlockedProds = MboxState#mb_st.blocked_prods,
     MboxState#mb_st{blocked_prods = [From|BlockedProds]}.
 -else.
-maybe_block_producer(From, MboxState) ->
+maybe_block_producer(_From, MboxState) ->
     {reply, ok, MboxState}.
 -endif.
 

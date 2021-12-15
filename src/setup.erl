@@ -27,7 +27,7 @@ expand_node_setup_info(NodeSetupList) ->
     ).
 
 % -spec generate_node_names(node_setup_info(),atom()) -> [atom()].
-generate_node_names(NodeSetupList,NodeNamePrefix) ->
+generate_node_names(NodeSetupList,_NodeNamePrefix) ->
     lists:flatmap(
         fun({Tag,NumTag,_Rate,_HBRate}) ->
             [atom_to_list(Tag) ++ integer_to_list(Id)
@@ -67,10 +67,10 @@ distributed_setup(Specification, NodeSetupList, Optimizer, RateMultiplier, Repea
     io:format("Setting up edge cluster:~n  Architecture: ~p~n  Other args: ~p~n", [NodeSetupList, [Optimizer, RateMultiplier, RepeatUpdates]]),
     
     %% Nodes and Implementation Tags
-    Tags = generate_implementation_tags(NodeSetupList),
+    _ags = generate_implementation_tags(NodeSetupList),
     TagsWithRates = expand_node_setup_info(NodeSetupList),
     NodeNames = generate_node_names(NodeSetupList,'TODO'),
-    NumNodes = length(TagsWithRates),
+    % _NumNodes = length(TagsWithRates),
     % Sink node (to send output)
     true = register('sink', self()),
     SinkName = {sink, node()},
@@ -86,7 +86,7 @@ distributed_setup(Specification, NodeSetupList, Optimizer, RateMultiplier, Repea
 
     %% Logging and configuration tree
     LogTriple = log_mod:make_num_log_triple(),    
-    ConfTree = conf_gen:generate(Specification, Topology, 
+    _ConfTree = conf_gen:generate(Specification, Topology, 
 				 [{optimizer,Optimizer}, 
 				  {checkpoint, fun conf_gen:always_checkpoint/2},
 				  {log_triple, LogTriple}]),

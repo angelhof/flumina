@@ -15,7 +15,7 @@ generate_setup_tree(Specification, Topology) ->
     NodesRates = conf_gen:get_nodes_rates(Topology),
     MaxRateNode = opt_lib:max_rate_node(NodesRates),
     AllImplTags = conf_gen:get_implementation_tags(Topology),
-    AllTags = [Tag || {Tag, Node} <- AllImplTags],
+    _AllTags = [Tag || {Tag, _Node} <- AllImplTags],
     AllImplTagsSet = sets:from_list(AllImplTags),
     {InitStateType, InitState} = conf_gen:get_init_state(Specification),
     %% Assert that the initial state type can handle all tags

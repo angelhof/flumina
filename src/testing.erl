@@ -21,7 +21,7 @@ test_mf({M, F}, ExpOutput) ->
 test_mfa({M, F}, Args, ExpOutput) ->
     true = register('sink', self()),
     SinkName = {sink, node()},
-    ExecPid = spawn_link(M, F, [SinkName] ++ Args),
+    _ExecPid = spawn_link(M, F, [SinkName] ++ Args),
     test_sink(ExpOutput, testing).
 
 %% This is just a sink function that compares whatever it gets 
@@ -48,7 +48,7 @@ test_sink(ExpOutput, Mode) ->
 	    case ExpOutput of
 		[ExpMsg|ExpRest] when Msg =:= ExpMsg ->
 		    test_sink(ExpRest, Mode);
-		[ExpMsg|ExpRest] ->
+		[ExpMsg|_ExpRest] ->
 		    %% util:err("Test sink: ~p~n", [Msg]),
 		    {error, expected, ExpMsg, got, Msg};
 		[] ->

@@ -167,7 +167,7 @@ maybe_setup_profiling(ConfTree) ->
     eep:start_file_tracing(Filename),
     ok.
 -else.
-maybe_setup_profiling(ConfTree) ->
+maybe_setup_profiling(_ConfTree) ->
     ok.
 -endif.
 
@@ -183,42 +183,42 @@ maybe_stop_profiling(ConfTree) ->
     %% eep:convert_tracing(Filename),
     ok.
 -else.
-maybe_stop_profiling(ConfTree) ->
+maybe_stop_profiling(_ConfTree) ->
     ok.
 -endif.
 
--spec maybe_profile(fun(), [any()]) -> 'ok'.
-maybe_profile(Func, Args) ->
-    case ?PROFILE of
-        true ->
-            apply(Func, Args);
-        false ->
-            ok
-    end.
+% -spec maybe_profile(fun(), [any()]) -> 'ok'.
+% maybe_profile(Func, Args) ->
+%     case ?PROFILE of
+%         true ->
+%             apply(Func, Args);
+%         false ->
+%             ok
+%     end.
 
--spec start_profiler() -> 'ok'.
-start_profiler() ->
-    eprof:start(),
-    Filename =
-        io_lib:format("~s/profiling_~s_~s.log",
-		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
-    eprof:log(Filename).
+% -spec start_profiler() -> 'ok'.
+% start_profiler() ->
+%     eprof:start(),
+%     Filename =
+%         io_lib:format("~s/profiling_~s_~s.log",
+% 		      [?LOG_DIR, pid_to_list(self()), atom_to_list(node())]),
+%     eprof:log(Filename).
 
--spec profile_node_mailbox(configuration()) -> 'ok'.
-profile_node_mailbox(ConfTree) ->
-    %% Find pid of mailbox
-    Self = self(),
-    Node = configuration:find_node(Self, ConfTree),
-    {MboxName, _MboxNode} = configuration:get_mailbox_name_node(Node),
+% -spec profile_node_mailbox(configuration()) -> 'ok'.
+% profile_node_mailbox(ConfTree) ->
+%     %% Find pid of mailbox
+%     Self = self(),
+%     Node = configuration:find_node(Self, ConfTree),
+%     {MboxName, _MboxNode} = configuration:get_mailbox_name_node(Node),
 
-    profiling = eprof:start_profiling([Self, MboxName]),
-    ok.
+%     profiling = eprof:start_profiling([Self, MboxName]),
+%     ok.
 
--spec output_profiling(configuration()) -> 'ok'.
-output_profiling(ConfTree) ->
-    profiling_stopped = eprof:stop_profiling(),
-    eprof:analyze(),
-    profile_node_mailbox(ConfTree).
+% -spec output_profiling(configuration()) -> 'ok'.
+% output_profiling(ConfTree) ->
+%     profiling_stopped = eprof:stop_profiling(),
+%     eprof:analyze(),
+%     profile_node_mailbox(ConfTree).
 
 
 
@@ -244,7 +244,7 @@ log_time_and_number_of_messages_before_producers_spawn(Prefix, NumberOfMessages)
     StatsFilename = "logs/experiment_stats.log",
     %% Log the time before the producers have been spawned and the
     %% number of events that will be sent in total.
-    MonotonicBeforeProducersTimestamp = erlang:monotonic_time(),
+    _MonotonicBeforeProducersTimestamp = erlang:monotonic_time(),
     BeforeProducersTimestamp = ?GET_SYSTEM_TIME(),
     StatsData = io_lib:format("~s -- Time before spawning producers: ~p, Number of messages: ~p~n"
                               "   -- Monotonic time before spawning producers: ~p~n",
