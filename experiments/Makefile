@@ -27,15 +27,15 @@ $(shell [ -d "$(EBIN_DIR)/" ] || mkdir $(EBIN_DIR)/)
 
 .PHONY: all clean
 
+all: $(BEAM_FILES)
+	@(cd examples && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
+		I_DIRS="$(I_DIRS)" LIBRARIES="$(FLUMINA_EBIN)" $@)
+
 ## TODO: Find a better way of doing that rather than having Flumina source in the dialyzer
 dialyzer: all
 	@echo ""
 	@echo " --- --- --- --- DIALYZER --- --- --- --- "
 	dialyzer --src -r examples $(FLUMINA_SRC) $(I_DIRS) -pa $(FLUMINA_EBIN)
-
-all: $(BEAM_FILES)
-	@(cd examples && make EBIN_DIR=../$(EBIN_DIR) ERLC=$(ERLC) ERL_COMPILE_FLAGS="$(ERL_COMPILE_FLAGS)" \
-		I_DIRS="$(I_DIRS)" LIBRARIES="$(FLUMINA_EBIN)" $@)
 
 %.beam: %.erl
 	$(ERLC) $(ERL_COMPILE_FLAGS) $(I_DIRS) -o $(EBIN_DIR) $<
