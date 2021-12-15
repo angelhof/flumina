@@ -51,10 +51,64 @@ mkdir -p logs
 
 TODO
 
-## Running the baseline experiments (Flink and Timely)
+## Notes on the experiments
 
-TODO
+The most recent experiments for Flumina and baselines were run using Amazon AWS EC2 instances,
+with a large amount of custom scripting and work to set up correctly.
+Some local versions can be run, but the full experimental setup would be difficult to replicate.
+For example, clocks have to be synchronized across AWS instances, and this was done by running a Chrony script on all instances (`scripts/setup_chrony.sh`).
+Most of the other experiment scripts for Flumina, Flink, and Timely are in `timely/scripts`.
+This repository also contains some outdated and not-maintained infrastructure for running experiments using the NS3 network simulator and using Docker instances.
+
+The Flink experiments are contained in `/experiments/flink-experiment` (with relevant scripts in `experiments/scripts` and in other directories).
+Unfortunately, we do not have instructions for the Flink experiments at this time (but feel free to post a GitHub issue for your use case, see below).
+
+## Running the Timely experiments locally
+
+The Timely experiments are in `/experiments/timely-experiment` (also with relevant scripts in `experiments/scripts`),
+and they are shipped with a usable CLI.
+Inside that directory, run `cargo build` or `cargo build --release`,
+then `cargo run` or `cargo run --release` for the CLI.
+Be warned that Timely is MUCH faster in release mode for all queries,
+so the `--release` flag is critical for performance experiments.
+A short demo of the CLI:
+
+- The experiments are organized into different examples: `fd` is the fraud-detection example, `vb` is the value-barrier example, and `pv-good` and `pv-bad` are two different implementations of the page-view example. Each command will describe its options if you try running it. For example, running `cargo run --release vb` gives the following expected parameters:
+```
+<val-rate-per-milli>
+<vals-per-hb-per-worker>
+<hbs-per-bar>
+<exp-duration-secs>
+<workers>
+<nodes>
+<this-node>
+```
+  OPTIONAL ADDITIONAL PARAMETER: a final parameter can be added to run multiple experiments in parallel: `s` for single process (default), `l` for multiple nodes locally, and `e` for running with multiple nodes on EC2.
+
+  The most important parameters are the last 4: how long the experiment should run, how many workers and nodes to run (if nodes is more than one, you need to open more than one shell and run on each node), and which node this is (between 0 and number of nodes). For example, here's a plain single-threaded experiment, run for 5 seconds:
+```
+cargo run --release vb 1 10 10 5 1 1 0
+```
+  The experiment returns with the latency and throughput measurements of the experiment. It can also be run with two workers (threads):
+```
+cargo run --release vb 1 10 10 5 2 1 0
+```
+  where the throughput, as expected, doubles, and the latency may go up a bit. Finally it can be run with two processes locally, in two different shells, with two workers each:
+```
+# [in first shell]
+cargo run --release vb 1 10 10 5 2 2 0 l
+# [in second shell]
+cargo run --release vb 1 10 10 5 2 2 1 l
+```
+
+- `exp1`, `exp2`, etc. are pre-set experiments (hardcoded in `main.rs`) which basically run the above for different numbers of workers and numbers of nodes and calculate a whole bunch of different throughputs.
+
+- Finally, The `-gen` versions are experiments which run data generation only, with no data processing.
+They can be useful to see what the input looks like, e.g.:
+```
+cargo run --release vb-gen 1 10 10 1 1 1 0
+```
 
 ## Issues
 
-This is a research prototype implementation in Erlang and is not currently being maintained. However, if you encounter any issues running the code, please post an issue and we will try to take a look.
+This is a research prototype implementation in Erlang and is not currently being maintained. However, if you encounter any issues running the code, please post an issue on GitHub and we will try to take a look.
