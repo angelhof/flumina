@@ -568,6 +568,8 @@ if __name__ == '__main__':
     plt.rcParams['mathtext.fontset'] = 'stix'
     plt.rcParams['font.family'] = 'STIXGeneral'
 
+    plt.rcParams['pdf.fonttype'] = 42
+
     ## Plot Scaleup for flumina
     plot_all_relative_max_throughputs_flumina('../../experiment_results_archive/archive')
     plot_all_relative_max_throughputs_flink()
